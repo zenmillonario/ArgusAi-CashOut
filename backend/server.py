@@ -741,11 +741,25 @@ async def create_message(message_data: MessageCreate):
     
     # Send push notification only if message is from admin
     if user.get("is_admin"):
-        await manager.send_admin_notification(json.dumps({
-            "type": "admin_message",
-            "message": f"Admin {user['username']}: {message_data.content}",
-            "data": message.dict()
-        }, default=str))
+        print(f"📢 Admin message from {user['username']}: {message_data.content}")
+        
+        # Send specific admin notification to all non-admin users
+        non_admin_users = await db.users.find({"is_admin": {"$ne": True}, "is_online": True}).to_list(1000)
+        
+        for non_admin_user in non_admin_users:
+            if non_admin_user["id"] in manager.user_connections:
+                try:
+                    await manager.user_connections[non_admin_user["id"]].send_text(json.dumps({
+                        "type": "admin_notification",
+                        "message": f"Admin {user['real_name'] or user['username']}: {message_data.content}",
+                        "admin_username": user['username'],
+                        "admin_real_name": user.get('real_name'),
+                        "content": message_data.content
+                    }, default=str))
+                    print(f"🔔 Sent admin notification to user: {non_admin_user['username']}")
+                except Exception as e:
+                    print(f"Failed to send admin notification to {non_admin_user['username']}: {e}")
+                    pass
     
     return message
 
