@@ -98,6 +98,8 @@ class User(BaseModel):
     average_gain: float = 0.0
     is_online: bool = False  # NEW: Online status
     last_seen: Optional[datetime] = None  # NEW: Last seen timestamp
+    active_session_id: Optional[str] = None  # NEW: Single active session tracking
+    session_created_at: Optional[datetime] = None  # NEW: Session timestamp
     created_at: datetime = Field(default_factory=datetime.utcnow)
     approved_at: Optional[datetime] = None
     approved_by: Optional[str] = None
