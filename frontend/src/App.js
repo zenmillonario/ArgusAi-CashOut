@@ -550,11 +550,32 @@ function App() {
               : 'bg-white/90 border-gray-200 shadow-xl'
           }`}>
             <div className="text-center mb-8">
+              {/* Team Logo */}
+              <div className="flex justify-center mb-6">
+                <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-blue-500/30 shadow-lg">
+                  <img 
+                    src="https://images.pexels.com/photos/9577222/pexels-photo-9577222.jpeg" 
+                    alt="CashoutAI Team Logo" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                  <div className="w-full h-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-2xl hidden">
+                    💰
+                  </div>
+                </div>
+              </div>
+              
               <h1 className={`text-3xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
                 💰 CashoutAI
               </h1>
               <p className={`mt-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
                 Trading Community Chat
+              </p>
+              <p className={`text-sm mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                Professional Trading Team Platform
               </p>
             </div>
             
