@@ -76,6 +76,13 @@ function App() {
 
   // Load saved user on app start
   useEffect(() => {
+    // Check if this is a request for the widget page
+    if (window.location.pathname === '/cashoutai-button-widget.html') {
+      // Redirect to the actual widget page
+      window.location.href = '/cashoutai-button-widget.html';
+      return;
+    }
+    
     const savedUser = localStorage.getItem('cashoutai_user');
     if (savedUser) {
       try {
