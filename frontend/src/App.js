@@ -627,6 +627,17 @@ function App() {
             </div>
             
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Error Display */}
+              {error && (
+                <div className={`p-3 rounded-lg border ${
+                  isDarkTheme 
+                    ? 'bg-red-500/10 border-red-500/30 text-red-400' 
+                    : 'bg-red-50 border-red-200 text-red-600'
+                }`}>
+                  <p className="text-sm">{error}</p>
+                </div>
+              )}
+              
               <div>
                 <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                   Username
