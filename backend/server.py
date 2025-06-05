@@ -584,6 +584,19 @@ async def login_user(login_data: UserLogin):
     
     return user_obj
 
+@api_router.get("/users/{user_id}/session-status")
+async def check_session_status(user_id: str, session_id: str):
+    """Check if a user's session is still valid"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    is_valid = user.get("active_session_id") == session_id
+    return {
+        "valid": is_valid,
+        "message": "Session is valid" if is_valid else "Session is invalid or expired"
+    }
+
 @api_router.post("/users/logout")
 async def logout_user(user_id: str):
     """Update user offline status and clear session"""
