@@ -705,6 +705,9 @@ function App() {
                 <h1 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
                   CashoutAI
                 </h1>
+                <span className={`text-xs italic ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}`}>
+                  Trade Together, Win Together
+                </span>
               </div>
               
               <div className="flex items-center space-x-2">
