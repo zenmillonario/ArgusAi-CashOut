@@ -552,7 +552,7 @@ function App() {
             <div className="text-center mb-8">
               {/* Team Logo */}
               <div className="flex justify-center mb-6">
-                <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-500/30 shadow-lg bg-gradient-to-br from-blue-900 to-purple-900">
+                <div className="w-32 h-32 rounded-xl overflow-hidden border-4 border-blue-500/30 shadow-2xl bg-gradient-to-br from-blue-900 to-purple-900">
                   <img 
                     src="https://i.imgur.com/ZPYCiyg.png" 
                     alt="CashoutAI Team Logo" 
@@ -562,7 +562,7 @@ function App() {
                       e.target.nextSibling.style.display = 'flex';
                     }}
                   />
-                  <div className="w-full h-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-2xl hidden">
+                  <div className="w-full h-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-4xl hidden">
                     💰
                   </div>
                 </div>
