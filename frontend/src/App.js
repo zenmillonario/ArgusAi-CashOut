@@ -1088,17 +1088,40 @@ function App() {
             {/* Action Buttons */}
             <div className="flex items-center space-x-4">
               {activeTab === 'chat' && (
-                <button
-                  onClick={() => setShowSearch(!showSearch)}
-                  className={`p-2 rounded-lg transition-colors ${
-                    isDarkTheme 
-                      ? 'bg-white/10 text-gray-300 hover:bg-white/20' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  title="Search messages"
-                >
-                  🔍
-                </button>
+                <>
+                  <button
+                    onClick={() => setShowSearch(!showSearch)}
+                    className={`p-2 rounded-lg transition-colors ${
+                      isDarkTheme 
+                        ? 'bg-white/10 text-gray-300 hover:bg-white/20' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    title="Search messages"
+                  >
+                    🔍
+                  </button>
+                  
+                  {/* Test Notification Button - Remove after testing */}
+                  <button
+                    onClick={() => {
+                      console.log('🧪 Testing notification...');
+                      playNotificationSound();
+                      showBrowserNotification(
+                        '💰 CashoutAI - Test Notification',
+                        'This is a test notification to check if sound and push notifications work!',
+                        true
+                      );
+                    }}
+                    className={`p-2 rounded-lg transition-colors text-xs ${
+                      isDarkTheme 
+                        ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30' 
+                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    }`}
+                    title="Test notification"
+                  >
+                    🔔
+                  </button>
+                </>
               )}
               
               <button
