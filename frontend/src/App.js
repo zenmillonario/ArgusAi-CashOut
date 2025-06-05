@@ -80,8 +80,18 @@ function App() {
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
-        setCurrentUser(user);
-        setShowLogin(false);
+        // Check if session is still valid (not older than 24 hours)
+        const sessionAge = user.session_created_at ? 
+          (Date.now() - new Date(user.session_created_at).getTime()) / (1000 * 60 * 60) : 
+          25; // Default to expired if no session timestamp
+        
+        if (sessionAge < 24 && user.active_session_id) {
+          setCurrentUser(user);
+          setShowLogin(false);
+        } else {
+          // Session expired, clear storage
+          localStorage.removeItem('cashoutai_user');
+        }
       } catch (error) {
         console.error('Error loading saved user:', error);
         localStorage.removeItem('cashoutai_user');
