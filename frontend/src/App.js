@@ -801,7 +801,7 @@ function App() {
       <div className={`border-b ${isDarkTheme ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white/80'} backdrop-blur-lg`}>
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-3">
                 {/* Team Logo in Header */}
                 <div className="w-12 h-12 rounded-lg overflow-hidden border-2 border-blue-500/30 bg-gradient-to-br from-blue-900 to-purple-900 shadow-lg">
@@ -819,12 +819,14 @@ function App() {
                   </div>
                 </div>
                 
-                <h1 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                  CashoutAI
-                </h1>
-                <span className={`text-xs italic ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}`}>
-                  Trade Together, Win Together
-                </span>
+                <div>
+                  <h1 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                    CashoutAI
+                  </h1>
+                  <span className={`text-xs italic ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}`}>
+                    Trade Together, Win Together
+                  </span>
+                </div>
               </div>
               
               <div className="flex items-center space-x-2">
@@ -835,8 +837,8 @@ function App() {
               </div>
             </div>
             
-            {/* Navigation Tabs - FIXED FOR LIGHT THEME */}
-            <div className="flex space-x-1">
+            {/* Desktop Navigation Tabs - Hidden on Mobile */}
+            <div className="hidden md:flex space-x-1">
               {['chat', 'portfolio', 'practice', 'favorites', 'profile'].map((tab) => (
                 <button
                   key={tab}
@@ -900,7 +902,7 @@ function App() {
                 {isDarkTheme ? '☀️' : '🌙'}
               </button>
               
-              <div className="text-right">
+              <div className="text-right hidden sm:block">
                 <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
                   {currentUser?.real_name || currentUser?.username}
                 </div>
@@ -921,8 +923,8 @@ function App() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto p-4 h-[calc(100vh-80px)]">
+      {/* Main Content - Adjusted for bottom navigation on mobile */}
+      <div className="max-w-6xl mx-auto p-4 h-[calc(100vh-80px)] pb-20 md:pb-4">{/* Added bottom padding for mobile nav */}
         
         {/* Chat Tab */}
         {activeTab === 'chat' && (
