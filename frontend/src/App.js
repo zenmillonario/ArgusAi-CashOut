@@ -146,22 +146,79 @@ function App() {
   };
 
   const playNotificationSound = () => {
-    // Create a simple notification sound
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-    oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.5);
+    try {
+      // Create a more prominent notification sound
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Create a more attention-grabbing sound pattern
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1);
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.6);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.6);
+      
+      console.log('🔔 Notification sound played');
+    } catch (error) {
+      console.error('Error playing notification sound:', error);
+    }
   };
+
+  const showBrowserNotification = (title, message, isAdmin = false) => {
+    // Check if notifications are supported
+    if (!("Notification" in window)) {
+      console.log("This browser does not support notifications");
+      return;
+    }
+
+    // Only show notifications for admin messages
+    if (!isAdmin) {
+      return;
+    }
+
+    // Check notification permission
+    if (Notification.permission === "granted") {
+      const notification = new Notification(title, {
+        body: message,
+        icon: "https://i.imgur.com/ZPYCiyg.png", // Your AI peacock logo
+        badge: "https://i.imgur.com/ZPYCiyg.png",
+        tag: "cashoutai-admin",
+        requireInteraction: true,
+        silent: false
+      });
+
+      // Auto close after 5 seconds
+      setTimeout(() => {
+        notification.close();
+      }, 5000);
+
+      console.log('🔔 Browser notification shown');
+    } else if (Notification.permission !== "denied") {
+      // Request permission
+      Notification.requestPermission().then((permission) => {
+        if (permission === "granted") {
+          showBrowserNotification(title, message, isAdmin);
+        }
+      });
+    }
+  };
+
+  // Request notification permission on app load
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().then((permission) => {
+        console.log('Notification permission:', permission);
+      });
+    }
+  }, []);
 
   const addReaction = (messageId, reaction) => {
     // For now, just show an alert - in a full implementation, this would save to backend
