@@ -73,6 +73,22 @@ function App() {
     }
   }, [messages, searchQuery]);
 
+  // Load saved user on app start
+  useEffect(() => {
+    const savedUser = localStorage.getItem('cashoutai_user');
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        setCurrentUser(user);
+        setShowLogin(false);
+      } catch (error) {
+        console.error('Error loading saved user:', error);
+        localStorage.removeItem('cashoutai_user');
+      }
+    }
+    setIsLoading(false);
+  }, []);
+
   // Load theme preference
   useEffect(() => {
     const savedTheme = localStorage.getItem('cashoutai_theme');
