@@ -574,6 +574,9 @@ function App() {
               <p className={`mt-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
                 Trading Community Chat
               </p>
+              <p className={`text-lg font-semibold mt-3 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent`}>
+                "Trade Together, Win Together"
+              </p>
               <p className={`text-sm mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
                 Professional Trading Team Platform
               </p>
