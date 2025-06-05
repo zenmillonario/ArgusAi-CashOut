@@ -682,9 +682,27 @@ function App() {
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
-              <h1 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                💰 CashoutAI
-              </h1>
+              <div className="flex items-center space-x-3">
+                {/* Team Logo in Header */}
+                <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-blue-500/30">
+                  <img 
+                    src="https://images.pexels.com/photos/9577222/pexels-photo-9577222.jpeg" 
+                    alt="CashoutAI Logo" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                  <div className="w-full h-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs hidden">
+                    💰
+                  </div>
+                </div>
+                
+                <h1 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                  CashoutAI
+                </h1>
+              </div>
               
               <div className="flex items-center space-x-2">
                 <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
