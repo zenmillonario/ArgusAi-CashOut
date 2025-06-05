@@ -14,9 +14,10 @@ function App() {
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [showLogin, setShowLogin] = useState(true);
-  const [loginForm, setLoginForm] = useState({ username: '', email: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ username: '', email: '', password: '', real_name: '' });
   const [isRegistering, setIsRegistering] = useState(false);
   const [pendingUsers, setPendingUsers] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [activeTab, setActiveTab] = useState('chat');
   const [userTrades, setUserTrades] = useState([]);
@@ -32,7 +33,8 @@ function App() {
   const [editProfileForm, setEditProfileForm] = useState({
     username: '',
     email: '',
-    avatar_url: ''
+    real_name: '',
+    screen_name: ''
   });
   const [passwordForm, setPasswordForm] = useState({
     current_password: '',
@@ -61,6 +63,7 @@ function App() {
       const filtered = messages.filter(message =>
         message.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
         message.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (message.real_name && message.real_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
         message.highlighted_tickers.some(ticker => 
           ticker.toLowerCase().includes(searchQuery.toLowerCase())
         )
@@ -153,126 +156,45 @@ function App() {
         setIsConnected(true);
         console.log('WebSocket connected successfully');
         // Send a heartbeat to establish connection
-        ws.send(JSON.stringify({ type: 'heartbeat', message: 'ping' }));
+        ws.send(JSON.stringify({ type: 'heartbeat', message: 'Hello' }));
       };
-
+      
       ws.onmessage = (event) => {
-        console.log('WebSocket message received:', event.data);
-        // Any message received means connection is active
-        setIsConnected(true);
-        
         try {
           const data = JSON.parse(event.data);
+          console.log('WebSocket message received:', data);
           
-          if (data.type === 'connection' || data.type === 'heartbeat') {
-            // Connection confirmed
-            setIsConnected(true);
-            console.log('WebSocket connection confirmed');
-          } else if (data.type === 'message') {
+          if (data.type === 'message') {
             setMessages(prev => [...prev, data.data]);
-            // Play sound notification for admin messages
-            if (data.data.is_admin && currentUser.id !== data.data.user_id) {
-              playNotificationSound();
-              
-              // Show browser notification for admin messages
-              if (Notification.permission === 'granted') {
-                new Notification(`Admin: ${data.data.username}`, {
-                  body: data.data.content,
-                  icon: data.data.avatar_url || '/favicon.ico'
-                });
-              }
-            }
-          } else if (data.type === 'new_registration' && currentUser.is_admin) {
-            // Show notification for admins
-            if (Notification.permission === 'granted') {
-              new Notification('New User Registration', {
-                body: data.message,
-                icon: '/favicon.ico'
-              });
-            }
-            loadPendingUsers();
-          } else if (data.type === 'user_approval' && currentUser.is_admin) {
-            if (Notification.permission === 'granted') {
-              new Notification('User Status Updated', {
-                body: data.message,
-                icon: '/favicon.ico'
-              });
-            }
-            loadPendingUsers();
+          } else if (data.type === 'admin_message' && currentUser?.is_admin) {
+            // Play notification sound for admin messages
+            playNotificationSound();
           }
-        } catch (error) {
-          console.log('WebSocket message (raw):', event.data);
-          // Even if message parsing fails, connection is working
-          setIsConnected(true);
+        } catch (e) {
+          console.error('Error parsing WebSocket message:', e);
         }
-        
-        // Send periodic heartbeat to keep connection alive
-        setTimeout(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'heartbeat', message: 'ping' }));
-          }
-        }, 30000); // Every 30 seconds
       };
-
+      
+      ws.onclose = () => {
+        setIsConnected(false);
+        console.log('WebSocket disconnected');
+        wsRef.current = null;
+      };
+      
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
         setIsConnected(false);
       };
-
-      ws.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
-        setIsConnected(false);
-        wsRef.current = null;
-        
-        // Auto-reconnect after 3 seconds if not manual close
-        if (event.code !== 1000 && currentUser) {
-          setTimeout(() => {
-            console.log('Attempting to reconnect WebSocket...');
-            // Trigger reconnection by clearing the ref
-          }, 3000);
-        }
-      };
-
+      
       wsRef.current = ws;
     }
-
+    
     return () => {
       if (wsRef.current) {
-        wsRef.current.close(1000, 'Component unmounted');
+        wsRef.current.close();
         wsRef.current = null;
       }
     };
-  }, [currentUser]);
-
-  // Request notification permission
-  useEffect(() => {
-    if (currentUser && Notification.permission === 'default') {
-      Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-          console.log('Notifications enabled for admin alerts and sound notifications');
-        }
-      });
-    }
-  }, [currentUser]);
-
-  // Load data on login
-  useEffect(() => {
-    if (currentUser) {
-      loadMessages();
-      loadUserTrades();
-      loadOpenPositions();
-      loadUserPerformance();
-      if (currentUser.is_admin) {
-        loadPendingUsers();
-      }
-      
-      // Set up interval to refresh positions every 30 seconds
-      const interval = setInterval(() => {
-        loadOpenPositions();
-      }, 30000);
-      
-      return () => clearInterval(interval);
-    }
   }, [currentUser]);
 
   const loadMessages = async () => {
@@ -285,80 +207,85 @@ function App() {
   };
 
   const loadPendingUsers = async () => {
-    try {
-      const response = await axios.get(`${API}/users/pending`);
-      setPendingUsers(response.data);
-    } catch (error) {
-      console.error('Error loading pending users:', error);
+    if (currentUser?.is_admin) {
+      try {
+        const response = await axios.get(`${API}/users/pending`);
+        setPendingUsers(response.data);
+      } catch (error) {
+        console.error('Error loading pending users:', error);
+      }
     }
   };
 
-  const loadUserTrades = async () => {
+  const loadAllUsers = async () => {
+    if (currentUser?.is_admin) {
+      try {
+        const response = await axios.get(`${API}/users`);
+        setAllUsers(response.data);
+      } catch (error) {
+        console.error('Error loading all users:', error);
+      }
+    }
+  };
+
+  const loadUserData = async () => {
     if (!currentUser) return;
+    
     try {
-      const response = await axios.get(`${API}/trades/${currentUser.id}`);
-      setUserTrades(response.data);
+      // Load trades
+      const tradesResponse = await axios.get(`${API}/trades/${currentUser.id}`);
+      setUserTrades(tradesResponse.data);
+      
+      // Load performance
+      const performanceResponse = await axios.get(`${API}/users/${currentUser.id}/performance`);
+      setUserPerformance(performanceResponse.data);
+      
+      // Load positions
+      const positionsResponse = await axios.get(`${API}/positions/${currentUser.id}`);
+      setOpenPositions(positionsResponse.data);
     } catch (error) {
-      console.error('Error loading trades:', error);
+      console.error('Error loading user data:', error);
     }
   };
 
-  const loadOpenPositions = async () => {
-    if (!currentUser) return;
-    try {
-      const response = await axios.get(`${API}/positions/${currentUser.id}`);
-      setOpenPositions(response.data);
-    } catch (error) {
-      console.error('Error loading positions:', error);
+  useEffect(() => {
+    if (currentUser) {
+      loadMessages();
+      loadUserData();
+      loadPendingUsers();
+      loadAllUsers();
     }
-  };
+  }, [currentUser]);
 
-  const closePosition = async (positionId, symbol) => {
-    if (!window.confirm(`Are you sure you want to close your ${symbol} position at current market price?`)) {
-      return;
-    }
-
-    try {
-      const response = await axios.post(`${API}/positions/${positionId}/close?user_id=${currentUser.id}`);
-      alert(`Position closed! Realized P&L: $${response.data.realized_pnl}`);
-      loadOpenPositions();
-      loadUserTrades();
-      loadUserPerformance();
-    } catch (error) {
-      alert(error.response?.data?.detail || 'Error closing position');
-    }
-  };
-
-  const loadUserPerformance = async () => {
-    if (!currentUser) return;
-    try {
-      const response = await axios.get(`${API}/users/${currentUser.id}/performance`);
-      setUserPerformance(response.data);
-    } catch (error) {
-      console.error('Error loading performance:', error);
-    }
-  };
-
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
     try {
-      let response;
       if (isRegistering) {
-        response = await axios.post(`${API}/users/register`, loginForm);
-        alert('Registration successful! Please wait for admin approval before you can login.');
+        // Registration
+        const response = await axios.post(`${API}/users/register`, {
+          username: loginForm.username,
+          email: loginForm.email,
+          real_name: loginForm.real_name,
+          password: loginForm.password
+        });
+        
+        alert('Registration successful! Please wait for admin approval.');
         setIsRegistering(false);
-        setLoginForm({ username: '', email: '', password: '' });
-        return;
+        setLoginForm({ username: '', email: '', password: '', real_name: '' });
       } else {
-        response = await axios.post(`${API}/users/login`, {
+        // Login
+        const response = await axios.post(`${API}/users/login`, {
           username: loginForm.username,
           password: loginForm.password
         });
+        
+        setCurrentUser(response.data);
+        setShowLogin(false);
+        setLoginForm({ username: '', email: '', password: '', real_name: '' });
       }
-      setCurrentUser(response.data);
-      setShowLogin(false);
     } catch (error) {
-      alert(error.response?.data?.detail || 'Login failed');
+      alert(error.response?.data?.detail || 'An error occurred');
     }
   };
 
@@ -367,39 +294,71 @@ function App() {
       await axios.post(`${API}/users/approve`, {
         user_id: userId,
         approved: approved,
-        admin_id: currentUser.id
+        admin_id: currentUser.id,
+        role: "member"
       });
+      
+      // Reload pending users
       loadPendingUsers();
+      loadAllUsers();
+      
+      alert(`User ${approved ? 'approved' : 'rejected'} successfully`);
     } catch (error) {
       alert(error.response?.data?.detail || 'Error processing approval');
     }
   };
 
+  const handleUserRoleChange = async (userId, newRole) => {
+    try {
+      await axios.post(`${API}/users/${userId}/role`, {
+        user_id: userId,
+        role: newRole,
+        admin_id: currentUser.id
+      });
+      
+      loadAllUsers();
+      alert('User role updated successfully');
+    } catch (error) {
+      alert(error.response?.data?.detail || 'Error updating user role');
+    }
+  };
+
+  const handleUserRemoval = async (userId) => {
+    if (!window.confirm('Are you sure you want to remove this user?')) return;
+    
+    try {
+      await axios.delete(`${API}/users/${userId}?admin_id=${currentUser.id}`);
+      loadAllUsers();
+      alert('User removed successfully');
+    } catch (error) {
+      alert(error.response?.data?.detail || 'Error removing user');
+    }
+  };
+
   const sendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !currentUser) return;
+    if (!newMessage.trim()) return;
 
     try {
       await axios.post(`${API}/messages`, {
         content: newMessage,
+        content_type: "text",
         user_id: currentUser.id
       });
+      
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
-      if (error.response?.status === 403) {
-        alert('Only approved users can send messages');
-      }
+      alert('Error sending message');
     }
   };
 
   const submitTrade = async (e) => {
     e.preventDefault();
-    if (!tradeForm.symbol || !tradeForm.quantity || !tradeForm.price) return;
-
+    
     try {
       await axios.post(`${API}/trades?user_id=${currentUser.id}`, {
-        symbol: tradeForm.symbol.toUpperCase(),
+        symbol: tradeForm.symbol,
         action: tradeForm.action,
         quantity: parseInt(tradeForm.quantity),
         price: parseFloat(tradeForm.price),
@@ -408,6 +367,7 @@ function App() {
         take_profit: tradeForm.take_profit ? parseFloat(tradeForm.take_profit) : null
       });
       
+      // Reset form
       setTradeForm({
         symbol: '',
         action: 'BUY',
@@ -418,50 +378,78 @@ function App() {
         take_profit: ''
       });
       
-      // Show success message
-      const tradeValue = (parseInt(tradeForm.quantity) * parseFloat(tradeForm.price)).toFixed(2);
-      alert(`✅ Trade recorded successfully!\n${tradeForm.action} ${tradeForm.quantity} ${tradeForm.symbol.toUpperCase()} at $${tradeForm.price}\nTotal value: $${tradeValue}`);
+      // Reload user data
+      loadUserData();
       
-      loadUserTrades();
-      loadOpenPositions();
-      loadUserPerformance();
+      alert('Trade recorded successfully!');
     } catch (error) {
-      alert(error.response?.data?.detail || 'Error recording trade');
+      console.error('Error submitting trade:', error);
+      alert('Error submitting trade');
+    }
+  };
+
+  const closePosition = async (positionId, symbol) => {
+    if (!window.confirm(`Close position for ${symbol}?`)) return;
+    
+    try {
+      const response = await axios.post(`${API}/positions/${positionId}/close?user_id=${currentUser.id}`);
+      alert(`Position closed. P&L: $${response.data.realized_pnl}`);
+      loadUserData();
+    } catch (error) {
+      console.error('Error closing position:', error);
+      alert('Error closing position');
+    }
+  };
+
+  const handlePositionAction = async (positionId, action, quantity = null, price = null) => {
+    try {
+      const response = await axios.post(`${API}/positions/${positionId}/action?user_id=${currentUser.id}`, {
+        action: action,
+        quantity: quantity,
+        price: price
+      });
+      
+      alert(response.data.message);
+      loadUserData();
+    } catch (error) {
+      console.error('Error with position action:', error);
+      alert('Error processing action');
     }
   };
 
   const formatMessageContent = (content, tickers) => {
-    if (!tickers || tickers.length === 0) return content;
-    
     let formattedContent = content;
+    
+    // Highlight stock tickers
     tickers.forEach(ticker => {
       const regex = new RegExp(`\\$${ticker}`, 'gi');
-      formattedContent = formattedContent.replace(regex, `<span class="stock-ticker">$${ticker}</span>`);
+      formattedContent = formattedContent.replace(regex, `<span class="ticker-highlight">$${ticker}</span>`);
     });
     
     return formattedContent;
   };
 
-  const updateProfile = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await axios.put(`${API}/users/${currentUser.id}/profile`, editProfileForm);
-      setCurrentUser(response.data);
-      setShowEditProfile(false);
-      alert('Profile updated successfully!');
-    } catch (error) {
-      alert(error.response?.data?.detail || 'Error updating profile');
-    }
+  const openEditProfile = () => {
+    setEditProfileForm({
+      username: currentUser.username,
+      email: currentUser.email,
+      real_name: currentUser.real_name || '',
+      screen_name: currentUser.screen_name || ''
+    });
+    setShowEditProfile(true);
   };
 
-  const updateAvatar = async (avatarUrl) => {
-    try {
-      await axios.post(`${API}/users/${currentUser.id}/avatar?avatar_url=${encodeURIComponent(avatarUrl)}`);
-      setCurrentUser({...currentUser, avatar_url: avatarUrl});
-      setEditProfileForm({...editProfileForm, avatar_url: avatarUrl});
-      alert('Avatar updated successfully!');
-    } catch (error) {
-      alert(error.response?.data?.detail || 'Error updating avatar');
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setAvatarFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setAvatarPreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -476,13 +464,35 @@ function App() {
         }
       });
       
-      setCurrentUser({...currentUser, avatar_url: response.data.avatar_url});
+      // Update current user with new avatar
+      setCurrentUser(prev => ({
+        ...prev,
+        avatar_url: response.data.avatar_url
+      }));
+      
       setAvatarFile(null);
       setAvatarPreview(null);
-      setShowEditProfile(false);
-      alert('Profile picture uploaded successfully!');
+      
+      alert('Profile picture updated successfully!');
     } catch (error) {
-      alert(error.response?.data?.detail || 'Error uploading avatar');
+      console.error('Error uploading avatar:', error);
+      alert('Error uploading profile picture');
+    }
+  };
+
+  const updateProfile = async (e) => {
+    e.preventDefault();
+    
+    try {
+      const response = await axios.put(`${API}/users/${currentUser.id}/profile`, editProfileForm);
+      
+      setCurrentUser(response.data);
+      setShowEditProfile(false);
+      
+      alert('Profile updated successfully!');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert(error.response?.data?.detail || 'Error updating profile');
     }
   };
 
@@ -494,65 +504,36 @@ function App() {
       return;
     }
     
-    if (passwordForm.new_password.length < 6) {
-      alert('New password must be at least 6 characters long');
-      return;
-    }
-    
     try {
       await axios.post(`${API}/users/${currentUser.id}/change-password`, {
         current_password: passwordForm.current_password,
         new_password: passwordForm.new_password
       });
       
+      setShowChangePassword(false);
       setPasswordForm({
         current_password: '',
         new_password: '',
         confirm_password: ''
       });
-      setShowChangePassword(false);
+      
       alert('Password changed successfully!');
     } catch (error) {
+      console.error('Error changing password:', error);
       alert(error.response?.data?.detail || 'Error changing password');
     }
   };
 
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 1024 * 1024) { // 1MB limit
-        alert('File size must be less than 1MB');
-        return;
-      }
-      
-      if (!file.type.startsWith('image/')) {
-        alert('File must be an image');
-        return;
-      }
-      
-      setAvatarFile(file);
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (e) => setAvatarPreview(e.target.result);
-      reader.readAsDataURL(file);
+  const logout = async () => {
+    try {
+      await axios.post(`${API}/users/logout?user_id=${currentUser.id}`);
+    } catch (error) {
+      console.error('Error during logout:', error);
     }
-  };
-
-  const openEditProfile = () => {
-    setEditProfileForm({
-      username: currentUser.username,
-      email: currentUser.email,
-      avatar_url: currentUser.avatar_url || ''
-    });
-    setShowEditProfile(true);
-  };
-
-  const logout = () => {
+    
     setCurrentUser(null);
     setShowLogin(true);
     setMessages([]);
-    setActiveTab('chat');
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -561,195 +542,184 @@ function App() {
 
   if (showLogin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 w-full max-w-md border border-white/20">
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <img 
-                src="https://i.imgur.com/ZPYCiyg.png" 
-                alt="CashOutAi Peacock Logo" 
-                className="w-20 h-20 rounded-xl border-2 border-blue-400/50 mr-4 bg-white/10 p-1"
-                onError={(e) => {
-                  e.target.src = 'https://i.imgur.com/ZPYCiyg.jpg';
-                  e.target.onerror = () => {
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'flex';
-                  };
-                }}
-              />
-              <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-3xl border-2 border-blue-400/50 mr-4 hidden">
-                🦚
-              </div>
-              <div>
-                <h1 className="text-4xl font-bold text-white mb-2">CashOutAi</h1>
-              </div>
-            </div>
-            <p className="text-gray-300">Trade Together, Win Together</p>
-            <p className="text-sm text-yellow-400 mt-2">Private Trading Team</p>
-          </div>
-          
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <input
-                type="text"
-                placeholder="Username"
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={loginForm.username}
-                onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
-                required
-              />
+      <div className={`min-h-screen ${isDarkTheme ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
+        <div className="flex items-center justify-center min-h-screen p-4">
+          <div className={`w-full max-w-md backdrop-blur-lg rounded-2xl border p-8 ${
+            isDarkTheme 
+              ? 'bg-white/10 border-white/20' 
+              : 'bg-white/90 border-gray-200 shadow-xl'
+          }`}>
+            <div className="text-center mb-8">
+              <h1 className={`text-3xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                💰 CashoutAI
+              </h1>
+              <p className={`mt-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
+                Trading Community Chat
+              </p>
             </div>
             
-            {isRegistering && (
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div>
+                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Username
+                </label>
                 <input
-                  type="email"
-                  placeholder="Email"
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={loginForm.email}
-                  onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
+                  type="text"
+                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDarkTheme 
+                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                  }`}
+                  value={loginForm.username}
+                  onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
                   required
                 />
               </div>
-            )}
-            
-            <div>
-              <input
-                type="password"
-                placeholder="Password"
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={loginForm.password}
-                onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                required
-              />
-            </div>
-            
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
-            >
-              {isRegistering ? 'Register' : 'Login'}
-            </button>
-          </form>
-          
-          <div className="text-center mt-4">
-            <button
-              onClick={() => setIsRegistering(!isRegistering)}
-              className="text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              {isRegistering ? 'Already have an account? Login' : "Don't have an account? Register"}
-            </button>
+              
+              {isRegistering && (
+                <>
+                  <div>
+                    <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Real Name
+                    </label>
+                    <input
+                      type="text"
+                      className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        isDarkTheme 
+                          ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                          : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                      }`}
+                      value={loginForm.real_name}
+                      onChange={(e) => setLoginForm({...loginForm, real_name: e.target.value})}
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        isDarkTheme 
+                          ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                          : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                      }`}
+                      value={loginForm.email}
+                      onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+              
+              <div>
+                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Password
+                </label>
+                <input
+                  type="password"
+                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDarkTheme 
+                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                  }`}
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                  required
+                />
+              </div>
+              
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
+              >
+                {isRegistering ? 'Register' : 'Login'}
+              </button>
+              
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setIsRegistering(!isRegistering)}
+                  className={`${isDarkTheme ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} transition-colors`}
+                >
+                  {isRegistering ? 'Already have an account? Login' : "Don't have an account? Register"}
+                </button>
+              </div>
+            </form>
           </div>
-          
-          {isRegistering && (
-            <div className="mt-4 p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
-              <p className="text-yellow-300 text-sm text-center">
-                Registration requires admin approval for this private team
-              </p>
-            </div>
-          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`min-h-screen ${isDarkTheme ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900' : 'bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50'}`}>
+    <div className={`min-h-screen ${isDarkTheme ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
       {/* Header */}
-      <div className="bg-black/20 backdrop-blur-lg border-b border-white/10 p-4">
-        <div className="flex items-center justify-between max-w-6xl mx-auto">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3">
-              <img 
-                src="https://i.imgur.com/ZPYCiyg.png" 
-                alt="CashOutAi Peacock Logo" 
-                className="w-10 h-10 rounded-lg border border-blue-400/50 bg-white/10 p-0.5"
-                onError={(e) => {
-                  e.target.src = 'https://i.imgur.com/ZPYCiyg.jpg';
-                  e.target.onerror = () => {
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'flex';
-                  };
-                }}
-              />
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg border border-blue-400/50 hidden">
-                🦚
+      <div className={`border-b ${isDarkTheme ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white/80'} backdrop-blur-lg`}>
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-6">
+              <h1 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                💰 CashoutAI
+              </h1>
+              
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                <span className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {isConnected ? 'Connected' : 'Disconnected'}
+                </span>
               </div>
-              <h1 className="text-2xl font-bold text-white">CashOutAi</h1>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className="text-sm text-gray-300">
-                {isConnected ? 'Connected' : 'Disconnected'}
-              </span>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            {/* Tab Navigation */}
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setActiveTab('chat')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  activeTab === 'chat' ? 'bg-blue-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                }`}
-              >
-                Chat
-              </button>
-              <button
-                onClick={() => setActiveTab('practice')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  activeTab === 'practice' ? 'bg-blue-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                }`}
-              >
-                Practice
-              </button>
-              <button
-                onClick={() => setActiveTab('portfolio')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  activeTab === 'portfolio' ? 'bg-blue-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                }`}
-              >
-                Portfolio
-              </button>
-              <button
-                onClick={() => setActiveTab('favorites')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  activeTab === 'favorites' ? 'bg-blue-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                }`}
-              >
-                Favorites
-              </button>
-              <button
-                onClick={() => setActiveTab('profile')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  activeTab === 'profile' ? 'bg-blue-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                }`}
-              >
-                Profile
-              </button>
+            
+            {/* Navigation Tabs - FIXED FOR LIGHT THEME */}
+            <div className="flex space-x-1">
+              {['chat', 'portfolio', 'practice', 'favorites', 'profile'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-2 rounded-lg font-medium capitalize transition-colors ${
+                    activeTab === tab
+                      ? isDarkTheme 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-blue-600 text-white'
+                      : isDarkTheme 
+                        ? 'text-gray-300 hover:bg-white/10' 
+                        : 'text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
               {currentUser?.is_admin && (
                 <button
                   onClick={() => setActiveTab('admin')}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
-                    activeTab === 'admin' ? 'bg-yellow-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    activeTab === 'admin'
+                      ? isDarkTheme 
+                        ? 'bg-yellow-600 text-white' 
+                        : 'bg-yellow-600 text-white'
+                      : isDarkTheme 
+                        ? 'text-yellow-400 hover:bg-white/10' 
+                        : 'text-yellow-600 hover:bg-yellow-50 border border-yellow-200'
                   }`}
                 >
-                  Admin {pendingUsers.length > 0 && (
-                    <span className="ml-2 bg-red-500 text-white rounded-full px-2 py-1 text-xs">
-                      {pendingUsers.length}
-                    </span>
-                  )}
+                  Admin
                 </button>
               )}
             </div>
             
             {/* Action Buttons */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-4">
               {activeTab === 'chat' && (
                 <button
                   onClick={() => setShowSearch(!showSearch)}
-                  className="p-2 bg-white/10 text-gray-300 rounded-lg hover:bg-white/20 transition-colors"
+                  className={`p-2 rounded-lg transition-colors ${
+                    isDarkTheme 
+                      ? 'bg-white/10 text-gray-300 hover:bg-white/20' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
                   title="Search messages"
                 >
                   🔍
@@ -758,25 +728,33 @@ function App() {
               
               <button
                 onClick={toggleTheme}
-                className="p-2 bg-white/10 text-gray-300 rounded-lg hover:bg-white/20 transition-colors"
+                className={`p-2 rounded-lg transition-colors ${
+                  isDarkTheme 
+                    ? 'bg-white/10 text-gray-300 hover:bg-white/20' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
                 title="Toggle theme"
               >
                 {isDarkTheme ? '☀️' : '🌙'}
               </button>
-            </div>
-            
-            <div className="text-right">
-              <div className="text-white font-semibold">{currentUser?.username}</div>
-              <div className="text-xs text-gray-400">
-                {currentUser?.is_admin ? 'Admin' : 'Member'}
+              
+              <div className="text-right">
+                <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                  {currentUser?.real_name || currentUser?.username}
+                </div>
+                <div className="text-xs text-gray-400">
+                  {currentUser?.screen_name && `@${currentUser.screen_name} • `}
+                  {currentUser?.is_admin ? 'Admin' : currentUser?.role || 'Member'}
+                </div>
               </div>
+              
+              <button
+                onClick={logout}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Logout
+              </button>
             </div>
-            <button
-              onClick={logout}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              Logout
-            </button>
           </div>
         </div>
       </div>
@@ -810,6 +788,7 @@ function App() {
             openPositions={openPositions}
             userPerformance={userPerformance}
             closePosition={closePosition}
+            handlePositionAction={handlePositionAction}
             isDarkTheme={isDarkTheme}
           />
         )}
@@ -824,7 +803,7 @@ function App() {
           />
         )}
 
-        {/* Practice Tab with Enhanced Trading */}
+        {/* Practice Tab with Recent Trades (Smaller/Log-like) */}
         {activeTab === 'practice' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -835,7 +814,7 @@ function App() {
                   : 'bg-white/80 border-gray-200'
               }`}>
                 <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                  📈 Enhanced Paper Trading
+                  📈 Paper Trading
                 </h2>
                 <form onSubmit={submitTrade} className="space-y-4">
                   <div>
@@ -913,7 +892,6 @@ function App() {
                     </div>
                   </div>
                   
-                  {/* Stop Loss & Take Profit */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -952,57 +930,6 @@ function App() {
                     </div>
                   </div>
                   
-                  {/* Order Summary */}
-                  {tradeForm.price && tradeForm.quantity && (
-                    <div className={`p-4 rounded-lg ${
-                      isDarkTheme ? 'bg-white/10' : 'bg-gray-100'
-                    }`}>
-                      <h4 className={`font-semibold mb-3 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                        📋 Order Summary
-                      </h4>
-                      <div className={`space-y-2 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                        <div className="flex justify-between">
-                          <span>Total Value:</span>
-                          <span className="font-semibold">
-                            ${(parseFloat(tradeForm.price || 0) * parseInt(tradeForm.quantity || 0)).toFixed(2)}
-                          </span>
-                        </div>
-                        
-                        {tradeForm.stop_loss && (
-                          <div className="flex justify-between text-red-400">
-                            <span>🛑 Stop Loss:</span>
-                            <span className="font-semibold">${tradeForm.stop_loss}</span>
-                          </div>
-                        )}
-                        
-                        {tradeForm.take_profit && (
-                          <div className="flex justify-between text-green-400">
-                            <span>🎯 Take Profit:</span>
-                            <span className="font-semibold">${tradeForm.take_profit}</span>
-                          </div>
-                        )}
-                        
-                        {tradeForm.stop_loss && tradeForm.price && (
-                          <div className="flex justify-between text-red-400">
-                            <span>Max Loss:</span>
-                            <span className="font-semibold">
-                              ${((parseFloat(tradeForm.price) - parseFloat(tradeForm.stop_loss)) * parseInt(tradeForm.quantity || 0)).toFixed(2)}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {tradeForm.take_profit && tradeForm.price && (
-                          <div className="flex justify-between text-green-400">
-                            <span>Target Profit:</span>
-                            <span className="font-semibold">
-                              ${((parseFloat(tradeForm.take_profit) - parseFloat(tradeForm.price)) * parseInt(tradeForm.quantity || 0)).toFixed(2)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
                   <div>
                     <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                       Notes (Optional)
@@ -1016,7 +943,7 @@ function App() {
                       }`}
                       value={tradeForm.notes}
                       onChange={(e) => setTradeForm({...tradeForm, notes: e.target.value})}
-                      rows="3"
+                      rows="2"
                     />
                   </div>
                   
@@ -1029,23 +956,23 @@ function App() {
                 </form>
               </div>
 
-              {/* Recent Trades */}
+              {/* Recent Trades - Smaller/Log-like */}
               <div className={`backdrop-blur-lg rounded-2xl border p-6 ${
                 isDarkTheme 
                   ? 'bg-white/5 border-white/10' 
                   : 'bg-white/80 border-gray-200'
               }`}>
-                <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                  📋 Recent Trades
+                <h2 className={`text-lg font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                  📋 Trade Log
                 </h2>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {userTrades.map((trade) => (
-                    <div key={trade.id} className={`p-4 rounded-lg ${
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {userTrades.slice(0, 10).map((trade) => (
+                    <div key={trade.id} className={`p-3 rounded text-sm ${
                       isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
                     }`}>
                       <div className="flex justify-between items-center">
-                        <div className="flex items-center space-x-3">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
                             trade.action === 'BUY' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
                           }`}>
                             {trade.action}
@@ -1054,28 +981,13 @@ function App() {
                             {trade.symbol}
                           </span>
                           <span className={isDarkTheme ? 'text-gray-300' : 'text-gray-600'}>
-                            {trade.quantity} shares
+                            {trade.quantity}@${trade.price}
                           </span>
-                          {trade.is_closed && (
-                            <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded">
-                              CLOSED
-                            </span>
-                          )}
                         </div>
-                        <div className="text-right">
-                          <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                            ${trade.price}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {new Date(trade.timestamp).toLocaleDateString()}
-                          </div>
-                        </div>
+                        <span className="text-xs text-gray-400">
+                          {new Date(trade.timestamp).toLocaleDateString()}
+                        </span>
                       </div>
-                      {trade.notes && (
-                        <div className={`mt-2 text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {trade.notes}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -1094,9 +1006,9 @@ function App() {
                 : 'bg-white/80 border-gray-200'
             }`}>
               <div className="flex items-center space-x-6">
-                {/* Profile Picture */}
+                {/* Profile Picture - LARGER SIZE */}
                 <div className="relative">
-                  <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white/20">
+                  <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white/20">
                     {currentUser?.avatar_url ? (
                       <img 
                         src={currentUser.avatar_url} 
@@ -1109,14 +1021,14 @@ function App() {
                       />
                     ) : null}
                     <div 
-                      className={`w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-2xl ${currentUser?.avatar_url ? 'hidden' : 'flex'}`}
+                      className={`w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-4xl ${currentUser?.avatar_url ? 'hidden' : 'flex'}`}
                     >
                       {currentUser?.username?.charAt(0).toUpperCase()}
                     </div>
                   </div>
                   <button
                     onClick={openEditProfile}
-                    className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm hover:bg-blue-700 transition-colors"
+                    className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white hover:bg-blue-700 transition-colors"
                   >
                     ✏️
                   </button>
@@ -1124,10 +1036,13 @@ function App() {
                 
                 {/* Profile Info */}
                 <div className="flex-1">
-                  <h2 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                    {currentUser?.username}
+                  <h2 className={`text-3xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                    {currentUser?.real_name || currentUser?.username}
                   </h2>
-                  <p className={isDarkTheme ? 'text-gray-300' : 'text-gray-600'}>
+                  <p className={`text-lg ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
+                    @{currentUser?.screen_name || currentUser?.username}
+                  </p>
+                  <p className={isDarkTheme ? 'text-gray-400' : 'text-gray-500'}>
                     {currentUser?.email}
                   </p>
                   <div className="flex items-center space-x-2 mt-2">
@@ -1221,40 +1136,110 @@ function App() {
 
         {/* Admin Tab */}
         {activeTab === 'admin' && currentUser?.is_admin && (
-          <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6">
-            <h2 className="text-2xl font-bold text-white mb-6">Admin Panel - Pending Approvals</h2>
-            <div className="space-y-4">
-              {pendingUsers.length === 0 ? (
-                <div className="text-center text-gray-400 py-8">
-                  No pending approvals
-                </div>
-              ) : (
-                pendingUsers.map((user) => (
-                  <div key={user.id} className="bg-white/5 p-4 rounded-lg flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-semibold">{user.username}</div>
-                      <div className="text-gray-400 text-sm">{user.email}</div>
-                      <div className="text-gray-500 text-xs">
-                        Registered: {new Date(user.created_at).toLocaleString()}
+          <div className="space-y-6">
+            {/* Pending Approvals */}
+            <div className={`backdrop-blur-lg rounded-2xl border p-6 ${
+              isDarkTheme 
+                ? 'bg-white/5 border-white/10' 
+                : 'bg-white/80 border-gray-200'
+            }`}>
+              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                👥 Pending Approvals
+              </h2>
+              <div className="space-y-4">
+                {pendingUsers.length === 0 ? (
+                  <div className={`text-center py-8 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                    No pending approvals
+                  </div>
+                ) : (
+                  pendingUsers.map((user) => (
+                    <div key={user.id} className={`p-4 rounded-lg flex items-center justify-between ${
+                      isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
+                    }`}>
+                      <div>
+                        <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                          {user.real_name} (@{user.username})
+                        </div>
+                        <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {user.email}
+                        </div>
+                        <div className={`text-xs ${isDarkTheme ? 'text-gray-500' : 'text-gray-500'}`}>
+                          Registered: {new Date(user.created_at).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleApproval(user.id, true)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleApproval(user.id, false)}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* All Users Management */}
+            <div className={`backdrop-blur-lg rounded-2xl border p-6 ${
+              isDarkTheme 
+                ? 'bg-white/5 border-white/10' 
+                : 'bg-white/80 border-gray-200'
+            }`}>
+              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                👨‍👩‍👧‍👦 All Members
+              </h2>
+              <div className="space-y-3">
+                {allUsers.filter(user => user.status === 'approved').map((user) => (
+                  <div key={user.id} className={`p-4 rounded-lg flex items-center justify-between ${
+                    isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
+                  }`}>
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-3 h-3 rounded-full ${user.is_online ? 'bg-green-400' : 'bg-gray-400'}`}></div>
+                      <div>
+                        <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                          {user.real_name || user.username} 
+                          {user.screen_name && ` (@${user.screen_name})`}
+                        </div>
+                        <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {user.email} • {user.role} • {user.is_online ? 'Online' : `Last seen: ${user.last_seen ? new Date(user.last_seen).toLocaleString() : 'Never'}`}
+                        </div>
                       </div>
                     </div>
                     <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleApproval(user.id, true)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      <select
+                        value={user.role}
+                        onChange={(e) => handleUserRoleChange(user.id, e.target.value)}
+                        className={`px-3 py-1 rounded text-sm ${
+                          isDarkTheme 
+                            ? 'bg-white/10 border border-white/20 text-white' 
+                            : 'bg-white border border-gray-200 text-gray-900'
+                        }`}
+                        disabled={user.id === currentUser.id}
                       >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleApproval(user.id, false)}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                      >
-                        Reject
-                      </button>
+                        <option value="member">Member</option>
+                        <option value="moderator">Moderator</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                      {!user.is_admin && user.id !== currentUser.id && (
+                        <button
+                          onClick={() => handleUserRemoval(user.id)}
+                          className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -1263,15 +1248,60 @@ function App() {
       {/* Edit Profile Modal */}
       {showEditProfile && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border border-white/20 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold text-white mb-6">Edit Profile</h2>
+          <div className={`backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border max-h-[90vh] overflow-y-auto ${
+            isDarkTheme 
+              ? 'bg-white/10 border-white/20' 
+              : 'bg-white/90 border-gray-200'
+          }`}>
+            <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+              Edit Profile
+            </h2>
             
             <form onSubmit={updateProfile} className="space-y-4">
               <div>
-                <label className="block text-gray-300 mb-2">Username</label>
+                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Real Name
+                </label>
                 <input
                   type="text"
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDarkTheme 
+                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                  }`}
+                  value={editProfileForm.real_name}
+                  onChange={(e) => setEditProfileForm({...editProfileForm, real_name: e.target.value})}
+                />
+              </div>
+
+              <div>
+                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Screen Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="Display name for chat"
+                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDarkTheme 
+                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                  }`}
+                  value={editProfileForm.screen_name}
+                  onChange={(e) => setEditProfileForm({...editProfileForm, screen_name: e.target.value})}
+                />
+              </div>
+              
+              <div>
+                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Username
+                </label>
+                <input
+                  type="text"
+                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDarkTheme 
+                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                  }`}
                   value={editProfileForm.username}
                   onChange={(e) => setEditProfileForm({...editProfileForm, username: e.target.value})}
                   required
@@ -1279,19 +1309,27 @@ function App() {
               </div>
               
               <div>
-                <label className="block text-gray-300 mb-2">Email</label>
+                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Email
+                </label>
                 <input
                   type="email"
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDarkTheme 
+                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                  }`}
                   value={editProfileForm.email}
                   onChange={(e) => setEditProfileForm({...editProfileForm, email: e.target.value})}
                   required
                 />
               </div>
               
-              {/* Profile Picture Upload */}
+              {/* Profile Picture Upload - UPLOAD ONLY */}
               <div>
-                <label className="block text-gray-300 mb-2">Profile Picture</label>
+                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Profile Picture
+                </label>
                 
                 {/* Current/Preview Avatar */}
                 <div className="flex items-center space-x-4 mb-4">
@@ -1312,9 +1350,13 @@ function App() {
                       type="file"
                       accept="image/*"
                       onChange={handleFileSelect}
-                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        isDarkTheme 
+                          ? 'bg-white/10 border border-white/20 text-white' 
+                          : 'bg-white border border-gray-200 text-gray-900'
+                      }`}
                     />
-                    <p className="text-gray-400 text-xs mt-1">
+                    <p className={`text-xs mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
                       Upload JPG, PNG, GIF (max 1MB)
                     </p>
                   </div>
@@ -1331,39 +1373,6 @@ function App() {
                   </button>
                 )}
               </div>
-              
-              {/* URL Option */}
-              <div>
-                <label className="block text-gray-300 mb-2">Or use Image URL</label>
-                <input
-                  type="url"
-                  placeholder="https://example.com/your-avatar.jpg"
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={editProfileForm.avatar_url}
-                  onChange={(e) => setEditProfileForm({...editProfileForm, avatar_url: e.target.value})}
-                />
-              </div>
-              
-              {/* URL Preview */}
-              {editProfileForm.avatar_url && !avatarFile && (
-                <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-lg">
-                  <span className="text-gray-300">URL Preview:</span>
-                  <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20">
-                    <img 
-                      src={editProfileForm.avatar_url} 
-                      alt="URL preview" 
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
-                      }}
-                    />
-                    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm hidden">
-                      ❌
-                    </div>
-                  </div>
-                </div>
-              )}
               
               <div className="flex space-x-4 pt-4">
                 <button
@@ -1392,29 +1401,47 @@ function App() {
       {/* Change Password Modal */}
       {showChangePassword && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border border-white/20">
-            <h2 className="text-2xl font-bold text-white mb-6">Change Password</h2>
+          <div className={`backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border ${
+            isDarkTheme 
+              ? 'bg-white/10 border-white/20' 
+              : 'bg-white/90 border-gray-200'
+          }`}>
+            <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+              Change Password
+            </h2>
             
             <form onSubmit={changePassword} className="space-y-4">
               <div>
-                <label className="block text-gray-300 mb-2">Current Password</label>
+                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Current Password
+                </label>
                 <input
                   type="password"
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDarkTheme 
+                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                  }`}
                   value={passwordForm.current_password}
                   onChange={(e) => setPasswordForm({...passwordForm, current_password: e.target.value})}
                   required
                 />
-                <p className="text-gray-400 text-sm mt-1">
+                <p className={`text-sm mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
                   For demo: use your username as current password
                 </p>
               </div>
               
               <div>
-                <label className="block text-gray-300 mb-2">New Password</label>
+                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                  New Password
+                </label>
                 <input
                   type="password"
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDarkTheme 
+                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                  }`}
                   value={passwordForm.new_password}
                   onChange={(e) => setPasswordForm({...passwordForm, new_password: e.target.value})}
                   required
@@ -1423,42 +1450,22 @@ function App() {
               </div>
               
               <div>
-                <label className="block text-gray-300 mb-2">Confirm New Password</label>
+                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Confirm New Password
+                </label>
                 <input
                   type="password"
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDarkTheme 
+                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                  }`}
                   value={passwordForm.confirm_password}
                   onChange={(e) => setPasswordForm({...passwordForm, confirm_password: e.target.value})}
                   required
                   minLength="6"
                 />
               </div>
-              
-              {/* Password Strength Indicator */}
-              {passwordForm.new_password && (
-                <div className="p-3 bg-white/5 rounded-lg">
-                  <div className="text-sm text-gray-300 mb-2">Password Strength:</div>
-                  <div className="flex space-x-1">
-                    <div className={`h-2 w-full rounded ${
-                      passwordForm.new_password.length >= 6 ? 'bg-green-500' : 'bg-gray-600'
-                    }`}></div>
-                    <div className={`h-2 w-full rounded ${
-                      passwordForm.new_password.length >= 8 ? 'bg-green-500' : 'bg-gray-600'
-                    }`}></div>
-                    <div className={`h-2 w-full rounded ${
-                      /[A-Z]/.test(passwordForm.new_password) ? 'bg-green-500' : 'bg-gray-600'
-                    }`}></div>
-                    <div className={`h-2 w-full rounded ${
-                      /[0-9]/.test(passwordForm.new_password) ? 'bg-green-500' : 'bg-gray-600'
-                    }`}></div>
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {passwordForm.new_password !== passwordForm.confirm_password && passwordForm.confirm_password && (
-                      <span className="text-red-400">Passwords do not match</span>
-                    )}
-                  </div>
-                </div>
-              )}
               
               <div className="flex space-x-4 pt-4">
                 <button
