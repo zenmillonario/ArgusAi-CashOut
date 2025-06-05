@@ -1658,6 +1658,117 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Mobile Bottom Navigation */}
+      <div className={`md:hidden fixed bottom-0 left-0 right-0 border-t ${
+        isDarkTheme ? 'border-white/10 bg-black/90' : 'border-gray-200 bg-white/90'
+      } backdrop-blur-lg`}>
+        <div className="flex justify-around items-center py-2">
+          {/* Chat Tab */}
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
+              activeTab === 'chat'
+                ? isDarkTheme 
+                  ? 'text-blue-400' 
+                  : 'text-blue-600'
+                : isDarkTheme 
+                  ? 'text-gray-400' 
+                  : 'text-gray-600'
+            }`}
+          >
+            <span className="text-xl mb-1">💬</span>
+            <span className="text-xs font-medium">Chat</span>
+          </button>
+
+          {/* Portfolio Tab */}
+          <button
+            onClick={() => setActiveTab('portfolio')}
+            className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
+              activeTab === 'portfolio'
+                ? isDarkTheme 
+                  ? 'text-blue-400' 
+                  : 'text-blue-600'
+                : isDarkTheme 
+                  ? 'text-gray-400' 
+                  : 'text-gray-600'
+            }`}
+          >
+            <span className="text-xl mb-1">📊</span>
+            <span className="text-xs font-medium">Portfolio</span>
+          </button>
+
+          {/* Practice Tab */}
+          <button
+            onClick={() => setActiveTab('practice')}
+            className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
+              activeTab === 'practice'
+                ? isDarkTheme 
+                  ? 'text-blue-400' 
+                  : 'text-blue-600'
+                : isDarkTheme 
+                  ? 'text-gray-400' 
+                  : 'text-gray-600'
+            }`}
+          >
+            <span className="text-xl mb-1">📈</span>
+            <span className="text-xs font-medium">Practice</span>
+          </button>
+
+          {/* Favorites Tab */}
+          <button
+            onClick={() => setActiveTab('favorites')}
+            className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
+              activeTab === 'favorites'
+                ? isDarkTheme 
+                  ? 'text-blue-400' 
+                  : 'text-blue-600'
+                : isDarkTheme 
+                  ? 'text-gray-400' 
+                  : 'text-gray-600'
+            }`}
+          >
+            <span className="text-xl mb-1">⭐</span>
+            <span className="text-xs font-medium">Favorites</span>
+          </button>
+
+          {/* Profile Tab */}
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
+              activeTab === 'profile'
+                ? isDarkTheme 
+                  ? 'text-blue-400' 
+                  : 'text-blue-600'
+                : isDarkTheme 
+                  ? 'text-gray-400' 
+                  : 'text-gray-600'
+            }`}
+          >
+            <span className="text-xl mb-1">👤</span>
+            <span className="text-xs font-medium">Profile</span>
+          </button>
+
+          {/* Admin Tab (if admin) */}
+          {currentUser?.is_admin && (
+            <button
+              onClick={() => setActiveTab('admin')}
+              className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
+                activeTab === 'admin'
+                  ? isDarkTheme 
+                    ? 'text-yellow-400' 
+                    : 'text-yellow-600'
+                  : isDarkTheme 
+                    ? 'text-gray-400' 
+                    : 'text-gray-600'
+              }`}
+            >
+              <span className="text-xl mb-1">⚙️</span>
+              <span className="text-xs font-medium">Admin</span>
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
