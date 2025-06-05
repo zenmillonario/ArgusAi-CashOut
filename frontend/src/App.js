@@ -171,11 +171,11 @@ function App() {
 
   // WebSocket connection
   useEffect(() => {
-    if (currentUser && !wsRef.current) {
-      // Build WebSocket URL correctly
+    if (currentUser && !wsRef.current && currentUser.active_session_id) {
+      // Build WebSocket URL correctly with session validation
       const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
       const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
-      const wsUrl = `${wsProtocol}${wsHost}/ws/${currentUser.id}`;
+      const wsUrl = `${wsProtocol}${wsHost}/ws/${currentUser.id}?session_id=${currentUser.active_session_id}`;
       
       console.log('Connecting to WebSocket:', wsUrl);
       const ws = new WebSocket(wsUrl);
@@ -192,7 +192,11 @@ function App() {
           const data = JSON.parse(event.data);
           console.log('WebSocket message received:', data);
           
-          if (data.type === 'message') {
+          if (data.type === 'session_invalidated') {
+            // Session has been invalidated by login from another location
+            alert('Your session has been terminated due to login from another location.');
+            logout();
+          } else if (data.type === 'message') {
             setMessages(prev => [...prev, data.data]);
           } else if (data.type === 'admin_message' && currentUser?.is_admin) {
             // Play notification sound for admin messages
@@ -203,10 +207,16 @@ function App() {
         }
       };
       
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setIsConnected(false);
-        console.log('WebSocket disconnected');
+        console.log('WebSocket disconnected', event);
         wsRef.current = null;
+        
+        // Handle session invalidation close codes
+        if (event.code === 4002 || event.code === 4003) {
+          alert('Your session has expired or been invalidated. Please log in again.');
+          logout();
+        }
       };
       
       ws.onerror = (error) => {
