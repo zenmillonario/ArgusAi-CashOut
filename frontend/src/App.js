@@ -145,10 +145,37 @@ function App() {
     localStorage.setItem(`cashoutai_favorites_${currentUser.id}`, JSON.stringify(newFavorites));
   };
 
+  const [audioContext, setAudioContext] = useState(null);
+
+  // Initialize audio context after user interaction
+  const initializeAudio = () => {
+    if (!audioContext) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        setAudioContext(ctx);
+        console.log('🔊 Audio context initialized');
+      } catch (error) {
+        console.error('Failed to initialize audio context:', error);
+      }
+    }
+  };
+
   const playNotificationSound = () => {
     try {
-      // Create a more prominent notification sound
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      if (!audioContext) {
+        console.log('🔊 Audio context not initialized, initializing now...');
+        initializeAudio();
+        return;
+      }
+
+      // Resume audio context if suspended
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+          playNotificationSound();
+        });
+        return;
+      }
+
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
       
@@ -159,6 +186,7 @@ function App() {
       oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
       oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1);
       oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
+      oscillator.frequency.setValueAtTime(1200, audioContext.currentTime + 0.3);
       
       gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.6);
@@ -166,9 +194,16 @@ function App() {
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.6);
       
-      console.log('🔔 Notification sound played');
+      console.log('🔔 Notification sound played successfully');
     } catch (error) {
       console.error('Error playing notification sound:', error);
+      // Fallback: try to create simple beep
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQE');
+        audio.play().catch(e => console.log('Fallback audio also failed:', e));
+      } catch (e) {
+        console.log('All audio methods failed');
+      }
     }
   };
 
