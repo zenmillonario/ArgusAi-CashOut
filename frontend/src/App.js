@@ -172,10 +172,20 @@ function App() {
   // WebSocket connection
   useEffect(() => {
     if (currentUser && !wsRef.current && currentUser.active_session_id) {
-      // Build WebSocket URL correctly with session validation
-      const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
-      const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
-      const wsUrl = `${wsProtocol}${wsHost}/ws/${currentUser.id}/${currentUser.active_session_id}`;
+      // Build WebSocket URL correctly for different deployment environments
+      let wsUrl;
+      
+      if (BACKEND_URL.includes('onrender.com')) {
+        // For Render deployment, use the backend URL directly
+        const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
+        const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
+        wsUrl = `${wsProtocol}${wsHost}/ws/${currentUser.id}/${currentUser.active_session_id}`;
+      } else {
+        // For other deployments (Emergent, etc.)
+        const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
+        const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
+        wsUrl = `${wsProtocol}${wsHost}/ws/${currentUser.id}/${currentUser.active_session_id}`;
+      }
       
       console.log('Connecting to WebSocket:', wsUrl);
       const ws = new WebSocket(wsUrl);
@@ -222,6 +232,26 @@ function App() {
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
         setIsConnected(false);
+        
+        // Add fallback mechanism for session validation when WebSocket fails
+        if (currentUser?.active_session_id) {
+          console.log('WebSocket failed, starting session validation polling...');
+          const sessionCheckInterval = setInterval(async () => {
+            try {
+              const response = await axios.get(`${API}/users/${currentUser.id}/session-status?session_id=${currentUser.active_session_id}`);
+              if (!response.data.valid) {
+                alert('🔒 Your session has been terminated due to login from another location.');
+                logout();
+                clearInterval(sessionCheckInterval);
+              }
+            } catch (error) {
+              console.error('Session validation error:', error);
+            }
+          }, 5000); // Check every 5 seconds
+          
+          // Store interval ID to clean up later
+          wsRef.current = { type: 'polling', interval: sessionCheckInterval };
+        }
       };
       
       wsRef.current = ws;
@@ -229,7 +259,11 @@ function App() {
     
     return () => {
       if (wsRef.current) {
-        wsRef.current.close();
+        if (wsRef.current.type === 'polling') {
+          clearInterval(wsRef.current.interval);
+        } else {
+          wsRef.current.close();
+        }
         wsRef.current = null;
       }
     };
