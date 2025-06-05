@@ -265,6 +265,26 @@ function App() {
     };
   }, []);
 
+  // Initialize audio on first user interaction
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      initializeAudio();
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+    };
+
+    document.addEventListener('click', handleFirstInteraction);
+    document.addEventListener('keydown', handleFirstInteraction);
+    document.addEventListener('touchstart', handleFirstInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+    };
+  }, []);
+
   // Request notification permission on app load
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
