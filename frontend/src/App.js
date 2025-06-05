@@ -211,6 +211,25 @@ function App() {
     }
   };
 
+  // Reset document title when user focuses on the app
+  useEffect(() => {
+    const handleFocus = () => {
+      document.title = '💰 CashoutAI - Trading Platform';
+    };
+
+    const handleBlur = () => {
+      // Keep title as is when user leaves the app
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
   // Request notification permission on app load
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
