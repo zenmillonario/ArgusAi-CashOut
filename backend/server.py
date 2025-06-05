@@ -76,18 +76,28 @@ class UserStatus(str, Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
 
+class UserRole(str, Enum):
+    MEMBER = "member"
+    MODERATOR = "moderator"
+    ADMIN = "admin"
+
 # Define Models
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     username: str
     email: str
+    real_name: Optional[str] = None  # NEW: Real name field
+    screen_name: Optional[str] = None  # NEW: Screen name field
     is_admin: bool = False
+    role: UserRole = UserRole.MEMBER  # NEW: Role field with enum
     status: UserStatus = UserStatus.PENDING
     avatar_url: Optional[str] = None
     total_profit: float = 0.0
     win_percentage: float = 0.0
     trades_count: int = 0
     average_gain: float = 0.0
+    is_online: bool = False  # NEW: Online status
+    last_seen: Optional[datetime] = None  # NEW: Last seen timestamp
     created_at: datetime = Field(default_factory=datetime.utcnow)
     approved_at: Optional[datetime] = None
     approved_by: Optional[str] = None
@@ -95,6 +105,7 @@ class User(BaseModel):
 class UserCreate(BaseModel):
     username: str
     email: str
+    real_name: str  # NEW: Required real name
     password: str
 
 class UserLogin(BaseModel):
@@ -109,19 +120,34 @@ class UserApproval(BaseModel):
     user_id: str
     approved: bool
     admin_id: str
+    role: Optional[UserRole] = UserRole.MEMBER  # NEW: Role assignment during approval
+
+class UserRoleUpdate(BaseModel):
+    user_id: str
+    role: UserRole
+    admin_id: str
+
+class ProfileUpdate(BaseModel):
+    real_name: Optional[str] = None
+    screen_name: Optional[str] = None
+    username: Optional[str] = None
+    email: Optional[str] = None
 
 class Message(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     username: str
     content: str
+    content_type: str = "text"  # NEW: "text", "image", "gif"
     is_admin: bool = False
     avatar_url: Optional[str] = None
+    real_name: Optional[str] = None  # NEW: Include real name
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     highlighted_tickers: List[str] = []
 
 class MessageCreate(BaseModel):
     content: str
+    content_type: str = "text"  # NEW: Support for different content types
     user_id: str
 
 class Team(BaseModel):
@@ -180,6 +206,11 @@ class PaperTradeCreate(BaseModel):
     notes: Optional[str] = None
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
+
+class PositionAction(BaseModel):
+    action: str  # "BUY_MORE", "SELL_PARTIAL", "SELL_ALL"
+    quantity: Optional[int] = None
+    price: Optional[float] = None
 
 # Utility function to extract stock tickers from message
 def extract_stock_tickers(content: str) -> List[str]:
@@ -474,7 +505,7 @@ async def register_user(user_data: UserCreate):
     # Notify admins about new registration
     await manager.send_admin_notification(json.dumps({
         "type": "new_registration",
-        "message": f"New user {user.username} has registered and is awaiting approval",
+        "message": f"New user {user.username} ({user.real_name}) has registered and is awaiting approval",
         "user": user.dict()
     }, default=str))
     
@@ -495,7 +526,22 @@ async def login_user(login_data: UserLogin):
         elif user_obj.status == UserStatus.REJECTED:
             raise HTTPException(status_code=403, detail="Account has been rejected")
     
+    # Update online status
+    await db.users.update_one(
+        {"id": user_obj.id},
+        {"$set": {"is_online": True, "last_seen": datetime.utcnow()}}
+    )
+    
     return user_obj
+
+@api_router.post("/users/logout")
+async def logout_user(user_id: str):
+    """Update user offline status"""
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"is_online": False, "last_seen": datetime.utcnow()}}
+    )
+    return {"message": "Logged out successfully"}
 
 @api_router.get("/users", response_model=List[User])
 async def get_users():
@@ -524,6 +570,12 @@ async def approve_user(approval: UserApproval):
         "approved_at": datetime.utcnow()
     }
     
+    # Set role if approved
+    if approval.approved:
+        update_data["role"] = approval.role
+        if approval.role == UserRole.ADMIN:
+            update_data["is_admin"] = True
+    
     result = await db.users.update_one(
         {"id": approval.user_id},
         {"$set": update_data}
@@ -545,6 +597,50 @@ async def approve_user(approval: UserApproval):
     
     return {"message": f"User {status_text} successfully"}
 
+@api_router.post("/users/{user_id}/role")
+async def update_user_role(user_id: str, role_update: UserRoleUpdate):
+    """Update user role - admin only"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": role_update.admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    update_data = {"role": role_update.role}
+    if role_update.role == UserRole.ADMIN:
+        update_data["is_admin"] = True
+    else:
+        update_data["is_admin"] = False
+    
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "User role updated successfully"}
+
+@api_router.delete("/users/{user_id}")
+async def remove_user(user_id: str, admin_id: str):
+    """Remove user from app - admin only"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Don't allow removing other admins
+    user_to_remove = await db.users.find_one({"id": user_id})
+    if user_to_remove and user_to_remove.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Cannot remove admin users")
+    
+    result = await db.users.delete_one({"id": user_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "User removed successfully"}
+
 @api_router.post("/messages", response_model=Message)
 async def create_message(message_data: MessageCreate):
     # Get user info
@@ -556,15 +652,19 @@ async def create_message(message_data: MessageCreate):
     if user.get("status") != UserStatus.APPROVED:
         raise HTTPException(status_code=403, detail="Only approved users can send messages")
     
-    # Extract stock tickers
-    tickers = extract_stock_tickers(message_data.content)
+    # Extract stock tickers only for text messages
+    tickers = []
+    if message_data.content_type == "text":
+        tickers = extract_stock_tickers(message_data.content)
     
     message = Message(
         user_id=message_data.user_id,
         username=user["username"],
         content=message_data.content,
+        content_type=message_data.content_type,
         is_admin=user.get("is_admin", False),
         avatar_url=user.get("avatar_url"),
+        real_name=user.get("real_name"),
         highlighted_tickers=tickers
     )
     
@@ -575,6 +675,14 @@ async def create_message(message_data: MessageCreate):
         "type": "message",
         "data": message.dict()
     }, default=str))
+    
+    # Send push notification only if message is from admin
+    if user.get("is_admin"):
+        await manager.send_admin_notification(json.dumps({
+            "type": "admin_message",
+            "message": f"Admin {user['username']}: {message_data.content}",
+            "data": message.dict()
+        }, default=str))
     
     return message
 
@@ -630,6 +738,96 @@ async def get_user_positions(user_id: str):
     # Get updated positions
     positions = await db.positions.find({"user_id": user_id, "is_open": True}).to_list(1000)
     return [Position(**position) for position in positions]
+
+@api_router.post("/positions/{position_id}/action")
+async def position_action(position_id: str, action_data: PositionAction, user_id: str):
+    """Perform action on position: buy more, sell partial, or sell all"""
+    position = await db.positions.find_one({"id": position_id, "user_id": user_id, "is_open": True})
+    if not position:
+        raise HTTPException(status_code=404, detail="Position not found")
+    
+    # Get current price if not provided
+    current_price = action_data.price or await get_current_stock_price(position["symbol"])
+    
+    if action_data.action == "BUY_MORE":
+        if not action_data.quantity:
+            raise HTTPException(status_code=400, detail="Quantity required for buy more action")
+        
+        # Create BUY trade
+        trade = PaperTrade(
+            user_id=user_id,
+            symbol=position["symbol"],
+            action="BUY",
+            quantity=action_data.quantity,
+            price=current_price,
+            position_id=position_id,
+            notes=f"Added to existing position"
+        )
+        await db.paper_trades.insert_one(trade.dict())
+        
+        # Update position
+        new_quantity = position["quantity"] + action_data.quantity
+        new_avg_price = ((position["avg_price"] * position["quantity"]) + (current_price * action_data.quantity)) / new_quantity
+        
+        await db.positions.update_one(
+            {"id": position_id},
+            {"$set": {
+                "quantity": new_quantity,
+                "avg_price": round(new_avg_price, 2)
+            }}
+        )
+        
+        return {"message": f"Added {action_data.quantity} shares at ${current_price}"}
+    
+    elif action_data.action in ["SELL_PARTIAL", "SELL_ALL"]:
+        sell_quantity = action_data.quantity if action_data.action == "SELL_PARTIAL" else position["quantity"]
+        
+        if not sell_quantity or sell_quantity <= 0:
+            raise HTTPException(status_code=400, detail="Invalid sell quantity")
+        
+        if sell_quantity > position["quantity"]:
+            raise HTTPException(status_code=400, detail="Cannot sell more than owned")
+        
+        # Create SELL trade
+        trade = PaperTrade(
+            user_id=user_id,
+            symbol=position["symbol"],
+            action="SELL",
+            quantity=sell_quantity,
+            price=current_price,
+            position_id=position_id,
+            is_closed=(sell_quantity == position["quantity"]),
+            notes=f"{'Full' if sell_quantity == position['quantity'] else 'Partial'} position close"
+        )
+        await db.paper_trades.insert_one(trade.dict())
+        
+        # Update position
+        if sell_quantity == position["quantity"]:
+            # Close entire position
+            realized_pnl = (current_price - position["avg_price"]) * sell_quantity
+            await db.positions.update_one(
+                {"id": position_id},
+                {"$set": {
+                    "is_open": False,
+                    "closed_at": datetime.utcnow(),
+                    "current_price": current_price,
+                    "unrealized_pnl": round(realized_pnl, 2),
+                    "quantity": 0
+                }}
+            )
+        else:
+            # Partial close
+            new_quantity = position["quantity"] - sell_quantity
+            await db.positions.update_one(
+                {"id": position_id},
+                {"$set": {"quantity": new_quantity}}
+            )
+        
+        profit_loss = (current_price - position["avg_price"]) * sell_quantity
+        return {"message": f"Sold {sell_quantity} shares at ${current_price}", "profit_loss": round(profit_loss, 2)}
+    
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")
 
 @api_router.post("/positions/{position_id}/close")
 async def close_position(position_id: str, user_id: str, close_price: Optional[float] = None):
@@ -740,33 +938,31 @@ async def change_password(user_id: str, password_data: PasswordChange):
     
     return {"message": "Password updated successfully"}
 
-@api_router.post("/users/{user_id}/avatar")
-async def upload_avatar(user_id: str, avatar_url: str):
-    """Update user avatar URL (legacy endpoint)"""
-    user = await db.users.find_one({"id": user_id})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    result = await db.users.update_one(
-        {"id": user_id},
-        {"$set": {"avatar_url": avatar_url}}
-    )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=400, detail="Failed to update avatar")
-    
-    return {"message": "Avatar updated successfully"}
-
 @api_router.put("/users/{user_id}/profile")
-async def update_profile(user_id: str, profile_data: dict):
+async def update_profile(user_id: str, profile_data: ProfileUpdate):
     """Update user profile information"""
     user = await db.users.find_one({"id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
     # Only allow updating certain fields
-    allowed_fields = ["username", "email", "avatar_url"]
-    update_data = {k: v for k, v in profile_data.items() if k in allowed_fields}
+    update_data = {}
+    if profile_data.real_name is not None:
+        update_data["real_name"] = profile_data.real_name
+    if profile_data.screen_name is not None:
+        update_data["screen_name"] = profile_data.screen_name
+    if profile_data.username is not None:
+        # Check if username is already taken
+        existing = await db.users.find_one({"username": profile_data.username, "id": {"$ne": user_id}})
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already taken")
+        update_data["username"] = profile_data.username
+    if profile_data.email is not None:
+        # Check if email is already taken
+        existing = await db.users.find_one({"email": profile_data.email, "id": {"$ne": user_id}})
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already taken")
+        update_data["email"] = profile_data.email
     
     if update_data:
         result = await db.users.update_one(
@@ -796,7 +992,9 @@ async def create_default_admin():
         admin_user = User(
             username="admin",
             email="admin@cashoutai.com",
+            real_name="System Administrator",
             is_admin=True,
+            role=UserRole.ADMIN,
             status=UserStatus.APPROVED
         )
         await db.users.insert_one(admin_user.dict())
@@ -829,6 +1027,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for user: {user_id}")
         manager.disconnect(websocket, user_id)
+        
+        # Update user offline status
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {"is_online": False, "last_seen": datetime.utcnow()}}
+        )
 
 # Include the router in the main app
 app.include_router(api_router)
