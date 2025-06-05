@@ -240,13 +240,14 @@ function App() {
         console.error('WebSocket error:', error);
         setIsConnected(false);
         
-        // Add fallback mechanism for session validation when WebSocket fails
+        # Add fallback mechanism for session validation when WebSocket fails
         if (currentUser?.active_session_id) {
           console.log('WebSocket failed, starting session validation polling...');
           const sessionCheckInterval = setInterval(async () => {
             try {
               const response = await axios.get(`${API}/users/${currentUser.id}/session-status?session_id=${currentUser.active_session_id}`);
               if (!response.data.valid) {
+                console.log('Session invalidated via polling, logging out...');
                 alert('🔒 Your session has been terminated due to login from another location.');
                 logout();
                 clearInterval(sessionCheckInterval);
@@ -254,7 +255,7 @@ function App() {
             } catch (error) {
               console.error('Session validation error:', error);
             }
-          }, 5000); // Check every 5 seconds
+          }, 3000); // Check every 3 seconds instead of 5
           
           // Store interval ID to clean up later
           wsRef.current = { type: 'polling', interval: sessionCheckInterval };
