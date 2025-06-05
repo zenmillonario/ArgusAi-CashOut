@@ -1045,9 +1045,20 @@ async def create_default_admin():
 
 # WebSocket endpoint
 @app.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
+async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str = None):
+    # Validate session
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        await websocket.close(code=4001, reason="User not found")
+        return
+    
+    # Check if session is valid
+    if not session_id or user.get("active_session_id") != session_id:
+        await websocket.close(code=4002, reason="Invalid or expired session")
+        return
+    
     await manager.connect(websocket, user_id)
-    logger.info(f"WebSocket connected for user: {user_id}")
+    logger.info(f"WebSocket connected for user: {user_id} with session: {session_id}")
     
     try:
         # Send initial connection confirmation
@@ -1061,6 +1072,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
             data = await websocket.receive_text()
             logger.info(f"WebSocket received from {user_id}: {data}")
             
+            # Validate session is still active
+            current_user = await db.users.find_one({"id": user_id})
+            if not current_user or current_user.get("active_session_id") != session_id:
+                await websocket.close(code=4003, reason="Session invalidated")
+                break
+            
             # Echo back to confirm connection is alive
             await manager.send_personal_message(
                 json.dumps({"type": "heartbeat", "message": "Connection alive"}),
@@ -1071,11 +1088,13 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         logger.info(f"WebSocket disconnected for user: {user_id}")
         manager.disconnect(websocket, user_id)
         
-        # Update user offline status
-        await db.users.update_one(
-            {"id": user_id},
-            {"$set": {"is_online": False, "last_seen": datetime.utcnow()}}
-        )
+        # Update user offline status only if this was the active session
+        current_user = await db.users.find_one({"id": user_id})
+        if current_user and current_user.get("active_session_id") == session_id:
+            await db.users.update_one(
+                {"id": user_id},
+                {"$set": {"is_online": False, "last_seen": datetime.utcnow()}}
+            )
 
 # Include the router in the main app
 app.include_router(api_router)
