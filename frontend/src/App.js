@@ -552,9 +552,9 @@ function App() {
             <div className="text-center mb-8">
               {/* Team Logo */}
               <div className="flex justify-center mb-6">
-                <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-blue-500/30 shadow-lg">
+                <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-500/30 shadow-lg bg-gradient-to-br from-blue-900 to-purple-900">
                   <img 
-                    src="https://images.pexels.com/photos/9577222/pexels-photo-9577222.jpeg" 
+                    src="https://i.imgur.com/ZPYCiyg.png" 
                     alt="CashoutAI Team Logo" 
                     className="w-full h-full object-cover"
                     onError={(e) => {
