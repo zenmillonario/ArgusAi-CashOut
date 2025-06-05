@@ -1049,8 +1049,8 @@ async def create_default_admin():
         print("Created default admin user: admin")
 
 # WebSocket endpoint
-@app.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str = None):
+@app.websocket("/ws/{user_id}/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str):
     # Validate session
     user = await db.users.find_one({"id": user_id})
     if not user:
@@ -1058,7 +1058,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str
         return
     
     # Check if session is valid
-    if not session_id or user.get("active_session_id") != session_id:
+    if user.get("active_session_id") != session_id:
         await websocket.close(code=4002, reason="Invalid or expired session")
         return
     
@@ -1080,6 +1080,10 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str
             # Validate session is still active
             current_user = await db.users.find_one({"id": user_id})
             if not current_user or current_user.get("active_session_id") != session_id:
+                await websocket.send_text(json.dumps({
+                    "type": "session_invalidated",
+                    "message": "Your session has been terminated due to login from another location"
+                }))
                 await websocket.close(code=4003, reason="Session invalidated")
                 break
             
