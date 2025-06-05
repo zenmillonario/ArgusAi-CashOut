@@ -551,23 +551,18 @@ async def login_user(login_data: UserLogin):
         elif user_obj.status == UserStatus.REJECTED:
             raise HTTPException(status_code=403, detail="Account has been rejected")
     
+    # Store the old session ID before generating new one
+    old_session_id = user.get("active_session_id")
+    
     # Generate new session ID
     new_session_id = str(uuid.uuid4())
     
-    # If user has an active session, invalidate it
-    if user.get("active_session_id"):
-        # Notify the old session to logout
+    # If user has an active session, invalidate it AFTER setting the new session
+    if old_session_id:
+        # Notify the old session to logout (but don't close connection yet)
         await manager.send_session_invalidation(user_obj.id, new_session_id)
-        
-        # Remove old connection if exists
-        if user_obj.id in manager.user_connections:
-            try:
-                old_ws = manager.user_connections[user_obj.id]
-                await old_ws.close()
-            except:
-                pass
     
-    # Update user with new session and online status
+    # Update user with new session and online status FIRST
     await db.users.update_one(
         {"id": user_obj.id},
         {"$set": {
@@ -581,6 +576,8 @@ async def login_user(login_data: UserLogin):
     # Add session_id to user object for frontend
     user_obj.active_session_id = new_session_id
     user_obj.session_created_at = datetime.utcnow()
+    
+    print(f"User {user_obj.username} logged in with new session: {new_session_id}, old session: {old_session_id}")
     
     return user_obj
 
