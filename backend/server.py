@@ -77,8 +77,15 @@ class ConnectionManager:
                     "message": "Your session has been terminated due to login from another location",
                     "new_session_id": new_session_id
                 }))
-            except:
-                pass
+                # Close the old connection
+                await self.user_connections[user_id].close(code=4003, reason="Session invalidated")
+                # Remove from active connections
+                self.disconnect(self.user_connections[user_id], user_id)
+            except Exception as e:
+                print(f"Error invalidating session for user {user_id}: {e}")
+                # Force remove the connection even if sending fails
+                if user_id in self.user_connections:
+                    del self.user_connections[user_id]
 
 manager = ConnectionManager()
 
