@@ -314,6 +314,22 @@ function App() {
                 }
               }, 100);
             }
+          } else if (data.type === 'admin_notification') {
+            // New admin notification handling
+            console.log('🔔 Admin notification received:', data);
+            
+            playNotificationSound();
+            
+            showBrowserNotification(
+              '💰 CashoutAI - Admin Message',
+              data.message,
+              true
+            );
+            
+            // Visual notification in app
+            if (document.hidden) {
+              document.title = `🔔 ${data.admin_real_name || data.admin_username} - CashoutAI`;
+            }
           } else if (data.type === 'admin_message') {
             // Legacy admin message handling
             console.log('🔔 Legacy admin message notification');
