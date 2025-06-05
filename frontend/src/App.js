@@ -1135,7 +1135,7 @@ function App() {
       </div>
 
       {/* Main Content - Adjusted for bottom navigation on mobile */}
-      <div className="max-w-6xl mx-auto p-4 h-[calc(100vh-80px)] pb-20 md:pb-4">{/* Added bottom padding for mobile nav */}
+      <div className="max-w-6xl mx-auto p-4 h-[calc(100vh-80px)] pb-28 md:pb-4">{/* Increased bottom padding for mobile nav + emergent logo */}
         
         {/* Chat Tab */}
         {activeTab === 'chat' && (
