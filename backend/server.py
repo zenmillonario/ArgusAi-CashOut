@@ -72,17 +72,15 @@ class ConnectionManager:
         """Send session invalidation message to user's old sessions"""
         if user_id in self.user_connections:
             try:
+                # Send message but don't close connection immediately
                 await self.user_connections[user_id].send_text(json.dumps({
                     "type": "session_invalidated",
                     "message": "Your session has been terminated due to login from another location",
                     "new_session_id": new_session_id
                 }))
-                # Close the old connection
-                await self.user_connections[user_id].close(code=4003, reason="Session invalidated")
-                # Remove from active connections
-                self.disconnect(self.user_connections[user_id], user_id)
+                print(f"Sent session invalidation message to user {user_id}")
             except Exception as e:
-                print(f"Error invalidating session for user {user_id}: {e}")
+                print(f"Error sending session invalidation message to user {user_id}: {e}")
                 # Force remove the connection even if sending fails
                 if user_id in self.user_connections:
                     del self.user_connections[user_id]
