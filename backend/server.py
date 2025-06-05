@@ -484,6 +484,10 @@ async def calculate_user_performance(user_id: str) -> dict:
 
 # API Routes
 
+@api_router.get("/")
+async def root():
+    return {"message": "CashoutAI API is running", "status": "success"}
+
 @api_router.post("/users/register", response_model=User)
 async def register_user(user_data: UserCreate):
     # Check if username already exists
