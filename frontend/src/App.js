@@ -551,6 +551,9 @@ function App() {
       console.error('Error during logout:', error);
     }
     
+    // Clear persisted user data
+    localStorage.removeItem('cashoutai_user');
+    
     setCurrentUser(null);
     setShowLogin(true);
     setMessages([]);
