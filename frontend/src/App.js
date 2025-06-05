@@ -277,6 +277,7 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
     
     try {
       if (isRegistering) {
@@ -306,7 +307,9 @@ function App() {
         localStorage.setItem('cashoutai_user', JSON.stringify(response.data));
       }
     } catch (error) {
-      alert(error.response?.data?.detail || 'An error occurred');
+      console.error('Authentication error:', error);
+      const errorMessage = error.response?.data?.detail || 'An error occurred during authentication';
+      setError(errorMessage);
     }
   };
 
