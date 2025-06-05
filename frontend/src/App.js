@@ -44,6 +44,7 @@ function App() {
   });
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [error, setError] = useState(null);
   const [tradeForm, setTradeForm] = useState({
     symbol: '',
     action: 'BUY',
