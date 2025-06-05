@@ -271,10 +271,39 @@ function App() {
             alert('🔒 Your session has been terminated due to login from another location.');
             logout();
           } else if (data.type === 'message') {
-            setMessages(prev => [...prev, data.data]);
-          } else if (data.type === 'admin_message' && currentUser?.is_admin) {
-            // Play notification sound for admin messages
+            const message = data.data;
+            setMessages(prev => [...prev, message]);
+            
+            // Check if this is an admin message and current user is not the sender
+            if (message.is_admin && message.user_id !== currentUser.id) {
+              console.log('🔔 Admin message detected from:', message.username);
+              
+              // Play notification sound
+              playNotificationSound();
+              
+              // Show browser notification
+              showBrowserNotification(
+                '💰 CashoutAI - Admin Message',
+                `${message.real_name || message.username}: ${message.content.substring(0, 100)}${message.content.length > 100 ? '...' : ''}`,
+                true
+              );
+              
+              // Visual notification in app
+              setTimeout(() => {
+                if (document.hidden) {
+                  document.title = `🔔 New Admin Message - CashoutAI`;
+                }
+              }, 100);
+            }
+          } else if (data.type === 'admin_message') {
+            // Legacy admin message handling
+            console.log('🔔 Legacy admin message notification');
             playNotificationSound();
+            showBrowserNotification(
+              '💰 CashoutAI - Admin Notification',
+              data.message,
+              true
+            );
           }
         } catch (e) {
           console.error('Error parsing WebSocket message:', e);
