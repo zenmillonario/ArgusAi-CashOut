@@ -423,7 +423,8 @@ function App() {
     return () => {
       if (wsRef.current) {
         if (wsRef.current.type === 'polling') {
-          clearInterval(wsRef.current.interval);
+          clearInterval(wsRef.current.sessionInterval);
+          clearInterval(wsRef.current.messageInterval);
         } else {
           wsRef.current.close();
         }
