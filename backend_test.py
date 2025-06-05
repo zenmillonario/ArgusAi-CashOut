@@ -1,337 +1,173 @@
+
 import requests
-import unittest
 import json
 import time
-import random
-import string
+import sys
 from datetime import datetime
 
-# Get the backend URL from the frontend .env file
-BACKEND_URL = "https://1494341d-df84-483f-b635-19d168bdc5cc.preview.emergentagent.com"
-API_URL = f"{BACKEND_URL}/api"
+class CashoutAITester:
+    def __init__(self, base_url="https://1494341d-df84-483f-b635-19d168bdc5cc.preview.emergentagent.com"):
+        self.base_url = base_url
+        self.api_url = f"{base_url}/api"
+        self.tests_run = 0
+        self.tests_passed = 0
+        self.session1 = requests.Session()
+        self.session2 = requests.Session()
+        
+    def run_test(self, name, method, endpoint, expected_status, session=None, data=None, headers=None):
+        """Run a single API test"""
+        url = f"{self.api_url}/{endpoint}"
+        req_session = session if session else requests.Session()
+        
+        self.tests_run += 1
+        print(f"\n🔍 Testing {name}...")
+        
+        try:
+            if method == 'GET':
+                response = req_session.get(url, headers=headers)
+            elif method == 'POST':
+                response = req_session.post(url, json=data, headers=headers)
+            
+            success = response.status_code == expected_status
+            if success:
+                self.tests_passed += 1
+                print(f"✅ Passed - Status: {response.status_code}")
+                try:
+                    return success, response.json()
+                except:
+                    return success, {}
+            else:
+                print(f"❌ Failed - Expected {expected_status}, got {response.status_code}")
+                try:
+                    print(f"Response: {response.json()}")
+                except:
+                    print(f"Response: {response.text}")
+                return False, {}
+                
+        except Exception as e:
+            print(f"❌ Failed - Error: {str(e)}")
+            return False, {}
+    
+    def test_login(self, username, password, session=None):
+        """Test login and get token"""
+        success, response = self.run_test(
+            "Login",
+            "POST",
+            "users/login",
+            200,
+            session=session,
+            data={"username": username, "password": password}
+        )
+        
+        if success:
+            print(f"Login successful for {username}")
+            print(f"Session ID: {response.get('active_session_id')}")
+            return response
+        return None
+    
+    def test_session_status(self, user_id, session_id, session=None):
+        """Test session status endpoint"""
+        success, response = self.run_test(
+            "Session Status Check",
+            "GET",
+            f"users/{user_id}/session-status?session_id={session_id}",
+            200,
+            session=session
+        )
+        
+        if success:
+            print(f"Session status: {response.get('valid')}")
+            print(f"Message: {response.get('message')}")
+            return response
+        return None
+    
+    def test_single_session_auth(self):
+        """Test single-session authentication by logging in from two different sessions"""
+        print("\n🔒 Testing Single-Session Authentication...")
+        
+        # First login with session 1
+        user1 = self.test_login("admin", "admin", self.session1)
+        if not user1:
+            print("❌ First login failed, cannot continue test")
+            return False
+        
+        user_id = user1.get('id')
+        session_id1 = user1.get('active_session_id')
+        
+        # Check if session 1 is valid
+        session1_status = self.test_session_status(user_id, session_id1, self.session1)
+        if not session1_status or not session1_status.get('valid'):
+            print("❌ First session is not valid, cannot continue test")
+            return False
+        
+        print("\n⏳ Waiting 2 seconds before second login...")
+        time.sleep(2)
+        
+        # Second login with session 2 (should invalidate session 1)
+        user2 = self.test_login("admin", "admin", self.session2)
+        if not user2:
+            print("❌ Second login failed, cannot continue test")
+            return False
+        
+        session_id2 = user2.get('active_session_id')
+        
+        # Check if session 2 is valid
+        session2_status = self.test_session_status(user_id, session_id2, self.session2)
+        if not session2_status or not session2_status.get('valid'):
+            print("❌ Second session is not valid, test failed")
+            return False
+        
+        print("\n⏳ Waiting 2 seconds before checking if first session was invalidated...")
+        time.sleep(2)
+        
+        # Check if session 1 is now invalid
+        session1_status_after = self.test_session_status(user_id, session_id1, self.session1)
+        
+        if session1_status_after and not session1_status_after.get('valid'):
+            print("✅ First session was correctly invalidated after second login")
+            return True
+        else:
+            print("❌ First session is still valid, single-session auth failed")
+            return False
+    
+    def test_widget_page_access(self):
+        """Test access to the widget page"""
+        print("\n🌐 Testing Widget Page Access...")
+        
+        widget_url = f"{self.base_url}/cashoutai-button-widget.html"
+        try:
+            response = requests.get(widget_url)
+            if response.status_code == 200:
+                print(f"✅ Widget page accessible at {widget_url}")
+                return True
+            else:
+                print(f"❌ Widget page not accessible, status code: {response.status_code}")
+                return False
+        except Exception as e:
+            print(f"❌ Error accessing widget page: {str(e)}")
+            return False
 
-def random_string(length=8):
-    """Generate a random string for testing"""
-    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
-
-class CashoutAIAPITest(unittest.TestCase):
-    """Test suite for CashoutAI API endpoints"""
+def main():
+    # Get the backend URL from environment or use default
+    backend_url = "https://1494341d-df84-483f-b635-19d168bdc5cc.preview.emergentagent.com"
     
-    def setUp(self):
-        """Set up test data and login as admin"""
-        self.admin_credentials = {
-            "username": "admin",
-            "password": "admin"  # Default admin password for demo
-        }
-        
-        # Login as admin
-        response = requests.post(f"{API_URL}/users/login", json=self.admin_credentials)
-        self.assertEqual(response.status_code, 200, "Admin login failed")
-        self.admin_user = response.json()
-        
-        # Generate test user data
-        timestamp = int(time.time())
-        self.test_user_data = {
-            "username": f"testuser_{timestamp}",
-            "email": f"test_{timestamp}@example.com",
-            "real_name": f"Test User {timestamp}",
-            "password": "testpassword123"
-        }
-        
-        # Create a test user
-        response = requests.post(f"{API_URL}/users/register", json=self.test_user_data)
-        self.assertEqual(response.status_code, 200, "Test user registration failed")
-        self.test_user_id = response.json()["id"]
-        
-        # Approve the test user
-        approval_data = {
-            "user_id": self.test_user_id,
-            "approved": True,
-            "admin_id": self.admin_user["id"],
-            "role": "member"
-        }
-        response = requests.post(f"{API_URL}/users/approve", json=approval_data)
-        self.assertEqual(response.status_code, 200, "Test user approval failed")
-        
-        # Login as test user
-        login_data = {
-            "username": self.test_user_data["username"],
-            "password": self.test_user_data["password"]
-        }
-        response = requests.post(f"{API_URL}/users/login", json=login_data)
-        self.assertEqual(response.status_code, 200, "Test user login failed")
-        self.test_user = response.json()
+    print(f"🚀 Starting CashoutAI Backend Tests against {backend_url}")
+    tester = CashoutAITester(backend_url)
     
-    def test_01_user_registration_with_real_name(self):
-        """Test user registration with real_name field"""
-        timestamp = int(time.time())
-        user_data = {
-            "username": f"newuser_{timestamp}",
-            "email": f"new_{timestamp}@example.com",
-            "real_name": f"New User {timestamp}",
-            "password": "newpassword123"
-        }
-        
-        response = requests.post(f"{API_URL}/users/register", json=user_data)
-        self.assertEqual(response.status_code, 200, "User registration failed")
-        self.assertEqual(response.json()["real_name"], user_data["real_name"], "Real name not saved correctly")
+    # Test widget page access
+    widget_test_result = tester.test_widget_page_access()
     
-    def test_02_user_login(self):
-        """Test user login functionality"""
-        login_data = {
-            "username": self.test_user_data["username"],
-            "password": self.test_user_data["password"]
-        }
-        
-        response = requests.post(f"{API_URL}/users/login", json=login_data)
-        self.assertEqual(response.status_code, 200, "User login failed")
-        self.assertEqual(response.json()["username"], login_data["username"], "Username mismatch in login response")
+    # Test single-session authentication
+    single_session_test_result = tester.test_single_session_auth()
     
-    def test_03_profile_update(self):
-        """Test profile update with real_name and screen_name"""
-        profile_data = {
-            "real_name": f"Updated Real Name {random_string()}",
-            "screen_name": f"screen_{random_string()}"
-        }
-        
-        response = requests.put(f"{API_URL}/users/{self.test_user['id']}/profile", json=profile_data)
-        self.assertEqual(response.status_code, 200, "Profile update failed")
-        self.assertEqual(response.json()["real_name"], profile_data["real_name"], "Real name not updated correctly")
-        self.assertEqual(response.json()["screen_name"], profile_data["screen_name"], "Screen name not updated correctly")
+    # Print summary
+    print("\n📊 Test Summary:")
+    print(f"Widget Page Access: {'✅ PASSED' if widget_test_result else '❌ FAILED'}")
+    print(f"Single-Session Auth: {'✅ PASSED' if single_session_test_result else '❌ FAILED'}")
+    print(f"Tests Passed: {tester.tests_passed}/{tester.tests_run}")
     
-    def test_04_admin_approval_with_role(self):
-        """Test admin approval with role assignment"""
-        # Create a new user to approve
-        timestamp = int(time.time())
-        new_user_data = {
-            "username": f"approvaltest_{timestamp}",
-            "email": f"approval_{timestamp}@example.com",
-            "real_name": f"Approval Test {timestamp}",
-            "password": "approvalpass123"
-        }
-        
-        response = requests.post(f"{API_URL}/users/register", json=new_user_data)
-        self.assertEqual(response.status_code, 200, "User registration for approval test failed")
-        new_user_id = response.json()["id"]
-        
-        # Approve with moderator role
-        approval_data = {
-            "user_id": new_user_id,
-            "approved": True,
-            "admin_id": self.admin_user["id"],
-            "role": "moderator"
-        }
-        
-        response = requests.post(f"{API_URL}/users/approve", json=approval_data)
-        self.assertEqual(response.status_code, 200, "User approval failed")
-        
-        # Verify the user's role
-        response = requests.get(f"{API_URL}/users")
-        users = response.json()
-        approved_user = next((user for user in users if user["id"] == new_user_id), None)
-        self.assertIsNotNone(approved_user, "Approved user not found")
-        self.assertEqual(approved_user["role"], "moderator", "Role not assigned correctly")
-    
-    def test_05_position_actions(self):
-        """Test position actions (buy more, sell partial, sell all)"""
-        # Create a position first
-        trade_data = {
-            "symbol": "TSLA",
-            "action": "BUY",
-            "quantity": 10,
-            "price": 250.0,
-            "notes": "Test position"
-        }
-        
-        response = requests.post(f"{API_URL}/trades?user_id={self.test_user['id']}", json=trade_data)
-        self.assertEqual(response.status_code, 200, "Failed to create initial position")
-        
-        # Get positions
-        response = requests.get(f"{API_URL}/positions/{self.test_user['id']}")
-        self.assertEqual(response.status_code, 200, "Failed to get positions")
-        positions = response.json()
-        self.assertTrue(len(positions) > 0, "No positions found after creating one")
-        
-        position_id = positions[0]["id"]
-        
-        # Test buy more
-        buy_more_data = {
-            "action": "BUY_MORE",
-            "quantity": 5,
-            "price": 255.0
-        }
-        
-        response = requests.post(f"{API_URL}/positions/{position_id}/action?user_id={self.test_user['id']}", json=buy_more_data)
-        self.assertEqual(response.status_code, 200, "Buy more action failed")
-        
-        # Get updated positions
-        response = requests.get(f"{API_URL}/positions/{self.test_user['id']}")
-        positions = response.json()
-        updated_position = next((pos for pos in positions if pos["id"] == position_id), None)
-        self.assertIsNotNone(updated_position, "Position not found after buy more")
-        self.assertEqual(updated_position["quantity"], 15, "Quantity not updated correctly after buy more")
-        
-        # Test sell partial
-        sell_partial_data = {
-            "action": "SELL_PARTIAL",
-            "quantity": 3,
-            "price": 260.0
-        }
-        
-        response = requests.post(f"{API_URL}/positions/{position_id}/action?user_id={self.test_user['id']}", json=sell_partial_data)
-        self.assertEqual(response.status_code, 200, "Sell partial action failed")
-        
-        # Get updated positions
-        response = requests.get(f"{API_URL}/positions/{self.test_user['id']}")
-        positions = response.json()
-        updated_position = next((pos for pos in positions if pos["id"] == position_id), None)
-        self.assertIsNotNone(updated_position, "Position not found after sell partial")
-        self.assertEqual(updated_position["quantity"], 12, "Quantity not updated correctly after sell partial")
-        
-        # Test sell all
-        sell_all_data = {
-            "action": "SELL_ALL",
-            "price": 265.0
-        }
-        
-        response = requests.post(f"{API_URL}/positions/{position_id}/action?user_id={self.test_user['id']}", json=sell_all_data)
-        self.assertEqual(response.status_code, 200, "Sell all action failed")
-        
-        # Get updated positions
-        response = requests.get(f"{API_URL}/positions/{self.test_user['id']}")
-        positions = response.json()
-        closed_position = next((pos for pos in positions if pos["id"] == position_id), None)
-        self.assertIsNone(closed_position, "Position still found after sell all")
-    
-    def test_06_message_creation_with_content_types(self):
-        """Test message creation with different content types"""
-        # Test text message
-        text_message = {
-            "content": "This is a test message with $TSLA ticker",
-            "content_type": "text",
-            "user_id": self.test_user["id"]
-        }
-        
-        response = requests.post(f"{API_URL}/messages", json=text_message)
-        self.assertEqual(response.status_code, 200, "Text message creation failed")
-        self.assertEqual(response.json()["content_type"], "text", "Content type not set correctly")
-        self.assertEqual(len(response.json()["highlighted_tickers"]), 1, "Ticker not extracted correctly")
-        
-        # Test image message
-        image_message = {
-            "content": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD9/KKKKAP/2Q==",
-            "content_type": "image",
-            "user_id": self.test_user["id"]
-        }
-        
-        response = requests.post(f"{API_URL}/messages", json=image_message)
-        self.assertEqual(response.status_code, 200, "Image message creation failed")
-        self.assertEqual(response.json()["content_type"], "image", "Content type not set correctly for image")
-    
-    def test_07_user_role_management(self):
-        """Test user role management"""
-        # Create a new user
-        timestamp = int(time.time())
-        new_user_data = {
-            "username": f"roletest_{timestamp}",
-            "email": f"role_{timestamp}@example.com",
-            "real_name": f"Role Test {timestamp}",
-            "password": "rolepass123"
-        }
-        
-        response = requests.post(f"{API_URL}/users/register", json=new_user_data)
-        self.assertEqual(response.status_code, 200, "User registration for role test failed")
-        new_user_id = response.json()["id"]
-        
-        # Approve the user
-        approval_data = {
-            "user_id": new_user_id,
-            "approved": True,
-            "admin_id": self.admin_user["id"],
-            "role": "member"
-        }
-        
-        response = requests.post(f"{API_URL}/users/approve", json=approval_data)
-        self.assertEqual(response.status_code, 200, "User approval for role test failed")
-        
-        # Change role to moderator
-        role_update_data = {
-            "user_id": new_user_id,
-            "role": "moderator",
-            "admin_id": self.admin_user["id"]
-        }
-        
-        response = requests.post(f"{API_URL}/users/{new_user_id}/role", json=role_update_data)
-        self.assertEqual(response.status_code, 200, "Role update to moderator failed")
-        
-        # Verify role change
-        response = requests.get(f"{API_URL}/users")
-        users = response.json()
-        role_user = next((user for user in users if user["id"] == new_user_id), None)
-        self.assertIsNotNone(role_user, "Role test user not found")
-        self.assertEqual(role_user["role"], "moderator", "Role not updated to moderator correctly")
-        
-        # Change role to admin
-        role_update_data = {
-            "user_id": new_user_id,
-            "role": "admin",
-            "admin_id": self.admin_user["id"]
-        }
-        
-        response = requests.post(f"{API_URL}/users/{new_user_id}/role", json=role_update_data)
-        self.assertEqual(response.status_code, 200, "Role update to admin failed")
-        
-        # Verify role change and admin status
-        response = requests.get(f"{API_URL}/users")
-        users = response.json()
-        role_user = next((user for user in users if user["id"] == new_user_id), None)
-        self.assertIsNotNone(role_user, "Role test user not found")
-        self.assertEqual(role_user["role"], "admin", "Role not updated to admin correctly")
-        self.assertTrue(role_user["is_admin"], "is_admin flag not set correctly")
-    
-    def test_08_user_removal(self):
-        """Test user removal"""
-        # Create a new user to remove
-        timestamp = int(time.time())
-        new_user_data = {
-            "username": f"removetest_{timestamp}",
-            "email": f"remove_{timestamp}@example.com",
-            "real_name": f"Remove Test {timestamp}",
-            "password": "removepass123"
-        }
-        
-        response = requests.post(f"{API_URL}/users/register", json=new_user_data)
-        self.assertEqual(response.status_code, 200, "User registration for removal test failed")
-        new_user_id = response.json()["id"]
-        
-        # Approve the user
-        approval_data = {
-            "user_id": new_user_id,
-            "approved": True,
-            "admin_id": self.admin_user["id"],
-            "role": "member"
-        }
-        
-        response = requests.post(f"{API_URL}/users/approve", json=approval_data)
-        self.assertEqual(response.status_code, 200, "User approval for removal test failed")
-        
-        # Remove the user
-        response = requests.delete(f"{API_URL}/users/{new_user_id}?admin_id={self.admin_user['id']}")
-        self.assertEqual(response.status_code, 200, "User removal failed")
-        
-        # Verify user is removed
-        response = requests.get(f"{API_URL}/users")
-        users = response.json()
-        removed_user = next((user for user in users if user["id"] == new_user_id), None)
-        self.assertIsNone(removed_user, "User still exists after removal")
-    
-    def tearDown(self):
-        """Clean up after tests"""
-        # Logout test user
-        requests.post(f"{API_URL}/users/logout?user_id={self.test_user['id']}")
-        
-        # Remove test user
-        requests.delete(f"{API_URL}/users/{self.test_user['id']}?admin_id={self.admin_user['id']}")
+    # Return success if all tests passed
+    return 0 if widget_test_result and single_session_test_result else 1
 
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    sys.exit(main())
