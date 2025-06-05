@@ -579,10 +579,15 @@ async def login_user(login_data: UserLogin):
 
 @api_router.post("/users/logout")
 async def logout_user(user_id: str):
-    """Update user offline status"""
+    """Update user offline status and clear session"""
     await db.users.update_one(
         {"id": user_id},
-        {"$set": {"is_online": False, "last_seen": datetime.utcnow()}}
+        {"$set": {
+            "is_online": False, 
+            "last_seen": datetime.utcnow(),
+            "active_session_id": None,
+            "session_created_at": None
+        }}
     )
     return {"message": "Logged out successfully"}
 
