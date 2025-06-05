@@ -376,10 +376,44 @@ function App() {
             } catch (error) {
               console.error('Session validation error:', error);
             }
-          }, 3000); // Check every 3 seconds instead of 5
+          }, 3000); // Check every 3 seconds
           
-          // Store interval ID to clean up later
-          wsRef.current = { type: 'polling', interval: sessionCheckInterval };
+          // Also check for new messages periodically when WebSocket is down
+          const messageCheckInterval = setInterval(async () => {
+            try {
+              const response = await axios.get(`${API}/messages?limit=5`);
+              const latestMessages = response.data;
+              
+              setMessages(prev => {
+                const existingIds = prev.map(m => m.id);
+                const newMessages = latestMessages.filter(m => !existingIds.includes(m.id));
+                
+                // Check for admin messages in new messages
+                newMessages.forEach(message => {
+                  if (message.is_admin && message.user_id !== currentUser.id) {
+                    console.log('🔔 Admin message detected via polling:', message.username);
+                    playNotificationSound();
+                    showBrowserNotification(
+                      '💰 CashoutAI - Admin Message',
+                      `${message.real_name || message.username}: ${message.content.substring(0, 100)}${message.content.length > 100 ? '...' : ''}`,
+                      true
+                    );
+                  }
+                });
+                
+                return [...prev, ...newMessages];
+              });
+            } catch (error) {
+              console.error('Message polling error:', error);
+            }
+          }, 5000); // Check for new messages every 5 seconds
+          
+          // Store interval IDs to clean up later
+          wsRef.current = { 
+            type: 'polling', 
+            sessionInterval: sessionCheckInterval,
+            messageInterval: messageCheckInterval
+          };
         }
       };
       
