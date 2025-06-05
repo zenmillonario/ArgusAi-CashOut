@@ -240,7 +240,7 @@ function App() {
         console.error('WebSocket error:', error);
         setIsConnected(false);
         
-        # Add fallback mechanism for session validation when WebSocket fails
+        // Add fallback mechanism for session validation when WebSocket fails
         if (currentUser?.active_session_id) {
           console.log('WebSocket failed, starting session validation polling...');
           const sessionCheckInterval = setInterval(async () => {
