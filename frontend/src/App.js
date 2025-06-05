@@ -300,6 +300,9 @@ function App() {
         setCurrentUser(response.data);
         setShowLogin(false);
         setLoginForm({ username: '', email: '', password: '', real_name: '' });
+        
+        // Save user to localStorage for persistence
+        localStorage.setItem('cashoutai_user', JSON.stringify(response.data));
       }
     } catch (error) {
       alert(error.response?.data?.detail || 'An error occurred');
