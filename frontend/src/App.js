@@ -175,7 +175,7 @@ function App() {
       // Build WebSocket URL correctly with session validation
       const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
       const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
-      const wsUrl = `${wsProtocol}${wsHost}/ws/${currentUser.id}?session_id=${currentUser.active_session_id}`;
+      const wsUrl = `${wsProtocol}${wsHost}/ws/${currentUser.id}/${currentUser.active_session_id}`;
       
       console.log('Connecting to WebSocket:', wsUrl);
       const ws = new WebSocket(wsUrl);
@@ -194,7 +194,7 @@ function App() {
           
           if (data.type === 'session_invalidated') {
             // Session has been invalidated by login from another location
-            alert('Your session has been terminated due to login from another location.');
+            alert('🔒 Your session has been terminated due to login from another location.');
             logout();
           } else if (data.type === 'message') {
             setMessages(prev => [...prev, data.data]);
@@ -214,7 +214,7 @@ function App() {
         
         // Handle session invalidation close codes
         if (event.code === 4002 || event.code === 4003) {
-          alert('Your session has expired or been invalidated. Please log in again.');
+          alert('🔒 Your session has expired or been invalidated. Please log in again.');
           logout();
         }
       };
