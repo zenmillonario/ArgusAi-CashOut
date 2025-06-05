@@ -56,17 +56,17 @@ class ConnectionManager:
             except:
                 pass
 
-    async def send_admin_notification(self, message: str):
-        """Send notifications to all connected admins"""
-        admin_users = await db.users.find({"is_admin": True}).to_list(1000)
-        admin_ids = [user["id"] for user in admin_users]
-        
-        for user_id in admin_ids:
-            if user_id in self.user_connections:
-                try:
-                    await self.user_connections[user_id].send_text(message)
-                except:
-                    pass
+    async def send_session_invalidation(self, user_id: str, new_session_id: str):
+        """Send session invalidation message to user's old sessions"""
+        if user_id in self.user_connections:
+            try:
+                await self.user_connections[user_id].send_text(json.dumps({
+                    "type": "session_invalidated",
+                    "message": "Your session has been terminated due to login from another location",
+                    "new_session_id": new_session_id
+                }))
+            except:
+                pass
 
 manager = ConnectionManager()
 
