@@ -10,6 +10,7 @@ const API = `${BACKEND_URL}/api`;
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
+  const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
