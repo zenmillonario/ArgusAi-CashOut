@@ -8,6 +8,7 @@ const ChatTab = ({
   setSearchQuery, 
   formatMessageContent, 
   addReaction,
+  messageReactions,
   addToFavorites,
   favorites,
   messagesEndRef,
