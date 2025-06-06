@@ -1411,83 +1411,14 @@ function App() {
         )}
 
         {/* Portfolio Tab */}
-        {activeTab === 'portfolio' && (() => {
-          // Calculate total unrealized P&L from open positions
-          const totalUnrealizedPnL = openPositions.reduce((total, pos) => total + pos.unrealized_pnl, 0);
-          return (
-          <div className="space-y-4">
-            {/* Portfolio Summary - COMPACT */}
-            <div className={`backdrop-blur-lg rounded-xl border p-4 ${
-              isDarkTheme 
-                ? 'bg-white/5 border-white/10' 
-                : 'bg-white/80 border-gray-200'
-            }`}>
-              <h2 className={`text-lg font-bold mb-3 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                📊 Portfolio
-              </h2>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className={`p-3 rounded-lg text-center ${
-                  isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-                }`}>
-                  <div className={`text-lg font-bold ${
-                    openPositions.reduce((total, pos) => total + pos.unrealized_pnl, 0) >= 0 ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {openPositions.reduce((total, pos) => total + pos.unrealized_pnl, 0) >= 0 ? '+' : ''}${openPositions.reduce((total, pos) => total + pos.unrealized_pnl, 0).toFixed(2)}
-                  </div>
-                  <div className={`text-xs ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                    Unrealized P&L
-                  </div>
-                </div>
-                
-                <div className={`p-3 rounded-lg text-center ${
-                  isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-                }`}>
-                  <div className="text-lg font-bold text-blue-400">
-                    {openPositions.length}
-                  </div>
-                  <div className={`text-xs ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                    Open Positions
-                  </div>
-                </div>
-                
-                {userPerformance && (
-                  <>
-                    <div className={`p-3 rounded-lg text-center ${
-                      isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-                    }`}>
-                      <div className="text-lg font-bold text-green-400">
-                        ${userPerformance.total_profit.toFixed(2)}
-                      </div>
-                      <div className={`text-xs ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                        Total Realized
-                      </div>
-                    </div>
-                    
-                    <div className={`p-3 rounded-lg text-center ${
-                      isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-                    }`}>
-                      <div className="text-lg font-bold text-purple-400">
-                        {userPerformance.win_percentage.toFixed(1)}%
-                      </div>
-                      <div className={`text-xs ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                        Win Rate
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Open Positions - MORE SPACE */}
-            <PortfolioTab 
-              openPositions={openPositions}
-              userPerformance={userPerformance}
-              closePosition={closePosition}
-              handlePositionAction={handlePositionAction}
-              isDarkTheme={isDarkTheme}
-            />
-          </div>
+        {activeTab === 'portfolio' && (
+          <PortfolioTab 
+            openPositions={openPositions}
+            userPerformance={userPerformance}
+            closePosition={closePosition}
+            handlePositionAction={handlePositionAction}
+            isDarkTheme={isDarkTheme}
+          />
         )}
 
         {/* Favorites Tab */}
