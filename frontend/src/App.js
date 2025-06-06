@@ -1595,8 +1595,8 @@ function App() {
                 </h2>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {userTrades.slice(0, 10).map((trade) => (
-                    <div key={trade.id} className={`p-3 rounded text-sm ${
-                      isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
+                    <div key={trade.id} className={`p-3 rounded text-sm border ${
+                      isDarkTheme ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'
                     }`}>
                       <div className="flex justify-between items-center">
                         <div className="flex items-center space-x-2">
@@ -1612,12 +1612,22 @@ function App() {
                             {trade.quantity}@${trade.price}
                           </span>
                         </div>
-                        <span className="text-xs text-gray-400">
+                        <span className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
                           {new Date(trade.timestamp).toLocaleDateString()}
                         </span>
                       </div>
+                      {trade.notes && (
+                        <div className={`text-xs mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {trade.notes}
+                        </div>
+                      )}
                     </div>
                   ))}
+                  {userTrades.length === 0 && (
+                    <div className={`text-center py-8 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                      No trades yet. Record your first trade above!
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
