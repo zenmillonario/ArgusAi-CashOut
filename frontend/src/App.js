@@ -1411,7 +1411,10 @@ function App() {
         )}
 
         {/* Portfolio Tab */}
-        {activeTab === 'portfolio' && (
+        {activeTab === 'portfolio' && (() => {
+          // Calculate total unrealized P&L from open positions
+          const totalUnrealizedPnL = openPositions.reduce((total, pos) => total + pos.unrealized_pnl, 0);
+          return (
           <div className="space-y-4">
             {/* Portfolio Summary - COMPACT */}
             <div className={`backdrop-blur-lg rounded-xl border p-4 ${
