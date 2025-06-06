@@ -161,20 +161,43 @@ function App() {
     }
   };
 
-  const playNotificationSound = () => {
+  const playNotificationSound = async () => {
     try {
+      // Try to initialize audio context if not already done
       if (!audioContext) {
-        console.log('🔊 Audio context not initialized, initializing now...');
-        initializeAudio();
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        setAudioContext(ctx);
+        
+        // Resume if suspended
+        if (ctx.state === 'suspended') {
+          await ctx.resume();
+        }
+        
+        // Create sound with new context
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+        oscillator.frequency.setValueAtTime(1000, ctx.currentTime + 0.1);
+        oscillator.frequency.setValueAtTime(800, ctx.currentTime + 0.2);
+        oscillator.frequency.setValueAtTime(1200, ctx.currentTime + 0.3);
+        
+        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+        
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.6);
+        
+        console.log('🔔 Notification sound played successfully (new context)');
         return;
       }
 
       // Resume audio context if suspended
       if (audioContext.state === 'suspended') {
-        audioContext.resume().then(() => {
-          playNotificationSound();
-        });
-        return;
+        await audioContext.resume();
       }
 
       const oscillator = audioContext.createOscillator();
@@ -198,12 +221,15 @@ function App() {
       console.log('🔔 Notification sound played successfully');
     } catch (error) {
       console.error('Error playing notification sound:', error);
-      // Fallback: try to create simple beep
+      // Fallback: try HTML5 audio
       try {
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQEJHfH8N2QQAoUXrTp66hVFApGn+DyvmMgBSiJ0/LFeSQE');
-        audio.play().catch(e => console.log('Fallback audio also failed:', e));
+        const audio = new Audio();
+        audio.src = 'data:audio/wav;base64,UklGRtoBAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YdYBAAC4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4';
+        audio.volume = 0.3;
+        await audio.play();
+        console.log('🔔 Fallback notification sound played');
       } catch (e) {
-        console.log('All audio methods failed');
+        console.log('All audio methods failed:', e);
       }
     }
   };
