@@ -45,6 +45,8 @@ function App() {
   });
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [audioContext, setAudioContext] = useState(null);
   const [tradeForm, setTradeForm] = useState({
