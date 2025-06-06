@@ -1169,7 +1169,7 @@ function App() {
               )}
             </div>
             
-            {/* Action Buttons */}
+            {/* Action Buttons - Hide logout on mobile */}
             <div className="flex items-center space-x-4">
               {activeTab === 'chat' && (
                 <>
@@ -1220,6 +1220,7 @@ function App() {
                 {isDarkTheme ? '☀️' : '🌙'}
               </button>
               
+              {/* User info - Hide on small screens */}
               <div className="text-right hidden sm:block">
                 <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
                   {currentUser?.real_name || currentUser?.username}
@@ -1230,9 +1231,10 @@ function App() {
                 </div>
               </div>
               
+              {/* Logout - Only on desktop */}
               <button
                 onClick={logout}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                className="hidden md:block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
                 Logout
               </button>
