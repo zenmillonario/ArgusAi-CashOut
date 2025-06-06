@@ -1197,8 +1197,149 @@ function App() {
         </div>
       </div>
 
-      {/* Main Content - Adjusted for bottom navigation on mobile */}
-      <div className="max-w-6xl mx-auto p-4 h-[calc(100vh-80px)] pb-36 md:pb-4">{/* Increased to pb-36 (144px) for highest nav position */}
+      {/* Main Content - Back to normal spacing */}
+      <div className="max-w-6xl mx-auto p-4 h-[calc(100vh-80px)]">
+
+        {/* Mobile Navigation Dropdown */}
+        {showMobileMenu && (
+          <div className={`md:hidden fixed top-16 left-4 right-4 border rounded-lg shadow-lg z-50 ${
+            isDarkTheme ? 'border-white/10 bg-black/90' : 'border-gray-200 bg-white/90'
+          } backdrop-blur-lg`}>
+            <div className="p-4">
+              <div className="grid grid-cols-2 gap-3">
+                {/* Chat Tab */}
+                <button
+                  onClick={() => {
+                    setActiveTab('chat');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
+                    activeTab === 'chat'
+                      ? isDarkTheme 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-blue-600 text-white'
+                      : isDarkTheme 
+                        ? 'text-gray-300 hover:bg-white/10' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="text-2xl mb-1">💬</span>
+                  <span className="text-sm font-medium">Chat</span>
+                </button>
+
+                {/* Portfolio Tab */}
+                <button
+                  onClick={() => {
+                    setActiveTab('portfolio');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
+                    activeTab === 'portfolio'
+                      ? isDarkTheme 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-blue-600 text-white'
+                      : isDarkTheme 
+                        ? 'text-gray-300 hover:bg-white/10' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="text-2xl mb-1">📊</span>
+                  <span className="text-sm font-medium">Portfolio</span>
+                </button>
+
+                {/* Practice Tab */}
+                <button
+                  onClick={() => {
+                    setActiveTab('practice');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
+                    activeTab === 'practice'
+                      ? isDarkTheme 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-blue-600 text-white'
+                      : isDarkTheme 
+                        ? 'text-gray-300 hover:bg-white/10' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="text-2xl mb-1">📈</span>
+                  <span className="text-sm font-medium">Practice</span>
+                </button>
+
+                {/* Favorites Tab */}
+                <button
+                  onClick={() => {
+                    setActiveTab('favorites');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
+                    activeTab === 'favorites'
+                      ? isDarkTheme 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-blue-600 text-white'
+                      : isDarkTheme 
+                        ? 'text-gray-300 hover:bg-white/10' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="text-2xl mb-1">⭐</span>
+                  <span className="text-sm font-medium">Favorites</span>
+                </button>
+
+                {/* Profile Tab */}
+                <button
+                  onClick={() => {
+                    setActiveTab('profile');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
+                    activeTab === 'profile'
+                      ? isDarkTheme 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-blue-600 text-white'
+                      : isDarkTheme 
+                        ? 'text-gray-300 hover:bg-white/10' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="text-2xl mb-1">👤</span>
+                  <span className="text-sm font-medium">Profile</span>
+                </button>
+
+                {/* Admin Tab (if admin) */}
+                {currentUser?.is_admin && (
+                  <button
+                    onClick={() => {
+                      setActiveTab('admin');
+                      setShowMobileMenu(false);
+                    }}
+                    className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
+                      activeTab === 'admin'
+                        ? isDarkTheme 
+                          ? 'bg-yellow-600 text-white' 
+                          : 'bg-yellow-600 text-white'
+                        : isDarkTheme 
+                          ? 'text-yellow-400 hover:bg-white/10' 
+                          : 'text-yellow-600 hover:bg-yellow-50'
+                    }`}
+                  >
+                    <span className="text-2xl mb-1">⚙️</span>
+                    <span className="text-sm font-medium">Admin</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Close mobile menu when clicking outside */}
+        {showMobileMenu && (
+          <div 
+            className="md:hidden fixed inset-0 z-40" 
+            onClick={() => setShowMobileMenu(false)}
+          />
+        )}
         
         {/* Chat Tab */}
         {activeTab === 'chat' && (
