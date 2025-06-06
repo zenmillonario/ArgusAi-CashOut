@@ -146,8 +146,6 @@ function App() {
     localStorage.setItem(`cashoutai_favorites_${currentUser.id}`, JSON.stringify(newFavorites));
   };
 
-  const [audioContext, setAudioContext] = useState(null);
-
   // Initialize audio context after user interaction
   const initializeAudio = () => {
     if (!audioContext) {
