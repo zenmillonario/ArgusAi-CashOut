@@ -86,7 +86,7 @@ const ChatTab = ({
                   />
                 ) : null}
                 <div className={`w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs ${message.avatar_url ? 'hidden' : 'flex'}`}>
-                  {(message.real_name || message.username).charAt(0).toUpperCase()}
+                  {(message.screen_name || message.username).charAt(0).toUpperCase()}
                 </div>
               </div>
               
