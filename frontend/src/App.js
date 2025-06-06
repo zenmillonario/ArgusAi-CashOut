@@ -42,8 +42,10 @@ function App() {
     new_password: '',
     confirm_password: ''
   });
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [error, setError] = useState(null);
+  const [audioContext, setAudioContext] = useState(null);
   const [tradeForm, setTradeForm] = useState({
     symbol: '',
     action: 'BUY',
