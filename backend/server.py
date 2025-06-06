@@ -728,6 +728,7 @@ async def create_message(message_data: MessageCreate):
         is_admin=user.get("is_admin", False),
         avatar_url=user.get("avatar_url"),
         real_name=user.get("real_name"),
+        screen_name=user.get("screen_name"),  # NEW: Include screen_name in message
         highlighted_tickers=tickers
     )
     
