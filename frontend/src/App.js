@@ -660,9 +660,33 @@ function App() {
 
   const sendMessage = async (e) => {
     e.preventDefault();
+    
+    // Check if we have an image to send
+    if (imageFile && imagePreview) {
+      try {
+        console.log('Sending image message...');
+        await axios.post(`${API}/messages`, {
+          content: imagePreview, // Send the base64 data URL
+          content_type: "image",
+          user_id: currentUser.id
+        });
+        
+        // Clear image after sending
+        setImageFile(null);
+        setImagePreview(null);
+        console.log('Image message sent successfully');
+      } catch (error) {
+        console.error('Error sending image:', error);
+        alert('Error sending image');
+      }
+      return;
+    }
+    
+    // Send text message
     if (!newMessage.trim()) return;
 
     try {
+      console.log('Sending text message...');
       await axios.post(`${API}/messages`, {
         content: newMessage,
         content_type: "text",
@@ -670,6 +694,7 @@ function App() {
       });
       
       setNewMessage('');
+      console.log('Text message sent successfully');
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Error sending message');
