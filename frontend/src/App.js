@@ -1040,6 +1040,20 @@ function App() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-3">
+                {/* Mobile Menu Button */}
+                <button
+                  onClick={() => setShowMobileMenu(!showMobileMenu)}
+                  className={`md:hidden p-2 rounded-lg transition-colors ${
+                    isDarkTheme 
+                      ? 'bg-white/10 text-gray-300 hover:bg-white/20' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+
                 {/* Team Logo in Header */}
                 <div className="w-12 h-12 rounded-lg overflow-hidden border-2 border-blue-500/30 bg-gradient-to-br from-blue-900 to-purple-900 shadow-lg">
                   <img 
