@@ -1893,10 +1893,10 @@ function App() {
         </div>
       )}
 
-      {/* Mobile Bottom Navigation - Positioned above Emergent logo */}
-      <div className={`md:hidden fixed bottom-8 left-0 right-0 border-t ${
+      {/* Mobile Bottom Navigation - Positioned well above Emergent logo */}
+      <div className={`md:hidden fixed bottom-16 left-0 right-0 border-t ${
         isDarkTheme ? 'border-white/10 bg-black/90' : 'border-gray-200 bg-white/90'
-      } backdrop-blur-lg mx-2 rounded-lg shadow-lg`}>{/* Added margin and rounded corners */}
+      } backdrop-blur-lg mx-2 rounded-lg shadow-lg`}>{/* Moved to bottom-16 (64px from bottom) */}
         <div className="flex justify-around items-center py-2">
           {/* Chat Tab */}
           <button
