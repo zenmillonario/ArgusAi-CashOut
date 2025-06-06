@@ -7,7 +7,6 @@ const PortfolioTab = ({
   handlePositionAction,
   isDarkTheme 
 }) => {
-  const totalUnrealizedPnL = openPositions.reduce((sum, pos) => sum + (pos.unrealized_pnl || 0), 0);
   const [actionModal, setActionModal] = useState(null);
   const [actionQuantity, setActionQuantity] = useState('');
   const [actionPrice, setActionPrice] = useState('');
@@ -44,81 +43,18 @@ const PortfolioTab = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Portfolio Summary */}
-      <div className={`backdrop-blur-lg rounded-2xl border p-6 ${
-        isDarkTheme 
-          ? 'bg-white/5 border-white/10' 
-          : 'bg-white/80 border-gray-200'
-      }`}>
-        <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-          📊 Portfolio Overview
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className={`p-4 rounded-xl text-center ${
-            isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-          }`}>
-            <div className={`text-2xl font-bold ${
-              totalUnrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'
-            }`}>
-              {totalUnrealizedPnL >= 0 ? '+' : ''}${totalUnrealizedPnL.toFixed(2)}
-            </div>
-            <div className={`mt-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-              Unrealized P&L
-            </div>
-          </div>
-          
-          <div className={`p-4 rounded-xl text-center ${
-            isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-          }`}>
-            <div className="text-2xl font-bold text-blue-400">
-              {openPositions.length}
-            </div>
-            <div className={`mt-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-              Open Positions
-            </div>
-          </div>
-          
-          {userPerformance && (
-            <>
-              <div className={`p-4 rounded-xl text-center ${
-                isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-              }`}>
-                <div className="text-2xl font-bold text-green-400">
-                  ${userPerformance.total_profit.toFixed(2)}
-                </div>
-                <div className={`mt-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Total Realized
-                </div>
-              </div>
-              
-              <div className={`p-4 rounded-xl text-center ${
-                isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-              }`}>
-                <div className="text-2xl font-bold text-purple-400">
-                  {userPerformance.win_percentage.toFixed(1)}%
-                </div>
-                <div className={`mt-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Win Rate
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Open Positions */}
+    <div className="space-y-4">
+      {/* Open Positions - MAIN FOCUS */}
       {openPositions.length > 0 ? (
-        <div className={`backdrop-blur-lg rounded-2xl border p-6 ${
+        <div className={`backdrop-blur-lg rounded-xl border p-4 ${
           isDarkTheme 
             ? 'bg-white/5 border-white/10' 
             : 'bg-white/80 border-gray-200'
         }`}>
-          <h3 className={`text-xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-            📈 Open Positions
+          <h3 className={`text-lg font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+            📈 Open Positions ({openPositions.length})
           </h3>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {openPositions.map((position) => (
               <div key={position.id} className={`p-4 rounded-lg border ${
                 isDarkTheme ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'
@@ -141,9 +77,9 @@ const PortfolioTab = ({
                   </div>
                 </div>
 
-                {/* Price Information */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                  <div className={`p-3 rounded ${isDarkTheme ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'}`}>
+                {/* Price Information - COMPACT */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <div className={`p-2 rounded text-center ${isDarkTheme ? 'bg-white/10 border border-white/20' : 'bg-gray-100 border border-gray-300'}`}>
                     <div className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
                       Purchase Price
                     </div>
@@ -152,7 +88,7 @@ const PortfolioTab = ({
                     </div>
                   </div>
                   
-                  <div className={`p-3 rounded ${isDarkTheme ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'}`}>
+                  <div className={`p-2 rounded text-center ${isDarkTheme ? 'bg-white/10 border border-white/20' : 'bg-gray-100 border border-gray-300'}`}>
                     <div className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
                       Current Price
                     </div>
@@ -161,7 +97,7 @@ const PortfolioTab = ({
                     </div>
                   </div>
                   
-                  <div className={`p-3 rounded ${isDarkTheme ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'}`}>
+                  <div className={`p-2 rounded text-center ${isDarkTheme ? 'bg-white/10 border border-white/20' : 'bg-gray-100 border border-gray-300'}`}>
                     <div className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
                       Total Value
                     </div>
@@ -170,7 +106,7 @@ const PortfolioTab = ({
                     </div>
                   </div>
                   
-                  <div className={`p-3 rounded ${position.unrealized_pnl >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                  <div className={`p-2 rounded text-center ${position.unrealized_pnl >= 0 ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
                     <div className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
                       Profit/Loss
                     </div>
@@ -191,42 +127,42 @@ const PortfolioTab = ({
                 <div className="flex flex-wrap gap-2 mb-3">
                   <button
                     onClick={() => openActionModal(position, 'BUY_MORE')}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="px-3 py-1 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 transition-colors"
                   >
                     💰 Buy More
                   </button>
                   
                   <button
                     onClick={() => openActionModal(position, 'SELL_PARTIAL')}
-                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+                    className="px-3 py-1 bg-orange-600 text-white rounded text-sm font-medium hover:bg-orange-700 transition-colors"
                   >
                     📊 Sell Partial
                   </button>
                   
                   <button
                     onClick={() => openActionModal(position, 'SELL_ALL')}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                    className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium hover:bg-red-700 transition-colors"
                   >
                     🔴 Sell All
                   </button>
                   
                   <button
                     onClick={() => closePosition(position.id, position.symbol)}
-                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                    className="px-3 py-1 bg-gray-600 text-white rounded text-sm font-medium hover:bg-gray-700 transition-colors"
                   >
-                    ❌ Close Position
+                    ❌ Close
                   </button>
                 </div>
                 
                 {/* Stop Loss & Take Profit Indicators */}
                 {(position.stop_loss || position.take_profit) && (
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-2">
                     {position.stop_loss && (
-                      <div className="flex items-center space-x-2 px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-lg">
-                        <span className="text-red-400 text-sm">🛑 Stop Loss:</span>
-                        <span className="text-red-400 font-semibold text-sm">${position.stop_loss}</span>
+                      <div className="flex items-center space-x-2 px-2 py-1 bg-red-500/10 border border-red-500/30 rounded text-xs">
+                        <span className="text-red-400">🛑 Stop Loss:</span>
+                        <span className="text-red-400 font-semibold">${position.stop_loss}</span>
                         {position.current_price && (
-                          <span className="text-xs text-red-300">
+                          <span className="text-red-300">
                             ({((position.stop_loss - position.current_price) / position.current_price * 100).toFixed(1)}% away)
                           </span>
                         )}
@@ -234,30 +170,14 @@ const PortfolioTab = ({
                     )}
                     
                     {position.take_profit && (
-                      <div className="flex items-center space-x-2 px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-lg">
-                        <span className="text-green-400 text-sm">🎯 Take Profit:</span>
-                        <span className="text-green-400 font-semibold text-sm">${position.take_profit}</span>
+                      <div className="flex items-center space-x-2 px-2 py-1 bg-green-500/10 border border-green-500/30 rounded text-xs">
+                        <span className="text-green-400">🎯 Take Profit:</span>
+                        <span className="text-green-400 font-semibold">${position.take_profit}</span>
                         {position.current_price && (
-                          <span className="text-xs text-green-300">
+                          <span className="text-green-300">
                             ({((position.take_profit - position.current_price) / position.current_price * 100).toFixed(1)}% away)
                           </span>
                         )}
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* Auto-close warning if close to triggers */}
-                {position.current_price && (
-                  <div className="mt-2">
-                    {position.stop_loss && position.current_price <= position.stop_loss * 1.02 && (
-                      <div className="text-xs text-red-400 bg-red-500/10 px-2 py-1 rounded">
-                        ⚠️ Approaching stop loss trigger
-                      </div>
-                    )}
-                    {position.take_profit && position.current_price >= position.take_profit * 0.98 && (
-                      <div className="text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded">
-                        🎯 Approaching take profit trigger
                       </div>
                     )}
                   </div>
@@ -267,7 +187,7 @@ const PortfolioTab = ({
           </div>
         </div>
       ) : (
-        <div className={`backdrop-blur-lg rounded-2xl border p-6 text-center ${
+        <div className={`backdrop-blur-lg rounded-xl border p-6 text-center ${
           isDarkTheme 
             ? 'bg-white/5 border-white/10' 
             : 'bg-white/80 border-gray-200'
