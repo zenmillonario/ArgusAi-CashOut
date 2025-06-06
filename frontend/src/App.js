@@ -322,9 +322,26 @@ function App() {
     }
   }, []);
 
+  const [messageReactions, setMessageReactions] = useState({});
+
   const addReaction = (messageId, reaction) => {
-    // For now, just show an alert - in a full implementation, this would save to backend
-    alert(`Added reaction ${reaction} to message`);
+    console.log(`Adding reaction ${reaction} to message ${messageId}`);
+    
+    setMessageReactions(prev => {
+      const messageReacts = prev[messageId] || {};
+      const currentCount = messageReacts[reaction] || 0;
+      
+      return {
+        ...prev,
+        [messageId]: {
+          ...messageReacts,
+          [reaction]: currentCount + 1
+        }
+      };
+    });
+    
+    // In a full implementation, you'd also send this to the backend
+    // For now, we'll just store it locally
   };
 
   const scrollToBottom = () => {
