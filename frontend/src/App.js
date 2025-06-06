@@ -1431,9 +1431,9 @@ function App() {
                   isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
                 }`}>
                   <div className={`text-lg font-bold ${
-                    totalUnrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'
+                    openPositions.reduce((total, pos) => total + pos.unrealized_pnl, 0) >= 0 ? 'text-green-400' : 'text-red-400'
                   }`}>
-                    {totalUnrealizedPnL >= 0 ? '+' : ''}${totalUnrealizedPnL.toFixed(2)}
+                    {openPositions.reduce((total, pos) => total + pos.unrealized_pnl, 0) >= 0 ? '+' : ''}${openPositions.reduce((total, pos) => total + pos.unrealized_pnl, 0).toFixed(2)}
                   </div>
                   <div className={`text-xs ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
                     Unrealized P&L
