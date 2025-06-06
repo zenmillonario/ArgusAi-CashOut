@@ -1384,6 +1384,10 @@ function App() {
             sendMessage={sendMessage}
             newMessage={newMessage}
             setNewMessage={setNewMessage}
+            imageFile={imageFile}
+            setImageFile={setImageFile}
+            imagePreview={imagePreview}
+            setImagePreview={setImagePreview}
             isDarkTheme={isDarkTheme}
           />
         )}
