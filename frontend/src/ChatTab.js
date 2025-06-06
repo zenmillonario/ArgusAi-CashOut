@@ -14,11 +14,13 @@ const ChatTab = ({
   sendMessage,
   newMessage,
   setNewMessage,
+  imageFile,
+  setImageFile,
+  imagePreview,
+  setImagePreview,
   isDarkTheme 
 }) => {
   const displayMessages = showSearch ? filteredMessages : messages;
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
