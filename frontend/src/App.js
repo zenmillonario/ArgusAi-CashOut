@@ -1395,6 +1395,7 @@ function App() {
             setSearchQuery={setSearchQuery}
             formatMessageContent={formatMessageContent}
             addReaction={addReaction}
+            messageReactions={messageReactions}
             addToFavorites={addToFavorites}
             favorites={favorites}
             messagesEndRef={messagesEndRef}
