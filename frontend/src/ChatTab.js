@@ -158,18 +158,34 @@ const ChatTab = ({
                   />
                 )}
                 
-                {/* Message Reactions - Compact */}
-                <div className="flex items-center space-x-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {['👍', '💰', '🚀', '❤️'].map(reaction => (
+                {/* Message Reactions - Enhanced */}
+                <div className="flex items-center space-x-1 mt-1">
+                  {/* Show existing reactions */}
+                  {messageReactions[message.id] && Object.entries(messageReactions[message.id]).map(([reaction, count]) => (
                     <button
                       key={reaction}
                       onClick={() => addReaction(message.id, reaction)}
-                      className="text-sm hover:scale-110 transition-transform"
-                      title={`React with ${reaction}`}
+                      className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                        isDarkTheme ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'
+                      }`}
                     >
-                      {reaction}
+                      {reaction} {count}
                     </button>
                   ))}
+                  
+                  {/* Reaction buttons (show on hover) */}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+                    {['👍', '💰', '🚀', '❤️'].map(reaction => (
+                      <button
+                        key={reaction}
+                        onClick={() => addReaction(message.id, reaction)}
+                        className="text-sm hover:scale-110 transition-transform p-1 rounded"
+                        title={`React with ${reaction}`}
+                      >
+                        {reaction}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
