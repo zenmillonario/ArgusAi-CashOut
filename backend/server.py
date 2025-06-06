@@ -161,6 +161,7 @@ class Message(BaseModel):
     is_admin: bool = False
     avatar_url: Optional[str] = None
     real_name: Optional[str] = None  # NEW: Include real name
+    screen_name: Optional[str] = None  # NEW: Include screen name
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     highlighted_tickers: List[str] = []
 
