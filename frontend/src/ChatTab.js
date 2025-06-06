@@ -98,10 +98,10 @@ const ChatTab = ({
                       ? 'text-yellow-400' 
                       : isDarkTheme ? 'text-white' : 'text-gray-900'
                   }`}>
-                    {message.real_name || message.username}
-                    {message.real_name && message.username !== message.real_name && (
+                    {message.screen_name || message.username}
+                    {message.real_name && message.screen_name && (
                       <span className={`ml-1 text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
-                        @{message.username}
+                        ({message.real_name})
                       </span>
                     )}
                   </span>
