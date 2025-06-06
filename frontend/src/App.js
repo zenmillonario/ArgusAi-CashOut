@@ -446,11 +446,11 @@ function App() {
                 // Check for admin messages in new messages
                 newMessages.forEach(message => {
                   if (message.is_admin && message.user_id !== currentUser.id) {
-                    console.log('🔔 Admin message detected via polling:', message.username);
+                    console.log('🔔 Admin message detected via polling:', message.screen_name || message.username);
                     playNotificationSound();
                     showBrowserNotification(
                       '💰 CashoutAI - Admin Message',
-                      `${message.real_name || message.username}: ${message.content.substring(0, 100)}${message.content.length > 100 ? '...' : ''}`,
+                      `${message.screen_name || message.username}: ${message.content.substring(0, 100)}${message.content.length > 100 ? '...' : ''}`,
                       true
                     );
                   }
