@@ -1894,9 +1894,9 @@ function App() {
       )}
 
       {/* Mobile Bottom Navigation - Positioned well above Emergent logo */}
-      <div className={`md:hidden fixed bottom-16 left-0 right-0 border-t ${
+      <div className={`md:hidden fixed bottom-20 left-0 right-0 border-t ${
         isDarkTheme ? 'border-white/10 bg-black/90' : 'border-gray-200 bg-white/90'
-      } backdrop-blur-lg mx-2 rounded-lg shadow-lg`}>{/* Moved to bottom-16 (64px from bottom) */}
+      } backdrop-blur-lg mx-2 rounded-lg shadow-lg`}>{/* Moved to bottom-20 (80px from bottom) */}
         <div className="flex justify-around items-center py-2">
           {/* Chat Tab */}
           <button
