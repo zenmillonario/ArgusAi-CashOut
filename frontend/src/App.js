@@ -1252,7 +1252,20 @@ function App() {
             isDarkTheme ? 'border-white/10 bg-black/90' : 'border-gray-200 bg-white/90'
           } backdrop-blur-lg`}>
             <div className="p-4">
-              <div className="grid grid-cols-2 gap-3">
+              {/* User Info at top of mobile menu */}
+              <div className={`mb-4 p-3 rounded-lg border-b ${
+                isDarkTheme ? 'border-white/10' : 'border-gray-200'
+              }`}>
+                <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                  {currentUser?.real_name || currentUser?.username}
+                </div>
+                <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {currentUser?.screen_name && `@${currentUser.screen_name} • `}
+                  {currentUser?.is_admin ? 'Admin' : currentUser?.role || 'Member'}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
                 {/* Chat Tab */}
                 <button
                   onClick={() => {
@@ -1375,6 +1388,18 @@ function App() {
                   </button>
                 )}
               </div>
+
+              {/* Logout Button in Mobile Menu */}
+              <button
+                onClick={() => {
+                  logout();
+                  setShowMobileMenu(false);
+                }}
+                className="w-full flex items-center justify-center p-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+              >
+                <span className="text-xl mr-2">🚪</span>
+                Logout
+              </button>
             </div>
           </div>
         )}
