@@ -350,7 +350,7 @@ function App() {
             
             // Check if this is an admin message and current user is not the sender
             if (message.is_admin && message.user_id !== currentUser.id) {
-              console.log('🔔 Admin message detected from:', message.username);
+              console.log('🔔 Admin message detected from:', message.screen_name || message.username);
               
               // Play notification sound
               playNotificationSound();
@@ -358,7 +358,7 @@ function App() {
               // Show browser notification
               showBrowserNotification(
                 '💰 CashoutAI - Admin Message',
-                `${message.real_name || message.username}: ${message.content.substring(0, 100)}${message.content.length > 100 ? '...' : ''}`,
+                `${message.screen_name || message.username}: ${message.content.substring(0, 100)}${message.content.length > 100 ? '...' : ''}`,
                 true
               );
               
