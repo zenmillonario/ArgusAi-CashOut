@@ -143,7 +143,7 @@ const PortfolioTab = ({
 
                 {/* Price Information */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                  <div className={`p-3 rounded ${isDarkTheme ? 'bg-white/5' : 'bg-white'}`}>
+                  <div className={`p-3 rounded ${isDarkTheme ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'}`}>
                     <div className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
                       Purchase Price
                     </div>
@@ -152,7 +152,7 @@ const PortfolioTab = ({
                     </div>
                   </div>
                   
-                  <div className={`p-3 rounded ${isDarkTheme ? 'bg-white/5' : 'bg-white'}`}>
+                  <div className={`p-3 rounded ${isDarkTheme ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'}`}>
                     <div className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
                       Current Price
                     </div>
@@ -161,7 +161,7 @@ const PortfolioTab = ({
                     </div>
                   </div>
                   
-                  <div className={`p-3 rounded ${isDarkTheme ? 'bg-white/5' : 'bg-white'}`}>
+                  <div className={`p-3 rounded ${isDarkTheme ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'}`}>
                     <div className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
                       Total Value
                     </div>
