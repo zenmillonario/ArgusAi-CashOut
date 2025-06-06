@@ -1433,63 +1433,65 @@ function App() {
 
         {/* Practice Tab with Recent Trades (Smaller/Log-like) */}
         {activeTab === 'practice' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Enhanced Trade Form */}
-              <div className={`backdrop-blur-lg rounded-2xl border p-6 ${
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Enhanced Trade Form - COMPACT */}
+              <div className={`lg:col-span-2 backdrop-blur-lg rounded-xl border p-4 ${
                 isDarkTheme 
                   ? 'bg-white/5 border-white/10' 
                   : 'bg-white/80 border-gray-200'
               }`}>
-                <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                <h2 className={`text-lg font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
                   📈 Paper Trading
                 </h2>
-                <form onSubmit={submitTrade} className="space-y-4">
-                  <div>
-                    <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Stock Symbol
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="TSLA"
-                      className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        isDarkTheme 
-                          ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                          : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                      }`}
-                      value={tradeForm.symbol}
-                      onChange={(e) => setTradeForm({...tradeForm, symbol: e.target.value.toUpperCase()})}
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Action
-                    </label>
-                    <select
-                      className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        isDarkTheme 
-                          ? 'bg-white/10 border border-white/20 text-white' 
-                          : 'bg-white border border-gray-200 text-gray-900'
-                      }`}
-                      value={tradeForm.action}
-                      onChange={(e) => setTradeForm({...tradeForm, action: e.target.value})}
-                    >
-                      <option value="BUY">Buy</option>
-                      <option value="SELL">Sell</option>
-                    </select>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
+                <form onSubmit={submitTrade} className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Stock Symbol
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="TSLA"
+                        className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          isDarkTheme 
+                            ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                            : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                        }`}
+                        value={tradeForm.symbol}
+                        onChange={(e) => setTradeForm({...tradeForm, symbol: e.target.value.toUpperCase()})}
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Action
+                      </label>
+                      <select
+                        className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          isDarkTheme 
+                            ? 'bg-white/10 border border-white/20 text-white' 
+                            : 'bg-white border border-gray-200 text-gray-900'
+                        }`}
+                        value={tradeForm.action}
+                        onChange={(e) => setTradeForm({...tradeForm, action: e.target.value})}
+                      >
+                        <option value="BUY">Buy</option>
+                        <option value="SELL">Sell</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                         Quantity
                       </label>
                       <input
                         type="number"
                         placeholder="100"
-                        className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                           isDarkTheme 
                             ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
                             : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
@@ -1501,14 +1503,14 @@ function App() {
                     </div>
                     
                     <div>
-                      <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                         Price
                       </label>
                       <input
                         type="number"
                         step="0.01"
                         placeholder="250.00"
-                        className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                           isDarkTheme 
                             ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
                             : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
@@ -1520,16 +1522,16 @@ function App() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                         Stop Loss (Optional)
                       </label>
                       <input
                         type="number"
                         step="0.01"
                         placeholder="Auto-sell if price drops"
-                        className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                        className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 ${
                           isDarkTheme 
                             ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
                             : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
@@ -1540,14 +1542,14 @@ function App() {
                     </div>
                     
                     <div>
-                      <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                         Take Profit (Optional)
                       </label>
                       <input
                         type="number"
                         step="0.01"
                         placeholder="Auto-sell when profit reached"
-                        className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                        className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
                           isDarkTheme 
                             ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
                             : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
@@ -1559,12 +1561,12 @@ function App() {
                   </div>
                   
                   <div>
-                    <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                       Notes (Optional)
                     </label>
                     <textarea
                       placeholder="Trade notes and strategy..."
-                      className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                         isDarkTheme 
                           ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
                           : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
@@ -1577,26 +1579,26 @@ function App() {
                   
                   <button
                     type="submit"
-                    className="w-full bg-gradient-to-r from-green-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-green-700 hover:to-blue-700 transition-all duration-200"
+                    className="w-full bg-gradient-to-r from-green-600 to-blue-600 text-white py-2 rounded-lg font-semibold hover:from-green-700 hover:to-blue-700 transition-all duration-200"
                   >
                     🎯 Record Trade
                   </button>
                 </form>
               </div>
 
-              {/* Recent Trades - Smaller/Log-like */}
-              <div className={`backdrop-blur-lg rounded-2xl border p-6 ${
+              {/* Recent Trades - COMPACT LOG */}
+              <div className={`backdrop-blur-lg rounded-xl border p-4 ${
                 isDarkTheme 
                   ? 'bg-white/5 border-white/10' 
                   : 'bg-white/80 border-gray-200'
               }`}>
-                <h2 className={`text-lg font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                <h2 className={`text-lg font-bold mb-3 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
                   📋 Trade Log
                 </h2>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {userTrades.slice(0, 10).map((trade) => (
-                    <div key={trade.id} className={`p-3 rounded text-sm border ${
-                      isDarkTheme ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {userTrades.slice(0, 15).map((trade) => (
+                    <div key={trade.id} className={`p-2 rounded text-sm border ${
+                      isDarkTheme ? 'bg-white/10 border-white/20' : 'bg-gray-100 border-gray-300'
                     }`}>
                       <div className="flex justify-between items-center">
                         <div className="flex items-center space-x-2">
@@ -1617,15 +1619,15 @@ function App() {
                         </span>
                       </div>
                       {trade.notes && (
-                        <div className={`text-xs mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {trade.notes}
+                        <div className={`text-xs mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'} truncate`}>
+                          💡 {trade.notes}
                         </div>
                       )}
                     </div>
                   ))}
                   {userTrades.length === 0 && (
                     <div className={`text-center py-8 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
-                      No trades yet. Record your first trade above!
+                      No trades yet. Record your first trade!
                     </div>
                   )}
                 </div>
