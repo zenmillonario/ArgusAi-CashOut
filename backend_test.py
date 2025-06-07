@@ -386,20 +386,24 @@ def main():
     # Test 1: Updated Membership Types
     membership_test_result = test_membership_types()
     
-    # Test 2: User Approval Bug Fix
+    # Test 2: Stock Price API
+    stock_price_test_result = test_stock_price_api()
+    
+    # Test 3: User Approval Bug Fix
     user_approval_test_result = test_user_approval_bug_fix()
     
-    # Test 3: Profile Performance Metrics
+    # Test 4: Profile Performance Metrics
     profile_metrics_test_result = test_profile_performance_metrics()
     
     # Print summary
     print("\n📊 Test Summary:")
     print(f"1. Updated Membership Types: {'✅ PASSED' if membership_test_result else '❌ FAILED'}")
-    print(f"2. User Approval Bug Fix: {'✅ PASSED' if user_approval_test_result else '❌ FAILED'}")
-    print(f"3. Profile Performance Metrics: {'✅ PASSED' if profile_metrics_test_result else '❌ FAILED'}")
+    print(f"2. Stock Price API: {'✅ PASSED' if stock_price_test_result else '❌ FAILED'}")
+    print(f"3. User Approval Bug Fix: {'✅ PASSED' if user_approval_test_result else '❌ FAILED'}")
+    print(f"4. Profile Performance Metrics: {'✅ PASSED' if profile_metrics_test_result else '❌ FAILED'}")
     
     # Return success if all tests passed
-    return 0 if (membership_test_result and user_approval_test_result and profile_metrics_test_result) else 1
+    return 0 if (membership_test_result and stock_price_test_result and user_approval_test_result and profile_metrics_test_result) else 1
 
 if __name__ == "__main__":
     sys.exit(main())
