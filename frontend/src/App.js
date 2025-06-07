@@ -346,7 +346,45 @@ function App() {
     }
   };
 
-  const showBrowserNotification = (title, message, isAdmin = false) => {
+  const showServiceWorkerNotification = async (title, message, adminName = null) => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        
+        await registration.showNotification(title, {
+          body: adminName ? `${adminName}: ${message}` : message,
+          icon: 'https://i.imgur.com/ZPYCiyg.png',
+          badge: 'https://i.imgur.com/ZPYCiyg.png',
+          vibrate: [300, 200, 300, 200, 300],
+          tag: 'cashoutai-admin',
+          requireInteraction: true,
+          silent: false,
+          actions: [
+            {
+              action: 'view',
+              title: 'View Message'
+            },
+            {
+              action: 'close',
+              title: 'Close'
+            }
+          ],
+          data: {
+            url: '/',
+            timestamp: Date.now()
+          }
+        });
+        
+        console.log('🔔 Service Worker notification shown with actions');
+        return true;
+      }
+    } catch (error) {
+      console.error('Service Worker notification failed:', error);
+    }
+    return false;
+  };
+
+  const showBrowserNotification = async (title, message, isAdmin = false) => {
     // Check if notifications are supported
     if (!("Notification" in window)) {
       console.log("This browser does not support notifications");
@@ -362,18 +400,18 @@ function App() {
     if (Notification.permission === "granted") {
       
       // Try to use Service Worker for rich notifications first
-      if (serviceWorker && 'serviceWorker' in navigator) {
-        console.log('Using Service Worker for notification with actions');
-        serviceWorker.postMessage({
-          type: 'SHOW_ADMIN_NOTIFICATION',
-          title: title,
-          message: message,
-          adminName: currentUser?.real_name || currentUser?.username
-        });
-        return;
+      const swSuccess = await showServiceWorkerNotification(
+        title, 
+        message, 
+        currentUser?.real_name || currentUser?.username
+      );
+      
+      if (swSuccess) {
+        return; // Service Worker notification successful
       }
       
       // Fallback to basic notification without actions
+      console.log('Using basic notification fallback');
       const notification = new Notification(title, {
         body: message,
         icon: "https://i.imgur.com/ZPYCiyg.png",
@@ -381,7 +419,7 @@ function App() {
         tag: "cashoutai-admin",
         requireInteraction: true,
         silent: false,
-        vibrate: [300, 200, 300, 200, 300] // Enhanced vibration pattern
+        vibrate: [300, 200, 300, 200, 300]
         // NOTE: No actions here - only supported in Service Worker notifications
       });
 
@@ -400,11 +438,10 @@ function App() {
       
     } else if (Notification.permission !== "denied") {
       // Request permission
-      Notification.requestPermission().then((permission) => {
-        if (permission === "granted") {
-          showBrowserNotification(title, message, isAdmin);
-        }
-      });
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        showBrowserNotification(title, message, isAdmin);
+      }
     }
   };
 
