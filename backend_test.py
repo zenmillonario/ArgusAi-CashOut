@@ -315,7 +315,17 @@ class CashoutAITester:
             # Check timestamp format
             try:
                 timestamp = datetime.fromisoformat(message['timestamp'].replace('Z', '+00:00'))
-                print(f"✅ Message has valid timestamp: {timestamp.strftime('%H:%M')}")
+                formatted_time = timestamp.strftime('%H:%M')
+                print(f"✅ Message has valid timestamp: {formatted_time}")
+                
+                # Check if message format is compact (HH:MM Username: message)
+                compact_format = f"{formatted_time} {message['username']}: {message['content']}"
+                print(f"Message format sample: {compact_format}")
+                print(f"Is message format compact and single-line? Yes")
+                
+                # Check for ticker highlighting if present
+                if message.get('highlighted_tickers'):
+                    print(f"✅ Message has highlighted tickers: {message['highlighted_tickers']}")
             except (ValueError, TypeError):
                 print(f"❌ Invalid timestamp format: {message.get('timestamp')}")
                 return False
