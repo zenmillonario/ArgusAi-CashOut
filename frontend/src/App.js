@@ -464,7 +464,15 @@ function App() {
         
         // Add fallback mechanism for session validation when WebSocket fails
         if (currentUser?.active_session_id) {
-          console.log('WebSocket failed, starting session validation polling...');
+          console.log('WebSocket failed, falling back to polling mode...');
+          
+          // Set connected status to show as "Polling" instead of "Disconnected"
+          setTimeout(() => {
+            if (!wsRef.current || wsRef.current.type === 'polling') {
+              setIsConnected(true); // Show as connected since polling works
+            }
+          }, 1000);
+          
           const sessionCheckInterval = setInterval(async () => {
             try {
               const response = await axios.get(`${API}/users/${currentUser.id}/session-status?session_id=${currentUser.active_session_id}`);
@@ -476,13 +484,14 @@ function App() {
               }
             } catch (error) {
               console.error('Session validation error:', error);
+              setIsConnected(false);
             }
-          }, 3000); // Check every 3 seconds
+          }, 10000); // Check every 10 seconds
           
           // Also check for new messages periodically when WebSocket is down
           const messageCheckInterval = setInterval(async () => {
             try {
-              const response = await axios.get(`${API}/messages?limit=5`);
+              const response = await axios.get(`${API}/messages?limit=10`);
               const latestMessages = response.data;
               
               setMessages(prev => {
@@ -507,7 +516,7 @@ function App() {
             } catch (error) {
               console.error('Message polling error:', error);
             }
-          }, 5000); // Check for new messages every 5 seconds
+          }, 8000); // Check for new messages every 8 seconds
           
           // Store interval IDs to clean up later
           wsRef.current = { 
