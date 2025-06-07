@@ -286,30 +286,52 @@ class CashoutAITester:
         
         return True
 
+def test_admin_login(tester):
+    """Test login with admin credentials"""
+    print("\n🔑 Testing Admin Login...")
+    
+    # Login with the provided admin credentials
+    admin_user = tester.test_login("testadmin", "admin123", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed with testadmin/admin123")
+        return False
+    
+    # Check if user is admin
+    if not admin_user.get('is_admin'):
+        print("❌ User testadmin is not an admin")
+        return False
+    
+    print(f"✅ Successfully logged in as admin user: {admin_user.get('username')}")
+    return True
+
 def main():
     # Create tester with the backend URL from frontend/.env
     tester = CashoutAITester()
     
     print(f"🚀 Starting CashoutAI Backend Tests")
     
-    # Test 1: FMP Stock API Integration
+    # Test 1: Admin Login with provided credentials
+    admin_login_test_result = test_admin_login(tester)
+    
+    # Test 2: FMP Stock API Integration
     stock_api_test_result = tester.test_fmp_stock_api_integration()
     
-    # Test 2: Registration with Membership Plans
+    # Test 3: Registration with Membership Plans
     registration_test_result = tester.test_registration_with_membership_plans()
     
-    # Test 3: Admin Dashboard
+    # Test 4: Admin Dashboard
     admin_dashboard_test_result = tester.test_admin_dashboard()
     
     # Print summary
     print("\n📊 Test Summary:")
-    print(f"1. FMP Stock API Integration: {'✅ PASSED' if stock_api_test_result else '❌ FAILED'}")
-    print(f"2. Registration with Membership Plans: {'✅ PASSED' if registration_test_result else '❌ FAILED'}")
-    print(f"3. Admin Dashboard: {'✅ PASSED' if admin_dashboard_test_result else '❌ FAILED'}")
+    print(f"1. Admin Login: {'✅ PASSED' if admin_login_test_result else '❌ FAILED'}")
+    print(f"2. FMP Stock API Integration: {'✅ PASSED' if stock_api_test_result else '❌ FAILED'}")
+    print(f"3. Registration with Membership Plans: {'✅ PASSED' if registration_test_result else '❌ FAILED'}")
+    print(f"4. Admin Dashboard: {'✅ PASSED' if admin_dashboard_test_result else '❌ FAILED'}")
     print(f"Tests Passed: {tester.tests_passed}/{tester.tests_run}")
     
     # Return success if all tests passed
-    return 0 if (stock_api_test_result and registration_test_result and admin_dashboard_test_result) else 1
+    return 0 if (admin_login_test_result and stock_api_test_result and registration_test_result and admin_dashboard_test_result) else 1
 
 if __name__ == "__main__":
     sys.exit(main())
