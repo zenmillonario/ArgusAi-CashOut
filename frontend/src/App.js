@@ -1552,23 +1552,42 @@ function App() {
                   </button>
                   
                   <button
-                    onClick={() => {
-                      console.log('🧪 Testing admin notification...');
-                      playAdminNotificationSound();
-                      showBrowserNotification(
-                        '💰 CashoutAI - Test Admin Notification',
-                        'This is a test admin notification with enhanced sound and background support!',
-                        true
-                      );
+                    onClick={async () => {
+                      console.log('🧪 Testing enhanced admin notification system...');
+                      
+                      // Test the enhanced admin sound
+                      try {
+                        await playAdminNotificationSound();
+                        console.log('✅ Admin sound test successful');
+                      } catch (error) {
+                        console.error('❌ Admin sound test failed:', error);
+                      }
+                      
+                      // Test the notification system
+                      try {
+                        await showBrowserNotification(
+                          '💰 CashoutAI - Test Admin Notification',
+                          'This is a test admin notification with enhanced features! If you see this, the system is working correctly.',
+                          true
+                        );
+                        console.log('✅ Notification test successful');
+                      } catch (error) {
+                        console.error('❌ Notification test failed:', error);
+                      }
+                      
+                      // Show success feedback
+                      setTimeout(() => {
+                        console.log('🎉 Admin notification test completed');
+                      }, 1000);
                     }}
                     className={`p-2 rounded-lg transition-colors text-xs ${
                       isDarkTheme 
                         ? 'bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30' 
                         : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
                     }`}
-                    title="Test Admin Notification"
+                    title="Test Admin Notification System"
                   >
-                    🔔 Admin Test
+                    🔔 Test Admin Alert
                   </button>
                 </>
               )}
