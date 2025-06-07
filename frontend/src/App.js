@@ -656,13 +656,7 @@ function App() {
             // New admin notification handling
             console.log('🔔 Admin notification received:', data);
             
-            await playSimpleAdminSound();
-            
-            await showBrowserNotification(
-              '💰 CashoutAI - Admin Message',
-              data.message,
-              true
-            );
+            playSimpleAdminSound();
             
             // Visual notification in app
             if (document.hidden) {
@@ -671,12 +665,7 @@ function App() {
           } else if (data.type === 'admin_message') {
             // Legacy admin message handling
             console.log('🔔 Legacy admin message notification');
-            await playSimpleAdminSound();
-            await showBrowserNotification(
-              '💰 CashoutAI - Admin Notification',
-              data.message,
-              true
-            );
+            playSimpleAdminSound();
           }
         } catch (e) {
           console.error('Error parsing WebSocket message:', e);
