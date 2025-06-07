@@ -129,7 +129,11 @@ const ChatTab = ({
                 <div className="flex items-start space-x-1 py-0.5">
                   {/* Compact timestamp */}
                   <span className="text-xs text-gray-500 w-12 flex-shrink-0 text-right">
-                    {new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    {new Date(message.timestamp).toLocaleTimeString([], {
+                      hour: '2-digit', 
+                      minute:'2-digit',
+                      timeZone: 'America/New_York'
+                    })}
                   </span>
                   
                   {/* Username: Message format */}
