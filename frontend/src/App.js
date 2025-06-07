@@ -489,6 +489,7 @@ function App() {
             } catch (error) {
               console.error('Session validation error:', error);
               setIsConnected(false);
+              setConnectionMode('disconnected');
             }
           }, 10000); // Check every 10 seconds
           
