@@ -218,8 +218,8 @@ class CashoutAITester:
         """Test registration with different membership plans"""
         print("\n📝 Testing Registration with Membership Plans...")
         
-        # Test with different membership plans
-        plans = ["Basic", "Premium", "Pro"]
+        # Test with different membership plans including "Premium Test" as specified in the review request
+        plans = ["Basic", "Premium", "Premium Test"]
         results = []
         
         for i, plan in enumerate(plans):
@@ -237,6 +237,14 @@ class CashoutAITester:
             )
             
             results.append(result is not None)
+            
+            # Check if the response contains the expected message about admin approval
+            if result:
+                print(f"Checking if user status is 'pending': {result.get('status') == 'pending'}")
+                if result.get('status') == 'pending':
+                    print("✅ Registration shows pending status as expected")
+                else:
+                    print("❌ Registration does not show pending status")
         
         success_rate = sum(results) / len(results) if results else 0
         print(f"Registration tests completed with {success_rate * 100}% success rate")
