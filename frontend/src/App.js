@@ -643,7 +643,7 @@ function App() {
               console.log('- Message:', message.content.substring(0, 100));
               
               // Play enhanced admin notification sound
-              await playAdminNotificationSound();
+              await playSimpleAdminSound();
               
               // Show browser notification
               await showBrowserNotification(
