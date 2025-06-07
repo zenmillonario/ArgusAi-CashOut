@@ -2245,15 +2245,28 @@ function App() {
                               <select
                                 onChange={(e) => handleUserRoleChange(user.id, e.target.value)}
                                 value={user.role || 'member'}
-                                className={`text-xs px-2 py-1 rounded border ${
+                                className={`text-xs px-2 py-1 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                                   isDarkTheme 
-                                    ? 'bg-white/10 border-white/20 text-white' 
-                                    : 'bg-white border-gray-200 text-gray-900'
+                                    ? 'bg-gray-800 border-white/20 text-white' 
+                                    : 'bg-white border-gray-300 text-gray-900'
                                 }`}
+                                style={{
+                                  backgroundColor: isDarkTheme ? '#374151' : '#ffffff',
+                                  color: isDarkTheme ? '#ffffff' : '#000000'
+                                }}
                               >
-                                <option value="member">Member</option>
-                                <option value="vip">VIP</option>
-                                <option value="moderator">Moderator</option>
+                                <option value="member" style={{
+                                  backgroundColor: isDarkTheme ? '#374151' : '#ffffff',
+                                  color: isDarkTheme ? '#ffffff' : '#000000'
+                                }}>Member</option>
+                                <option value="admin" style={{
+                                  backgroundColor: isDarkTheme ? '#374151' : '#ffffff',
+                                  color: isDarkTheme ? '#ffffff' : '#000000'
+                                }}>Admin</option>
+                                <option value="moderator" style={{
+                                  backgroundColor: isDarkTheme ? '#374151' : '#ffffff',
+                                  color: isDarkTheme ? '#ffffff' : '#000000'
+                                }}>Moderator</option>
                               </select>
                               <button
                                 onClick={() => handleUserRemoval(user.id)}
