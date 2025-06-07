@@ -360,6 +360,20 @@ function App() {
 
     // Check notification permission
     if (Notification.permission === "granted") {
+      
+      // Try to use Service Worker for rich notifications first
+      if (serviceWorker && 'serviceWorker' in navigator) {
+        console.log('Using Service Worker for notification with actions');
+        serviceWorker.postMessage({
+          type: 'SHOW_ADMIN_NOTIFICATION',
+          title: title,
+          message: message,
+          adminName: currentUser?.real_name || currentUser?.username
+        });
+        return;
+      }
+      
+      // Fallback to basic notification without actions
       const notification = new Notification(title, {
         body: message,
         icon: "https://i.imgur.com/ZPYCiyg.png",
@@ -367,17 +381,8 @@ function App() {
         tag: "cashoutai-admin",
         requireInteraction: true,
         silent: false,
-        vibrate: [300, 200, 300, 200, 300], // Enhanced vibration pattern
-        actions: [
-          {
-            action: 'view',
-            title: 'View Message'
-          },
-          {
-            action: 'close',
-            title: 'Close'
-          }
-        ]
+        vibrate: [300, 200, 300, 200, 300] // Enhanced vibration pattern
+        // NOTE: No actions here - only supported in Service Worker notifications
       });
 
       // Auto close after 8 seconds (longer for admin messages)
@@ -391,17 +396,7 @@ function App() {
         notification.close();
       };
 
-      console.log('🔔 Browser notification shown');
-      
-      // Also send to Service Worker for background support
-      if (serviceWorker) {
-        serviceWorker.postMessage({
-          type: 'SHOW_ADMIN_NOTIFICATION',
-          title: title,
-          message: message,
-          adminName: currentUser?.real_name || currentUser?.username
-        });
-      }
+      console.log('🔔 Basic browser notification shown (fallback)');
       
     } else if (Notification.permission !== "denied") {
       // Request permission
