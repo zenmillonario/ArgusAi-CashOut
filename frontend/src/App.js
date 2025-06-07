@@ -1670,6 +1670,422 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* Profile Tab */}
+        {activeTab === 'profile' && (
+          <div className="space-y-6">
+            <div className={`backdrop-blur-lg rounded-xl border p-6 ${
+              isDarkTheme 
+                ? 'bg-white/5 border-white/10' 
+                : 'bg-white/80 border-gray-200'
+            }`}>
+              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                👤 My Profile
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Username
+                    </label>
+                    <div className={`p-3 rounded-lg border ${
+                      isDarkTheme 
+                        ? 'bg-white/5 border-white/10 text-white' 
+                        : 'bg-white/70 border-gray-200 text-gray-900'
+                    }`}>
+                      {currentUser?.username}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Real Name
+                    </label>
+                    <div className={`p-3 rounded-lg border ${
+                      isDarkTheme 
+                        ? 'bg-white/5 border-white/10 text-white' 
+                        : 'bg-white/70 border-gray-200 text-gray-900'
+                    }`}>
+                      {currentUser?.real_name || 'Not set'}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Email
+                    </label>
+                    <div className={`p-3 rounded-lg border ${
+                      isDarkTheme 
+                        ? 'bg-white/5 border-white/10 text-white' 
+                        : 'bg-white/70 border-gray-200 text-gray-900'
+                    }`}>
+                      {currentUser?.email}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Role
+                    </label>
+                    <div className={`p-3 rounded-lg border ${
+                      isDarkTheme 
+                        ? 'bg-white/5 border-white/10 text-white' 
+                        : 'bg-white/70 border-gray-200 text-gray-900'
+                    }`}>
+                      {currentUser?.is_admin ? 'Admin' : currentUser?.role || 'Member'}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white/20 shadow-lg">
+                    {currentUser?.avatar_url ? (
+                      <img 
+                        src={currentUser.avatar_url} 
+                        alt="Profile" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-3xl">
+                        {currentUser?.username?.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-3 w-full">
+                    <button
+                      onClick={openEditProfile}
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
+                    >
+                      Edit Profile
+                    </button>
+                    
+                    <button
+                      onClick={() => setShowChangePassword(true)}
+                      className="w-full bg-gradient-to-r from-green-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-green-700 hover:to-blue-700 transition-all duration-200"
+                    >
+                      Change Password
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Admin Tab */}
+        {activeTab === 'admin' && currentUser?.is_admin && (
+          <div className="space-y-6">
+            <div className={`backdrop-blur-lg rounded-xl border p-6 ${
+              isDarkTheme 
+                ? 'bg-white/5 border-white/10' 
+                : 'bg-white/80 border-gray-200'
+            }`}>
+              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                ⚙️ Admin Panel
+              </h2>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Pending Users */}
+                <div>
+                  <h3 className={`text-xl font-semibold mb-4 ${isDarkTheme ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                    Pending Approvals ({pendingUsers.length})
+                  </h3>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {pendingUsers.map((user) => (
+                      <div key={user.id} className={`p-4 rounded-lg border ${
+                        isDarkTheme 
+                          ? 'bg-white/5 border-white/10' 
+                          : 'bg-white/70 border-gray-200'
+                      }`}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                              {user.real_name || user.username}
+                            </h4>
+                            <p className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
+                              @{user.username} • {user.email}
+                            </p>
+                            <p className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                              Membership: {user.membership_plan || 'Not specified'}
+                            </p>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleApproval(user.id, true)}
+                              className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleApproval(user.id, false)}
+                              className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {pendingUsers.length === 0 && (
+                      <p className={`text-center ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                        No pending users
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                {/* All Users */}
+                <div>
+                  <h3 className={`text-xl font-semibold mb-4 ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}`}>
+                    All Users ({allUsers.length})
+                  </h3>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {allUsers.map((user) => (
+                      <div key={user.id} className={`p-4 rounded-lg border ${
+                        isDarkTheme 
+                          ? 'bg-white/5 border-white/10' 
+                          : 'bg-white/70 border-gray-200'
+                      }`}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                              {user.real_name || user.username}
+                              {user.is_admin && ' 👑'}
+                            </h4>
+                            <p className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
+                              @{user.username} • {user.email}
+                            </p>
+                            <p className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                              Role: {user.is_admin ? 'Admin' : user.role || 'Member'}
+                            </p>
+                          </div>
+                          {!user.is_admin && user.id !== currentUser.id && (
+                            <div className="flex space-x-2">
+                              <select
+                                onChange={(e) => handleUserRoleChange(user.id, e.target.value)}
+                                value={user.role || 'member'}
+                                className={`text-xs px-2 py-1 rounded border ${
+                                  isDarkTheme 
+                                    ? 'bg-white/10 border-white/20 text-white' 
+                                    : 'bg-white border-gray-200 text-gray-900'
+                                }`}
+                              >
+                                <option value="member">Member</option>
+                                <option value="vip">VIP</option>
+                                <option value="moderator">Moderator</option>
+                              </select>
+                              <button
+                                onClick={() => handleUserRemoval(user.id)}
+                                className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Profile Modal */}
+        {showEditProfile && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className={`backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border ${
+              isDarkTheme 
+                ? 'bg-white/10 border-white/20' 
+                : 'bg-white/90 border-gray-200'
+            }`}>
+              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                Edit Profile
+              </h2>
+              
+              <form onSubmit={updateProfile} className="space-y-4">
+                <div>
+                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Real Name
+                  </label>
+                  <input
+                    type="text"
+                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                    }`}
+                    value={editProfileForm.real_name}
+                    onChange={(e) => setEditProfileForm({...editProfileForm, real_name: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Screen Name
+                  </label>
+                  <input
+                    type="text"
+                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                    }`}
+                    value={editProfileForm.screen_name}
+                    onChange={(e) => setEditProfileForm({...editProfileForm, screen_name: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                    }`}
+                    value={editProfileForm.username}
+                    onChange={(e) => setEditProfileForm({...editProfileForm, username: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                    }`}
+                    value={editProfileForm.email}
+                    onChange={(e) => setEditProfileForm({...editProfileForm, email: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div className="flex space-x-4 pt-4">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowEditProfile(false)}
+                    className="flex-1 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Change Password Modal */}
+        {showChangePassword && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className={`backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border ${
+              isDarkTheme 
+                ? 'bg-white/10 border-white/20' 
+                : 'bg-white/90 border-gray-200'
+            }`}>
+              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                Change Password
+              </h2>
+              
+              <form onSubmit={changePassword} className="space-y-4">
+                <div>
+                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                    }`}
+                    value={passwordForm.current_password}
+                    onChange={(e) => setPasswordForm({...passwordForm, current_password: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                    }`}
+                    value={passwordForm.new_password}
+                    onChange={(e) => setPasswordForm({...passwordForm, new_password: e.target.value})}
+                    required
+                    minLength="6"
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
+                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
+                    }`}
+                    value={passwordForm.confirm_password}
+                    onChange={(e) => setPasswordForm({...passwordForm, confirm_password: e.target.value})}
+                    required
+                    minLength="6"
+                  />
+                </div>
+                
+                <div className="flex space-x-4 pt-4">
+                  <button
+                    type="submit"
+                    disabled={passwordForm.new_password !== passwordForm.confirm_password}
+                    className="flex-1 bg-gradient-to-r from-green-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-green-700 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Change Password
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowChangePassword(false);
+                      setPasswordForm({
+                        current_password: '',
+                        new_password: '',
+                        confirm_password: ''
+                      });
+                    }}
+                    className="flex-1 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
