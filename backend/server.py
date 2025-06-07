@@ -261,12 +261,21 @@ def process_uploaded_image(file_content: bytes, max_size: int = 1024 * 1024) -> 
     base64_content = base64.b64encode(file_content).decode('utf-8')
     return f"data:image/jpeg;base64,{base64_content}"
 
+async def get_current_stock_price(symbol: str) -> float:
+    """Get current stock price from API or mock data"""
+    try:
+        # Use FMP API key from environment
+        api_key = os.environ.get('FMP_API_KEY')
+        url = f"https://financialmodelingprep.com/api/v3/quote/{symbol}?apikey={api_key}"
         
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=10.0)
             data = response.json()
             
             # Check for API errors
+            if isinstance(data, list) and len(data) > 0:
+                return data[0]['price']
+            else:
                 return await get_mock_stock_price(symbol)
                 
     except Exception as e:
@@ -935,15 +944,26 @@ async def position_action(position_id: str, action_data: PositionAction, user_id
         raise HTTPException(status_code=400, detail="Invalid action")
 
 @api_router.post("/positions/{position_id}/close")
+async def close_position(position_id: str, user_id: str):
+    """Close an entire position at current market price"""
     position = await db.positions.find_one({"id": position_id, "user_id": user_id, "is_open": True})
     if not position:
         raise HTTPException(status_code=404, detail="Position not found")
     
+    # Get current price
+    current_price = await get_current_stock_price(position["symbol"])
+    realized_pnl = (current_price - position["avg_price"]) * position["quantity"]
+    
+    # Create SELL trade to record the close
     close_trade = PaperTrade(
         user_id=user_id,
         symbol=position["symbol"],
         action="SELL",
         quantity=position["quantity"],
+        price=current_price,
+        position_id=position_id,
+        is_closed=True,
+        notes="Position closed at market price"
     )
     
     await db.paper_trades.insert_one(close_trade.dict())
@@ -954,6 +974,14 @@ async def position_action(position_id: str, action_data: PositionAction, user_id
         {"$set": {
             "is_open": False,
             "closed_at": datetime.utcnow(),
+            "current_price": current_price,
+            "unrealized_pnl": round(realized_pnl, 2),
+            "quantity": 0,
+            "auto_close_reason": "MANUAL"
+        }}
+    )
+    
+    # Update user performance metrics
     performance = await calculate_user_performance(user_id)
     await db.users.update_one(
         {"id": user_id},
@@ -962,6 +990,7 @@ async def position_action(position_id: str, action_data: PositionAction, user_id
     
     return {"message": "Position closed successfully", "realized_pnl": round(realized_pnl, 2)}
 
+@api_router.get("/trades/{user_id}")
 async def get_user_trades(user_id: str):
     """Get all trades for a user"""
     trades = await db.paper_trades.find({"user_id": user_id}).sort("timestamp", -1).to_list(1000)
@@ -973,6 +1002,44 @@ async def get_user_performance(user_id: str):
     return performance
 
 @api_router.put("/users/{user_id}/profile", response_model=User)
+async def update_user_profile(user_id: str, profile_data: ProfileUpdate):
+    """Update user profile information"""
+    # Check if user exists
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Prepare update data
+    update_data = {}
+    if profile_data.real_name is not None:
+        update_data["real_name"] = profile_data.real_name
+    if profile_data.screen_name is not None:
+        update_data["screen_name"] = profile_data.screen_name
+    if profile_data.username is not None:
+        # Check if username already exists
+        if profile_data.username != user["username"]:
+            existing = await db.users.find_one({"username": profile_data.username})
+            if existing:
+                raise HTTPException(status_code=400, detail="Username already exists")
+        update_data["username"] = profile_data.username
+    if profile_data.email is not None:
+        # Check if email already exists
+        if profile_data.email != user["email"]:
+            existing = await db.users.find_one({"email": profile_data.email})
+            if existing:
+                raise HTTPException(status_code=400, detail="Email already exists")
+        update_data["email"] = profile_data.email
+    
+    # Update user
+    if update_data:
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": update_data}
+        )
+    
+    # Get updated user
+    updated_user = await db.users.find_one({"id": user_id})
+    return User(**updated_user)
 
 # Include the router in the main app
 app.include_router(api_router)
