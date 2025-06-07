@@ -316,25 +316,34 @@ class CashoutAITester:
 
 def main():
     # Get the backend URL from environment or use default
-    backend_url = "https://1494341d-df84-483f-b635-19d168bdc5cc.preview.emergentagent.com"
+    backend_url = "https://cashoutai.onrender.com"
     
     print(f"🚀 Starting CashoutAI Backend Tests against {backend_url}")
     tester = CashoutAITester(backend_url)
     
-    # Test widget page access
-    widget_test_result = tester.test_widget_page_access()
+    # Test registration with membership plans
+    registration_test_result = tester.test_registration_with_membership_plans()
     
-    # Test single-session authentication
-    single_session_test_result = tester.test_single_session_auth()
+    # Test real-time stock prices
+    stock_price_test_result = tester.test_real_time_stock_prices()
+    
+    # Test admin panel
+    admin_panel_test_result = tester.test_admin_panel()
+    
+    # Test chat message format
+    chat_format_test_result = tester.test_chat_message_format()
     
     # Print summary
     print("\n📊 Test Summary:")
-    print(f"Widget Page Access: {'✅ PASSED' if widget_test_result else '❌ FAILED'}")
-    print(f"Single-Session Auth: {'✅ PASSED' if single_session_test_result else '❌ FAILED'}")
+    print(f"Registration with Membership Plans: {'✅ PASSED' if registration_test_result else '❌ FAILED'}")
+    print(f"Real-Time Stock Prices: {'✅ PASSED' if stock_price_test_result else '❌ FAILED'}")
+    print(f"Admin Panel: {'✅ PASSED' if admin_panel_test_result else '❌ FAILED'}")
+    print(f"Chat Message Format: {'✅ PASSED' if chat_format_test_result else '❌ FAILED'}")
     print(f"Tests Passed: {tester.tests_passed}/{tester.tests_run}")
     
     # Return success if all tests passed
-    return 0 if widget_test_result and single_session_test_result else 1
+    return 0 if (registration_test_result and stock_price_test_result and 
+                admin_panel_test_result and chat_format_test_result) else 1
 
 if __name__ == "__main__":
     sys.exit(main())
