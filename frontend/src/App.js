@@ -351,6 +351,41 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Fetch stock price when symbol changes
+  const fetchCurrentPrice = async (symbol) => {
+    if (!symbol || symbol.length < 1) {
+      setCurrentStockPrice(null);
+      return;
+    }
+    
+    try {
+      setPriceLoading(true);
+      const response = await axios.get(`${API}/stock/${symbol}`);
+      setCurrentStockPrice(response.data.price);
+      // Auto-fill price in form
+      setTradeForm(prev => ({
+        ...prev,
+        price: response.data.price.toString()
+      }));
+    } catch (error) {
+      console.error('Error fetching stock price:', error);
+      setCurrentStockPrice(null);
+    } finally {
+      setPriceLoading(false);
+    }
+  };
+
+  // Auto-fetch price when symbol changes
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      if (tradeForm.symbol && tradeForm.symbol.length >= 1) {
+        fetchCurrentPrice(tradeForm.symbol);
+      }
+    }, 500); // Debounce for 500ms
+
+    return () => clearTimeout(debounceTimer);
+  }, [tradeForm.symbol]);
+
   // Auto-scroll when messages change AND on initial load
   useEffect(() => {
     scrollToBottom();
