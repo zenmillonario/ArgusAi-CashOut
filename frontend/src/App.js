@@ -450,6 +450,7 @@ function App() {
       
       ws.onclose = (event) => {
         setIsConnected(false);
+        setConnectionMode('disconnected');
         console.log('WebSocket disconnected', event);
         wsRef.current = null;
         
