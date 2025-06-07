@@ -757,7 +757,7 @@ function App() {
                 newMessages.forEach(message => {
                   if (message.is_admin && message.user_id !== currentUser.id) {
                     console.log('🔔 Admin message detected via polling:', message.screen_name || message.username);
-                    playNotificationSound();
+                    playAdminNotificationSound();
                     showBrowserNotification(
                       '💰 CashoutAI - Admin Message',
                       `${message.screen_name || message.username}: ${message.content.substring(0, 100)}${message.content.length > 100 ? '...' : ''}`,
