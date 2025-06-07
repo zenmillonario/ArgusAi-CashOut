@@ -697,15 +697,25 @@ function App() {
             const message = data.data;
             setMessages(prev => [...prev, message]);
             
+            console.log('📝 Message received:', {
+              content: message.content.substring(0, 50),
+              is_admin: message.is_admin,
+              user_id: message.user_id,
+              current_user_id: currentUser.id,
+              sender: message.screen_name || message.username
+            });
+            
             // Check if this is an admin message and current user is not the sender
             if (message.is_admin && message.user_id !== currentUser.id) {
-              console.log('🔔 Admin message detected from:', message.screen_name || message.username);
+              console.log('🔔 ADMIN MESSAGE DETECTED!');
+              console.log('- From:', message.screen_name || message.username);
+              console.log('- Message:', message.content.substring(0, 100));
               
               // Play enhanced admin notification sound
-              playAdminNotificationSound();
+              await playAdminNotificationSound();
               
               // Show browser notification
-              showBrowserNotification(
+              await showBrowserNotification(
                 '💰 CashoutAI - Admin Message',
                 `${message.screen_name || message.username}: ${message.content.substring(0, 100)}${message.content.length > 100 ? '...' : ''}`,
                 true
@@ -722,9 +732,9 @@ function App() {
             // New admin notification handling
             console.log('🔔 Admin notification received:', data);
             
-            playAdminNotificationSound();
+            await playAdminNotificationSound();
             
-            showBrowserNotification(
+            await showBrowserNotification(
               '💰 CashoutAI - Admin Message',
               data.message,
               true
@@ -737,8 +747,8 @@ function App() {
           } else if (data.type === 'admin_message') {
             // Legacy admin message handling
             console.log('🔔 Legacy admin message notification');
-            playAdminNotificationSound();
-            showBrowserNotification(
+            await playAdminNotificationSound();
+            await showBrowserNotification(
               '💰 CashoutAI - Admin Notification',
               data.message,
               true
