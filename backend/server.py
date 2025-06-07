@@ -261,6 +261,7 @@ def process_uploaded_image(file_content: bytes, max_size: int = 1024 * 1024) -> 
     base64_content = base64.b64encode(file_content).decode('utf-8')
     return f"data:image/jpeg;base64,{base64_content}"
 
+<<<<<<< HEAD
 # UPDATED: Real stock price function using Financial Modeling Prep (FMP)
 async def get_current_stock_price(symbol: str) -> float:
     """Get current stock price using Financial Modeling Prep API"""
@@ -274,12 +275,28 @@ async def get_current_stock_price(symbol: str) -> float:
         
         # Financial Modeling Prep Real-time Stock Price endpoint
         url = f"https://financialmodelingprep.com/api/v3/quote-short/{symbol}?apikey={api_key}"
+=======
+# UPDATED: Real stock price function using Alpha Vantage
+async def get_current_stock_price(symbol: str) -> float:
+    """Get current stock price using Alpha Vantage API"""
+    try:
+        # Check if we have an API key
+        api_key = os.environ.get('ALPHA_VANTAGE_KEY')
+        if not api_key:
+            # Fallback to enhanced mock prices if no API key
+            print(f"No Alpha Vantage API key found, using mock prices for {symbol}")
+            return await get_mock_stock_price(symbol)
+        
+        # Alpha Vantage Global Quote endpoint
+        url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={api_key}"
+>>>>>>> origin/main
         
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=10.0)
             data = response.json()
             
             # Check for API errors
+<<<<<<< HEAD
             if isinstance(data, dict) and "Error Message" in data:
                 print(f"FMP error for {symbol}: {data['Error Message']}")
                 return await get_mock_stock_price(symbol)
@@ -297,6 +314,26 @@ async def get_current_stock_price(symbol: str) -> float:
                     return await get_mock_stock_price(symbol)
             else:
                 print(f"Invalid response format for {symbol}, using mock price")
+=======
+            if "Error Message" in data:
+                print(f"Alpha Vantage error for {symbol}: {data['Error Message']}")
+                return await get_mock_stock_price(symbol)
+            
+            if "Note" in data:
+                print(f"Alpha Vantage rate limit hit for {symbol}, using mock price")
+                return await get_mock_stock_price(symbol)
+            
+            # Extract price from Global Quote
+            quote = data.get("Global Quote", {})
+            price_str = quote.get("05. price", "0")
+            
+            if price_str and price_str != "0":
+                price = float(price_str)
+                print(f"Retrieved real price for {symbol}: ${price}")
+                return price
+            else:
+                print(f"No price data found for {symbol}, using mock price")
+>>>>>>> origin/main
                 return await get_mock_stock_price(symbol)
                 
     except Exception as e:
@@ -336,6 +373,7 @@ async def get_mock_stock_price(symbol: str) -> float:
     
     return round(current_price, 2)
 
+<<<<<<< HEAD
 # NEW: Endpoint to get real-time stock price
 @api_router.get("/stock/{symbol}")
 async def get_stock_price(symbol: str):
@@ -350,6 +388,8 @@ async def get_stock_price(symbol: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching stock price: {str(e)}")
 
+=======
+>>>>>>> origin/main
 # Utility function to manage positions
 async def update_or_create_position(user_id: str, symbol: str, action: str, quantity: int, price: float, trade_id: str, stop_loss: float = None, take_profit: float = None):
     """Update existing position or create new one"""
@@ -600,7 +640,11 @@ async def register_user(user_data: UserCreate):
     # Notify admins about new registration
     await manager.send_admin_notification(json.dumps({
         "type": "new_registration",
+<<<<<<< HEAD
         "message": f"New user {user.username} ({user.real_name}) has registered with {user.membership_plan} plan and is awaiting approval. They will be approved within 5 minutes.",
+=======
+        "message": f"New user {user.username} ({user.real_name}) has registered with {user.membership_plan} plan and is awaiting approval",
+>>>>>>> origin/main
         "user": user.dict()
     }, default=str))
     
@@ -980,12 +1024,18 @@ async def position_action(position_id: str, action_data: PositionAction, user_id
         raise HTTPException(status_code=400, detail="Invalid action")
 
 @api_router.post("/positions/{position_id}/close")
+<<<<<<< HEAD
 async def close_position(position_id: str, user_id: str):
     """Close a position completely"""
+=======
+async def close_position(position_id: str, user_id: str, close_price: Optional[float] = None):
+    """Close an open position"""
+>>>>>>> origin/main
     position = await db.positions.find_one({"id": position_id, "user_id": user_id, "is_open": True})
     if not position:
         raise HTTPException(status_code=404, detail="Position not found")
     
+<<<<<<< HEAD
     # Get current market price
     current_price = await get_current_stock_price(position["symbol"])
     
@@ -993,25 +1043,44 @@ async def close_position(position_id: str, user_id: str):
     realized_pnl = (current_price - position["avg_price"]) * position["quantity"]
     
     # Create closing trade
+=======
+    # Use current market price if not provided
+    if close_price is None:
+        close_price = await get_current_stock_price(position["symbol"])
+    
+    # Create a SELL trade to close the position
+>>>>>>> origin/main
     close_trade = PaperTrade(
         user_id=user_id,
         symbol=position["symbol"],
         action="SELL",
         quantity=position["quantity"],
+<<<<<<< HEAD
         price=current_price,
         position_id=position_id,
         is_closed=True,
         notes="Manual position close"
+=======
+        price=close_price,
+        position_id=position_id,
+        is_closed=True,
+        notes=f"Position closed at market price"
+>>>>>>> origin/main
     )
     
     await db.paper_trades.insert_one(close_trade.dict())
     
     # Close the position
+<<<<<<< HEAD
+=======
+    realized_pnl = (close_price - position["avg_price"]) * position["quantity"]
+>>>>>>> origin/main
     await db.positions.update_one(
         {"id": position_id},
         {"$set": {
             "is_open": False,
             "closed_at": datetime.utcnow(),
+<<<<<<< HEAD
             "current_price": current_price,
             "unrealized_pnl": round(realized_pnl, 2),
             "auto_close_reason": "MANUAL"
@@ -1019,6 +1088,14 @@ async def close_position(position_id: str, user_id: str):
     )
     
     # Update user performance
+=======
+            "current_price": close_price,
+            "unrealized_pnl": round(realized_pnl, 2)
+        }}
+    )
+    
+    # Update user performance metrics
+>>>>>>> origin/main
     performance = await calculate_user_performance(user_id)
     await db.users.update_one(
         {"id": user_id},
@@ -1027,7 +1104,29 @@ async def close_position(position_id: str, user_id: str):
     
     return {"message": "Position closed successfully", "realized_pnl": round(realized_pnl, 2)}
 
+<<<<<<< HEAD
 @api_router.get("/trades/{user_id}")
+=======
+@api_router.get("/stock-price/{symbol}")
+async def get_stock_price(symbol: str):
+    """Get current stock price for a symbol with real-time data"""
+    price = await get_current_stock_price(symbol)
+    
+    # Get yesterday's close price for change calculation (using mock for now)
+    yesterday_price = price * 0.98  # Mock -2% from current price
+    change = price - yesterday_price
+    change_percent = f"{(change / yesterday_price) * 100:.2f}%"
+    
+    return {
+        "symbol": symbol.upper(), 
+        "price": price,
+        "change": round(change, 2),
+        "change_percent": change_percent,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@api_router.get("/trades/{user_id}", response_model=List[PaperTrade])
+>>>>>>> origin/main
 async def get_user_trades(user_id: str):
     """Get all trades for a user"""
     trades = await db.paper_trades.find({"user_id": user_id}).sort("timestamp", -1).to_list(1000)
@@ -1035,11 +1134,16 @@ async def get_user_trades(user_id: str):
 
 @api_router.get("/users/{user_id}/performance")
 async def get_user_performance(user_id: str):
+<<<<<<< HEAD
     """Get user's trading performance metrics"""
+=======
+    """Get user trading performance metrics"""
+>>>>>>> origin/main
     performance = await calculate_user_performance(user_id)
     return performance
 
 @api_router.put("/users/{user_id}/profile", response_model=User)
+<<<<<<< HEAD
 async def update_user_profile(user_id: str, profile_data: ProfileUpdate):
     """Update user profile information"""
     user = await db.users.find_one({"id": user_id})
@@ -1141,6 +1245,87 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str
     except Exception as e:
         print(f"WebSocket error for user {user_id}: {e}")
         manager.disconnect(websocket, user_id)
+=======
+async def update_profile(user_id: str, profile_data: ProfileUpdate):
+    """Update user profile"""
+    update_data = {k: v for k, v in profile_data.dict().items() if v is not None}
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No data to update")
+    
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Return updated user
+    user = await db.users.find_one({"id": user_id})
+    return User(**user)
+
+@api_router.post("/users/{user_id}/change-password")
+async def change_password(user_id: str, password_data: PasswordChange):
+    """Change user password"""
+    # In a real implementation, you'd verify the current password
+    # and hash the new password before storing
+    
+    # For now, just return success (since we're not storing passwords)
+    return {"message": "Password changed successfully"}
+
+@api_router.post("/users/{user_id}/avatar-upload")
+async def upload_avatar(user_id: str, file: UploadFile = File(...)):
+    """Upload user avatar"""
+    # Read file content
+    content = await file.read()
+    
+    # Process and validate image
+    avatar_url = process_uploaded_image(content)
+    
+    # Update user avatar URL
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"avatar_url": avatar_url}}
+    )
+    
+    return {"avatar_url": avatar_url}
+
+# WebSocket endpoint
+@app.websocket("/ws/{user_id}/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str):
+    # Verify session is valid
+    user = await db.users.find_one({"id": user_id})
+    if not user or user.get("active_session_id") != session_id:
+        await websocket.close(code=4002, reason="Invalid session")
+        return
+    
+    await manager.connect(websocket, user_id)
+    
+    try:
+        while True:
+            data = await websocket.receive_text()
+            
+            # Handle heartbeat or other WebSocket messages
+            try:
+                message_data = json.loads(data)
+                if message_data.get("type") == "heartbeat":
+                    await websocket.send_text(json.dumps({"type": "heartbeat_ack"}))
+            except json.JSONDecodeError:
+                pass
+            
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, user_id)
+        
+        # Update user offline status
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {
+                "is_online": False,
+                "last_seen": datetime.utcnow()
+            }}
+        )
+>>>>>>> origin/main
 
 # Include the router in the main app
 app.include_router(api_router)
@@ -1160,6 +1345,43 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+<<<<<<< HEAD
+=======
+# Background task to update stock prices periodically
+async def update_stock_prices_background():
+    """Background task to update stock prices for all open positions"""
+    while True:
+        try:
+            # Get all unique symbols from open positions
+            positions = await db.positions.find({"is_open": True}).to_list(1000)
+            symbols = list(set([pos["symbol"] for pos in positions]))
+            
+            print(f"Updating prices for {len(symbols)} symbols...")
+            
+            for symbol in symbols:
+                try:
+                    price = await get_current_stock_price(symbol)
+                    print(f"Updated {symbol}: ${price}")
+                    await asyncio.sleep(1)  # Rate limiting
+                except Exception as e:
+                    print(f"Error updating price for {symbol}: {e}")
+            
+            # Wait 5 minutes before next update
+            await asyncio.sleep(300)
+            
+        except Exception as e:
+            print(f"Error in background price update: {e}")
+            await asyncio.sleep(60)  # Wait 1 minute on error
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks"""
+    print("🚀 Starting CashoutAI backend...")
+    print("📈 Starting background stock price updater...")
+    # Start background task for stock price updates
+    asyncio.create_task(update_stock_prices_background())
+
+>>>>>>> origin/main
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
