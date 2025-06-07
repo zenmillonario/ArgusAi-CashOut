@@ -2139,6 +2139,7 @@ function App() {
                                   color: isDarkTheme ? '#ffffff' : '#000000'
                                 }}
                               >
+                                {/* Cache bust: User role options - Member/Admin/Moderator */}
                                 <option value="member" style={{
                                   backgroundColor: isDarkTheme ? '#374151' : '#ffffff',
                                   color: isDarkTheme ? '#ffffff' : '#000000'
