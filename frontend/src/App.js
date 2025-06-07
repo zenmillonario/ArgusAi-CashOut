@@ -50,6 +50,8 @@ function App() {
   const [imagePreview, setImagePreview] = useState(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [audioContext, setAudioContext] = useState(null);
+  const [serviceWorker, setServiceWorker] = useState(null);
+  const [pushSubscription, setPushSubscription] = useState(null);
   const [tradeForm, setTradeForm] = useState({
     symbol: '',
     action: 'BUY',
