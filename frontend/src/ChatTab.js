@@ -66,78 +66,52 @@ const ChatTab = ({
         </div>
       )}
 
-      {/* Messages - COMPACT LAYOUT */}
+      {/* Messages - STREAMLINED SAME LINE FORMAT */}
       <div className={`flex-1 backdrop-blur-lg rounded-2xl border p-4 mb-4 overflow-y-auto ${
         isDarkTheme 
           ? 'bg-white/5 border-white/10' 
           : 'bg-white/80 border-gray-200'
       }`}>
-        <div className="space-y-2">
+        <div className="space-y-1">
           {displayMessages.map((message) => (
-            <div key={message.id} className="flex space-x-2 group">
-              {/* Smaller Avatar */}
-              <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 flex-shrink-0">
-                {message.avatar_url ? (
-                  <img 
-                    src={message.avatar_url} 
-                    alt={message.username} 
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'flex';
-                    }}
-                  />
-                ) : null}
-                <div className={`w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs ${message.avatar_url ? 'hidden' : 'flex'}`}>
-                  {(message.screen_name || message.username).charAt(0).toUpperCase()}
-                </div>
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                {/* Compact Header */}
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className={`font-medium text-sm ${
-                    message.is_admin 
-                      ? 'text-yellow-400' 
-                      : isDarkTheme ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    {message.screen_name || message.username}
-                    {message.real_name && message.screen_name && (
-                      <span className={`ml-1 text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
-                        ({message.real_name})
-                      </span>
-                    )}
-                  </span>
-                  {message.is_admin && (
-                    <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
-                      Admin
-                    </span>
-                  )}
-                  {/* Smaller timestamp */}
-                  <span className="text-xs text-gray-400">
-                    {new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                  </span>
+            <div key={message.id} className="group">
+              {/* STREAMLINED FORMAT: Username: Message on same line */}
+              {message.content_type === 'image' ? (
+                // Image messages get their own layout
+                <div className="flex items-start space-x-2 py-1">
+                  <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20 flex-shrink-0">
+                    {message.avatar_url ? (
+                      <img 
+                        src={message.avatar_url} 
+                        alt={message.username} 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs ${message.avatar_url ? 'hidden' : 'flex'}`}>
+                      {(message.screen_name || message.username).charAt(0).toUpperCase()}
+                    </div>
+                  </div>
                   
-                  {/* Stock ticker favorites */}
-                  {message.highlighted_tickers.map(ticker => (
-                    <button
-                      key={ticker}
-                      onClick={() => addToFavorites(ticker)}
-                      className={`text-xs px-1.5 py-0.5 rounded transition-colors ${
-                        favorites.includes(ticker.toUpperCase())
-                          ? 'bg-yellow-500/20 text-yellow-400'
-                          : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
-                      }`}
-                      title={`${favorites.includes(ticker.toUpperCase()) ? 'Remove from' : 'Add to'} favorites`}
-                    >
-                      {favorites.includes(ticker.toUpperCase()) ? '★' : '☆'} ${ticker}
-                    </button>
-                  ))}
-                </div>
-                
-                {/* Message Content */}
-                {message.content_type === 'image' ? (
-                  <div className="mt-1">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className={`font-medium text-sm ${
+                        message.is_admin 
+                          ? 'text-yellow-400' 
+                          : isDarkTheme ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        {message.screen_name || message.username}
+                      </span>
+                      {message.is_admin && (
+                        <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">Admin</span>
+                      )}
+                      <span className="text-xs text-gray-400">
+                        {new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </span>
+                    </div>
                     <img 
                       src={message.content} 
                       alt="Shared image" 
@@ -145,49 +119,83 @@ const ChatTab = ({
                       style={{ maxHeight: '200px' }}
                     />
                   </div>
-                ) : (
-                  <div 
-                    className={`text-sm leading-relaxed ${
-                      message.is_admin 
-                        ? `font-medium ${isDarkTheme ? 'text-white' : 'text-gray-900'}` 
-                        : isDarkTheme ? 'text-gray-300' : 'text-gray-700'
-                    }`}
-                    dangerouslySetInnerHTML={{
-                      __html: formatMessageContent(message.content, message.highlighted_tickers)
-                    }}
-                  />
-                )}
-                
-                {/* Message Reactions - Enhanced */}
-                <div className="flex items-center space-x-1 mt-1">
-                  {/* Show existing reactions */}
-                  {messageReactions[message.id] && Object.entries(messageReactions[message.id]).map(([reaction, count]) => (
-                    <button
-                      key={reaction}
-                      onClick={() => addReaction(message.id, reaction)}
-                      className={`text-xs px-2 py-1 rounded-full transition-colors ${
-                        isDarkTheme ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'
-                      }`}
-                    >
-                      {reaction} {count}
-                    </button>
-                  ))}
+                </div>
+              ) : (
+                // Text messages - STREAMLINED SAME LINE FORMAT
+                <div className="flex items-start space-x-1 py-0.5">
+                  {/* Compact timestamp */}
+                  <span className="text-xs text-gray-500 w-12 flex-shrink-0 text-right">
+                    {new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </span>
                   
-                  {/* Reaction buttons (show on hover) */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
-                    {['👍', '💰', '🚀', '❤️'].map(reaction => (
-                      <button
-                        key={reaction}
-                        onClick={() => addReaction(message.id, reaction)}
-                        className="text-sm hover:scale-110 transition-transform p-1 rounded"
-                        title={`React with ${reaction}`}
-                      >
-                        {reaction}
-                      </button>
-                    ))}
+                  {/* Username: Message format */}
+                  <div className="flex-1 min-w-0">
+                    <span className={`font-medium text-sm ${
+                      message.is_admin 
+                        ? 'text-yellow-400' 
+                        : isDarkTheme ? 'text-blue-300' : 'text-blue-600'
+                    }`}>
+                      {message.screen_name || message.username}
+                      {message.is_admin && <span className="text-yellow-400 text-xs ml-1">[Admin]</span>}:
+                    </span>
+                    <span 
+                      className={`text-sm ml-2 ${
+                        message.is_admin 
+                          ? `font-medium ${isDarkTheme ? 'text-white' : 'text-gray-900'}` 
+                          : isDarkTheme ? 'text-gray-300' : 'text-gray-700'
+                      }`}
+                      dangerouslySetInnerHTML={{
+                        __html: formatMessageContent(message.content, message.highlighted_tickers)
+                      }}
+                    />
+                    
+                    {/* Stock tickers and reactions - inline */}
+                    <span className="ml-2">
+                      {message.highlighted_tickers.map(ticker => (
+                        <button
+                          key={ticker}
+                          onClick={() => addToFavorites(ticker)}
+                          className={`text-xs px-1 py-0.5 rounded ml-1 transition-colors ${
+                            favorites.includes(ticker.toUpperCase())
+                              ? 'bg-yellow-500/20 text-yellow-400'
+                              : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                          }`}
+                          title={`${favorites.includes(ticker.toUpperCase()) ? 'Remove from' : 'Add to'} favorites`}
+                        >
+                          {favorites.includes(ticker.toUpperCase()) ? '★' : '☆'}${ticker}
+                        </button>
+                      ))}
+                      
+                      {/* Quick reactions */}
+                      <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-1">
+                        {['👍', '💰', '🚀'].map(reaction => (
+                          <button
+                            key={reaction}
+                            onClick={() => addReaction(message.id, reaction)}
+                            className="text-sm hover:scale-110 transition-transform px-1"
+                            title={`React with ${reaction}`}
+                          >
+                            {reaction}
+                          </button>
+                        ))}
+                      </span>
+                      
+                      {/* Show existing reactions */}
+                      {messageReactions[message.id] && Object.entries(messageReactions[message.id]).map(([reaction, count]) => (
+                        <button
+                          key={reaction}
+                          onClick={() => addReaction(message.id, reaction)}
+                          className={`text-xs px-1 py-0.5 rounded ml-1 transition-colors ${
+                            isDarkTheme ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'
+                          }`}
+                        >
+                          {reaction}{count}
+                        </button>
+                      ))}
+                    </span>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           ))}
           <div ref={messagesEndRef} />
