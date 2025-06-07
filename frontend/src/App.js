@@ -1963,7 +1963,7 @@ function App() {
                 }`}>
                   {allUsers.map((user) => (
                     <div key={user.id} className={`p-3 rounded-lg border ${
-                      isDarkTheme ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'
+                      isDarkTheme ? 'bg-gray-800/80 border-gray-600' : 'bg-gray-50 border-gray-200'
                     }`}>
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
