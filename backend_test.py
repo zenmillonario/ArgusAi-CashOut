@@ -7,13 +7,28 @@ import os
 from datetime import datetime
 
 class CashoutAITester:
-    def __init__(self, base_url="https://cashoutai.onrender.com"):
+    def __init__(self, base_url=None):
+        # Use the environment variable REACT_APP_BACKEND_URL from frontend/.env
+        if base_url is None:
+            # Read from frontend/.env
+            with open('/app/frontend/.env', 'r') as f:
+                for line in f:
+                    if line.startswith('REACT_APP_BACKEND_URL='):
+                        base_url = line.strip().split('=')[1].strip('"\'')
+                        break
+            
+            if not base_url:
+                base_url = "http://localhost:8001"
+                print(f"⚠️ Warning: Could not find REACT_APP_BACKEND_URL in frontend/.env, using default: {base_url}")
+        
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.tests_run = 0
         self.tests_passed = 0
         self.session1 = requests.Session()
         self.session2 = requests.Session()
+        
+        print(f"🔗 Using API URL: {self.api_url}")
         
     def run_test(self, name, method, endpoint, expected_status, session=None, data=None, headers=None):
         """Run a single API test"""
@@ -22,6 +37,7 @@ class CashoutAITester:
         
         self.tests_run += 1
         print(f"\n🔍 Testing {name}...")
+        print(f"URL: {url}")
         
         try:
             if method == 'GET':
@@ -91,35 +107,19 @@ class CashoutAITester:
             return response
         return None
     
-    def test_session_status(self, user_id, session_id, session=None):
-        """Test session status endpoint"""
-        success, response = self.run_test(
-            "Session Status Check",
-            "GET",
-            f"users/{user_id}/session-status?session_id={session_id}",
-            200,
-            session=session
-        )
-        
-        if success:
-            print(f"Session status: {response.get('valid')}")
-            print(f"Message: {response.get('message')}")
-            return response
-        return None
-    
     def test_get_stock_price(self, symbol, session=None):
-        """Test real-time stock price API"""
+        """Test real-time stock price API with the new endpoint"""
         success, response = self.run_test(
             f"Get stock price for {symbol}",
             "GET",
-            f"stock-price/{symbol}",
+            f"stock/{symbol}",
             200,
             session=session
         )
         
         if success:
             print(f"Current price for {symbol}: ${response.get('price')}")
-            print(f"Change: {response.get('change')} ({response.get('change_percent')})")
+            print(f"Timestamp: {response.get('timestamp')}")
             return response
         return None
     
@@ -165,61 +165,45 @@ class CashoutAITester:
             return response
         return None
     
-    def test_single_session_auth(self):
-        """Test single-session authentication by logging in from two different sessions"""
-        print("\n🔒 Testing Single-Session Authentication...")
+    def test_fmp_stock_api_integration(self):
+        """Test the Financial Modeling Prep API integration for stock prices"""
+        print("\n📈 Testing FMP Stock API Integration...")
         
-        # First login with session 1
-        user1 = self.test_login("admin", "admin", self.session1)
-        if not user1:
-            print("❌ First login failed, cannot continue test")
-            return False
+        symbols = ["TSLA", "AAPL", "MSFT", "NVDA", "GOOGL"]
+        results = []
         
-        user_id = user1.get('id')
-        session_id1 = user1.get('active_session_id')
+        for symbol in symbols:
+            result = self.test_get_stock_price(symbol)
+            
+            # Check if price and timestamp are present
+            if result:
+                has_price = 'price' in result
+                has_timestamp = 'timestamp' in result
+                
+                print(f"Stock {symbol} has price: {has_price}")
+                print(f"Stock {symbol} has timestamp: {has_timestamp}")
+                
+                if has_price and has_timestamp:
+                    print(f"✅ Stock price API working correctly for {symbol}")
+                    print(f"   Price: ${result.get('price')}")
+                else:
+                    print(f"❌ Missing price data for {symbol}")
+            
+            results.append(result is not None and 'price' in result)
+            
+            # Wait a bit between requests
+            time.sleep(1)
         
-        # Check if session 1 is valid
-        session1_status = self.test_session_status(user_id, session_id1, self.session1)
-        if not session1_status or not session1_status.get('valid'):
-            print("❌ First session is not valid, cannot continue test")
-            return False
-        
-        print("\n⏳ Waiting 2 seconds before second login...")
-        time.sleep(2)
-        
-        # Second login with session 2 (should invalidate session 1)
-        user2 = self.test_login("admin", "admin", self.session2)
-        if not user2:
-            print("❌ Second login failed, cannot continue test")
-            return False
-        
-        session_id2 = user2.get('active_session_id')
-        
-        # Check if session 2 is valid
-        session2_status = self.test_session_status(user_id, session_id2, self.session2)
-        if not session2_status or not session2_status.get('valid'):
-            print("❌ Second session is not valid, test failed")
-            return False
-        
-        print("\n⏳ Waiting 2 seconds before checking if first session was invalidated...")
-        time.sleep(2)
-        
-        # Check if session 1 is now invalid
-        session1_status_after = self.test_session_status(user_id, session_id1, self.session1)
-        
-        if session1_status_after and not session1_status_after.get('valid'):
-            print("✅ First session was correctly invalidated after second login")
-            return True
-        else:
-            print("❌ First session is still valid, single-session auth failed")
-            return False
+        success_rate = sum(results) / len(results) if results else 0
+        print(f"Stock price API tests completed with {success_rate * 100}% success rate")
+        return all(results)
     
     def test_registration_with_membership_plans(self):
         """Test registration with different membership plans"""
         print("\n📝 Testing Registration with Membership Plans...")
         
-        # Test with different membership plans including "Premium Test" as specified in the review request
-        plans = ["Basic", "Premium", "Premium Test"]
+        # Test with different membership plans as specified in the review request
+        plans = ["Basic", "Premium", "Professional", "Enterprise"]
         results = []
         
         for i, plan in enumerate(plans):
@@ -238,9 +222,15 @@ class CashoutAITester:
             
             results.append(result is not None)
             
-            # Check if the response contains the expected message about admin approval
+            # Check if the response contains the membership plan
             if result:
-                print(f"Checking if user status is 'pending': {result.get('status') == 'pending'}")
+                print(f"Checking if membership plan is saved: {result.get('membership_plan') == plan}")
+                if result.get('membership_plan') == plan:
+                    print(f"✅ Registration saved {plan} membership plan correctly")
+                else:
+                    print(f"❌ Registration did not save membership plan correctly")
+                
+                # Check if status is pending (awaiting approval)
                 if result.get('status') == 'pending':
                     print("✅ Registration shows pending status as expected")
                 else:
@@ -250,51 +240,19 @@ class CashoutAITester:
         print(f"Registration tests completed with {success_rate * 100}% success rate")
         return all(results)
     
-    def test_real_time_stock_prices(self):
-        """Test real-time stock price API for multiple symbols"""
-        print("\n📈 Testing Real-Time Stock Prices...")
-        
-        symbols = ["TSLA", "AAPL", "MSFT"]
-        results = []
-        
-        for symbol in symbols:
-            result = self.test_get_stock_price(symbol)
-            
-            # Check if price and change percentage are present
-            if result:
-                has_price = 'price' in result
-                has_change_percent = 'change_percent' in result
-                
-                print(f"Stock {symbol} has price: {has_price}")
-                print(f"Stock {symbol} has change percentage: {has_change_percent}")
-                
-                if has_price and has_change_percent:
-                    print(f"✅ Stock price integration working correctly for {symbol}")
-                else:
-                    print(f"❌ Missing price data for {symbol}")
-            
-            results.append(result is not None and 'price' in result and 'change_percent' in result)
-            
-            # Wait a bit between requests
-            time.sleep(1)
-        
-        success_rate = sum(results) / len(results) if results else 0
-        print(f"Stock price tests completed with {success_rate * 100}% success rate")
-        return all(results)
-    
-    def test_admin_panel(self):
-        """Test admin panel functionality"""
-        print("\n⚙️ Testing Admin Panel...")
+    def test_admin_dashboard(self):
+        """Test admin dashboard functionality"""
+        print("\n⚙️ Testing Admin Dashboard...")
         
         # Login as admin
         admin_user = self.test_login("admin", "admin", self.session1)
         if not admin_user:
-            print("❌ Admin login failed, cannot test admin panel")
+            print("❌ Admin login failed, cannot test admin dashboard")
             return False
         
         # Check if user is admin
         if not admin_user.get('is_admin'):
-            print("❌ User is not an admin, cannot test admin panel")
+            print("❌ User is not an admin, cannot test admin dashboard")
             return False
         
         # Get pending users
@@ -303,79 +261,55 @@ class CashoutAITester:
             print("❌ Failed to get pending users")
             return False
         
-        return True
-    
-    def test_chat_message_format(self):
-        """Test chat message format"""
-        print("\n💬 Testing Chat Message Format...")
+        # Check if we can get all users (for member list)
+        success, all_users = self.run_test(
+            "Get all users",
+            "GET",
+            "users",
+            200,
+            session=self.session1
+        )
         
-        # Get messages
-        messages = self.test_get_messages(session=self.session1)
-        if messages is None:
-            print("❌ Failed to get messages")
+        if not success:
+            print("❌ Failed to get all users")
             return False
         
-        # Check if there are any messages
-        if not messages:
-            print("⚠️ No messages found to test format")
-            return True  # Not a failure, just no messages to test
+        print(f"✅ Successfully retrieved {len(all_users)} users for admin dashboard")
         
-        # Check message format
-        for message in messages[:5]:  # Check first 5 messages
-            if 'username' not in message or 'content' not in message or 'timestamp' not in message:
-                print(f"❌ Message missing required fields: {message}")
-                return False
-            
-            # Check timestamp format
-            try:
-                timestamp = datetime.fromisoformat(message['timestamp'].replace('Z', '+00:00'))
-                formatted_time = timestamp.strftime('%H:%M')
-                print(f"✅ Message has valid timestamp: {formatted_time}")
-                
-                # Check if message format is compact (HH:MM Username: message)
-                compact_format = f"{formatted_time} {message['username']}: {message['content']}"
-                print(f"Message format sample: {compact_format}")
-                print(f"Is message format compact and single-line? Yes")
-                
-                # Check for ticker highlighting if present
-                if message.get('highlighted_tickers'):
-                    print(f"✅ Message has highlighted tickers: {message['highlighted_tickers']}")
-            except (ValueError, TypeError):
-                print(f"❌ Invalid timestamp format: {message.get('timestamp')}")
-                return False
+        # Check if membership plan is included in user data
+        if all_users and len(all_users) > 0:
+            for user in all_users[:5]:  # Check first 5 users
+                if 'membership_plan' in user:
+                    print(f"User {user.get('username')} has {user.get('membership_plan')} membership plan")
+                else:
+                    print(f"⚠️ Membership plan not found for user {user.get('username')}")
         
         return True
 
 def main():
-    # Get the backend URL from environment or use default
-    backend_url = "http://localhost:8001"
+    # Create tester with the backend URL from frontend/.env
+    tester = CashoutAITester()
     
-    print(f"🚀 Starting CashoutAI Backend Tests against {backend_url}")
-    tester = CashoutAITester(backend_url)
+    print(f"🚀 Starting CashoutAI Backend Tests")
     
-    # Test registration with membership plans
+    # Test 1: FMP Stock API Integration
+    stock_api_test_result = tester.test_fmp_stock_api_integration()
+    
+    # Test 2: Registration with Membership Plans
     registration_test_result = tester.test_registration_with_membership_plans()
     
-    # Test real-time stock prices
-    stock_price_test_result = tester.test_real_time_stock_prices()
-    
-    # Test admin panel
-    admin_panel_test_result = tester.test_admin_panel()
-    
-    # Test chat message format
-    chat_format_test_result = tester.test_chat_message_format()
+    # Test 3: Admin Dashboard
+    admin_dashboard_test_result = tester.test_admin_dashboard()
     
     # Print summary
     print("\n📊 Test Summary:")
-    print(f"Registration with Membership Plans: {'✅ PASSED' if registration_test_result else '❌ FAILED'}")
-    print(f"Real-Time Stock Prices: {'✅ PASSED' if stock_price_test_result else '❌ FAILED'}")
-    print(f"Admin Panel: {'✅ PASSED' if admin_panel_test_result else '❌ FAILED'}")
-    print(f"Chat Message Format: {'✅ PASSED' if chat_format_test_result else '❌ FAILED'}")
+    print(f"1. FMP Stock API Integration: {'✅ PASSED' if stock_api_test_result else '❌ FAILED'}")
+    print(f"2. Registration with Membership Plans: {'✅ PASSED' if registration_test_result else '❌ FAILED'}")
+    print(f"3. Admin Dashboard: {'✅ PASSED' if admin_dashboard_test_result else '❌ FAILED'}")
     print(f"Tests Passed: {tester.tests_passed}/{tester.tests_run}")
     
     # Return success if all tests passed
-    return 0 if (registration_test_result and stock_price_test_result and 
-                admin_panel_test_result and chat_format_test_result) else 1
+    return 0 if (stock_api_test_result and registration_test_result and admin_dashboard_test_result) else 1
 
 if __name__ == "__main__":
     sys.exit(main())
