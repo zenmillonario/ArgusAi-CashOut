@@ -698,6 +698,36 @@ async def approve_user(approval: UserApproval):
     
     return {"message": f"User {status_text} successfully"}
 
+@api_router.get("/stock/{symbol}")
+async def get_stock_price(symbol: str):
+    """Get real-time stock price using FMP API"""
+    fmp_api_key = os.getenv("FMP_API_KEY")
+    if not fmp_api_key:
+        raise HTTPException(status_code=500, detail="FMP API key not configured")
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f"https://financialmodelingprep.com/api/v3/quote/{symbol}?apikey={fmp_api_key}"
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data and len(data) > 0:
+                        stock_data = data[0]
+                        return {
+                            "symbol": symbol,
+                            "price": stock_data.get("price", 0),
+                            "change": stock_data.get("change", 0),
+                            "changesPercentage": stock_data.get("changesPercentage", 0),
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+                    else:
+                        raise HTTPException(status_code=404, detail=f"Stock symbol {symbol} not found")
+                else:
+                    raise HTTPException(status_code=response.status, detail="Failed to fetch stock data")
+    except Exception as e:
+        logging.error(f"Error fetching stock price for {symbol}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error fetching stock price")
+
 @api_router.post("/users/{user_id}/role")
 async def update_user_role(user_id: str, role_update: UserRoleUpdate):
     """Update user role - admin only"""
