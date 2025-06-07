@@ -1788,6 +1788,41 @@ function App() {
                       {currentUser?.is_admin ? 'Admin' : currentUser?.role || 'Member'}
                     </div>
                   </div>
+
+                  {/* Trading Performance Section */}
+                  <div>
+                    <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      📊 Trading Performance
+                    </label>
+                    <div className={`p-4 rounded-lg border space-y-2 ${
+                      isDarkTheme 
+                        ? 'bg-white/5 border-white/10 text-white' 
+                        : 'bg-white/70 border-gray-200 text-gray-900'
+                    }`}>
+                      <div className="flex justify-between">
+                        <span className={isDarkTheme ? 'text-gray-300' : 'text-gray-600'}>Total Trades:</span>
+                        <span className="font-medium">{userTrades.length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={isDarkTheme ? 'text-gray-300' : 'text-gray-600'}>Total P&L:</span>
+                        <span className={`font-medium ${
+                          userPerformance?.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'
+                        }`}>
+                          ${userPerformance?.total_pnl?.toFixed(2) || '0.00'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={isDarkTheme ? 'text-gray-300' : 'text-gray-600'}>Win Rate:</span>
+                        <span className="font-medium">
+                          {userPerformance?.win_rate ? `${(userPerformance.win_rate * 100).toFixed(1)}%` : '0%'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={isDarkTheme ? 'text-gray-300' : 'text-gray-600'}>Open Positions:</span>
+                        <span className="font-medium">{openPositions.length}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="flex flex-col items-center space-y-4">
