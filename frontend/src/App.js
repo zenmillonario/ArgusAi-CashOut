@@ -464,17 +464,36 @@ function App() {
           const registration = await navigator.serviceWorker.register('/sw.js');
           console.log('Service Worker registered successfully:', registration);
           
+          // Wait for service worker to be ready
+          await navigator.serviceWorker.ready;
+          
           // Get the active service worker
           const worker = registration.active || registration.waiting || registration.installing;
           if (worker) {
             setServiceWorker(worker);
+            console.log('Service Worker set:', worker.state);
+          }
+          
+          // Listen for service worker state changes
+          if (registration.installing) {
+            registration.installing.addEventListener('statechange', (e) => {
+              if (e.target.state === 'activated') {
+                setServiceWorker(e.target);
+                console.log('Service Worker activated');
+              }
+            });
           }
           
           // Listen for service worker updates
           registration.addEventListener('updatefound', () => {
             const newWorker = registration.installing;
             if (newWorker) {
-              setServiceWorker(newWorker);
+              newWorker.addEventListener('statechange', (e) => {
+                if (e.target.state === 'activated') {
+                  setServiceWorker(e.target);
+                  console.log('Service Worker updated and activated');
+                }
+              });
             }
           });
           
