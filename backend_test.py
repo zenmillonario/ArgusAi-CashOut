@@ -509,6 +509,204 @@ def test_admin_notification_system():
     print("✅ Admin notification system backend API tests passed")
     return True
 
+def test_admin_panel_role_dropdown():
+    """Test the admin panel role dropdown options"""
+    print("\n🔍 TESTING FEATURE: Admin Panel Role Dropdown")
+    
+    tester = CashoutAITester()
+    
+    # Login as admin
+    admin_user = tester.test_login("admin", "admin", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed, cannot test admin panel role dropdown")
+        return False
+    
+    # Verify admin user has is_admin flag set to true
+    if not admin_user.get('is_admin'):
+        print("❌ Admin user does not have is_admin flag set to true")
+        return False
+    else:
+        print("✅ Admin user has is_admin flag set correctly")
+    
+    # Create a test user
+    timestamp = datetime.now().strftime("%H%M%S")
+    username = f"test_role_{timestamp}"
+    email = f"test_role_{timestamp}@example.com"
+    real_name = f"Test Role User {timestamp}"
+    
+    test_user = tester.test_register_with_membership(
+        username=username,
+        email=email,
+        real_name=real_name,
+        membership_plan="Monthly",
+        password="TestPass123!"
+    )
+    
+    if not test_user:
+        print("❌ Failed to create test user")
+        return False
+    
+    # Approve the user
+    approve_result = tester.test_user_approval(
+        tester.session1, 
+        test_user['id'], 
+        admin_user['id'], 
+        approved=True
+    )
+    
+    if not approve_result:
+        print("❌ Failed to approve user")
+        return False
+    
+    # Get all users to find our test user
+    all_users = tester.test_get_all_users(tester.session1)
+    if all_users is None:
+        print("❌ Failed to get all users")
+        return False
+    
+    # Find our test user in the list
+    test_user_updated = next((user for user in all_users if user['id'] == test_user['id']), None)
+    if not test_user_updated:
+        print("❌ Test user not found in all users list")
+        return False
+    
+    print(f"✅ Test user found with role: {test_user_updated.get('role')}")
+    
+    # Test changing user role to admin
+    success, response = tester.run_test(
+        "Change user role to admin",
+        "POST",
+        f"users/{test_user['id']}/role",
+        200,
+        session=tester.session1,
+        data={
+            "user_id": test_user['id'],
+            "role": "admin",
+            "admin_id": admin_user['id']
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to change user role to admin")
+        return False
+    
+    # Get all users again to verify role change
+    all_users = tester.test_get_all_users(tester.session1)
+    if all_users is None:
+        print("❌ Failed to get all users after role change")
+        return False
+    
+    # Find our test user in the list again
+    test_user_updated = next((user for user in all_users if user['id'] == test_user['id']), None)
+    if not test_user_updated:
+        print("❌ Test user not found in all users list after role change")
+        return False
+    
+    # Verify the role was changed to admin
+    if test_user_updated.get('role') != "admin":
+        print(f"❌ User role was not changed to admin. Current role: {test_user_updated.get('role')}")
+        return False
+    
+    print(f"✅ User role successfully changed to admin")
+    
+    # Verify is_admin flag is set to true
+    if not test_user_updated.get('is_admin'):
+        print("❌ is_admin flag not set to true after role change to admin")
+        return False
+    
+    print("✅ is_admin flag correctly set to true")
+    
+    # Test changing user role to moderator
+    success, response = tester.run_test(
+        "Change user role to moderator",
+        "POST",
+        f"users/{test_user['id']}/role",
+        200,
+        session=tester.session1,
+        data={
+            "user_id": test_user['id'],
+            "role": "moderator",
+            "admin_id": admin_user['id']
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to change user role to moderator")
+        return False
+    
+    # Get all users again to verify role change
+    all_users = tester.test_get_all_users(tester.session1)
+    if all_users is None:
+        print("❌ Failed to get all users after role change")
+        return False
+    
+    # Find our test user in the list again
+    test_user_updated = next((user for user in all_users if user['id'] == test_user['id']), None)
+    if not test_user_updated:
+        print("❌ Test user not found in all users list after role change")
+        return False
+    
+    # Verify the role was changed to moderator
+    if test_user_updated.get('role') != "moderator":
+        print(f"❌ User role was not changed to moderator. Current role: {test_user_updated.get('role')}")
+        return False
+    
+    print(f"✅ User role successfully changed to moderator")
+    
+    # Verify is_admin flag is set to false for moderator
+    if test_user_updated.get('is_admin'):
+        print("❌ is_admin flag incorrectly set to true for moderator role")
+        return False
+    
+    print("✅ is_admin flag correctly set to false for moderator role")
+    
+    # Test changing user role back to member
+    success, response = tester.run_test(
+        "Change user role to member",
+        "POST",
+        f"users/{test_user['id']}/role",
+        200,
+        session=tester.session1,
+        data={
+            "user_id": test_user['id'],
+            "role": "member",
+            "admin_id": admin_user['id']
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to change user role to member")
+        return False
+    
+    # Get all users again to verify role change
+    all_users = tester.test_get_all_users(tester.session1)
+    if all_users is None:
+        print("❌ Failed to get all users after role change")
+        return False
+    
+    # Find our test user in the list again
+    test_user_updated = next((user for user in all_users if user['id'] == test_user['id']), None)
+    if not test_user_updated:
+        print("❌ Test user not found in all users list after role change")
+        return False
+    
+    # Verify the role was changed to member
+    if test_user_updated.get('role') != "member":
+        print(f"❌ User role was not changed to member. Current role: {test_user_updated.get('role')}")
+        return False
+    
+    print(f"✅ User role successfully changed to member")
+    
+    # Verify is_admin flag is set to false for member
+    if test_user_updated.get('is_admin'):
+        print("❌ is_admin flag incorrectly set to true for member role")
+        return False
+    
+    print("✅ is_admin flag correctly set to false for member role")
+    
+    print("✅ Admin panel role dropdown backend API tests passed")
+    return True
+
 def main():
     print("🚀 Starting ArgusAI-CashOut Backend Tests")
     
@@ -527,6 +725,9 @@ def main():
     # Test 5: Enhanced Admin Notification System
     notification_test_result = test_admin_notification_system()
     
+    # Test 6: Admin Panel Role Dropdown
+    admin_role_dropdown_test_result = test_admin_panel_role_dropdown()
+    
     # Print summary
     print("\n📊 Test Summary:")
     print(f"1. Updated Membership Types: {'✅ PASSED' if membership_test_result else '❌ FAILED'}")
@@ -534,11 +735,12 @@ def main():
     print(f"3. User Approval Bug Fix: {'✅ PASSED' if user_approval_test_result else '❌ FAILED'}")
     print(f"4. Profile Performance Metrics: {'✅ PASSED' if profile_metrics_test_result else '❌ FAILED'}")
     print(f"5. Enhanced Admin Notification System: {'✅ PASSED' if notification_test_result else '❌ FAILED'}")
+    print(f"6. Admin Panel Role Dropdown: {'✅ PASSED' if admin_role_dropdown_test_result else '❌ FAILED'}")
     
     # Return success if all tests passed
     return 0 if (membership_test_result and stock_price_test_result and 
                 user_approval_test_result and profile_metrics_test_result and 
-                notification_test_result) else 1
+                notification_test_result and admin_role_dropdown_test_result) else 1
 
 if __name__ == "__main__":
     sys.exit(main())
