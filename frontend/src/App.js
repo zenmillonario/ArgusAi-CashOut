@@ -1490,25 +1490,24 @@ function App() {
                     🔍
                   </button>
                   
-                  {/* Test Notification Button - Remove after testing */}
                   <button
                     onClick={() => {
-                      console.log('🧪 Testing notification...');
-                      playNotificationSound();
+                      console.log('🧪 Testing admin notification...');
+                      playAdminNotificationSound();
                       showBrowserNotification(
-                        '💰 CashoutAI - Test Notification',
-                        'This is a test notification to check if sound and push notifications work!',
+                        '💰 CashoutAI - Test Admin Notification',
+                        'This is a test admin notification with enhanced sound and background support!',
                         true
                       );
                     }}
                     className={`p-2 rounded-lg transition-colors text-xs ${
                       isDarkTheme 
-                        ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30' 
-                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                        ? 'bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30' 
+                        : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
                     }`}
-                    title="Test notification"
+                    title="Test Admin Notification"
                   >
-                    🔔
+                    🔔 Admin Test
                   </button>
                 </>
               )}
