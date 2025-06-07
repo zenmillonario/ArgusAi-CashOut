@@ -8,20 +8,9 @@ from datetime import datetime
 
 class CashoutAITester:
     def __init__(self, base_url=None):
-        # Use the environment variable REACT_APP_BACKEND_URL from frontend/.env
+        # Use localhost for testing
         if base_url is None:
-            # Read from frontend/.env
-            env_path = "/app/frontend/.env"
-            if os.path.exists(env_path):
-                with open(env_path, 'r') as f:
-                    for line in f:
-                        if line.startswith('REACT_APP_BACKEND_URL='):
-                            base_url = line.strip().split('=', 1)[1].strip('"\'')
-                            break
-            
-            # Fallback to localhost if not found
-            if not base_url:
-                base_url = "http://localhost:8001"
+            base_url = "http://localhost:8001"
             
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
