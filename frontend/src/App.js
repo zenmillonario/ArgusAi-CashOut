@@ -2060,6 +2060,55 @@ function App() {
                   />
                 </div>
                 
+                {/* Profile Picture Upload */}
+                <div>
+                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Profile Picture
+                  </label>
+                  
+                  {/* Current/Preview Avatar */}
+                  <div className="flex items-center space-x-4 mb-4">
+                    <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-white/20">
+                      {avatarPreview ? (
+                        <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                      ) : currentUser?.avatar_url ? (
+                        <img src={currentUser.avatar_url} alt="Current" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
+                          {currentUser?.username?.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileSelect}
+                        className={`w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          isDarkTheme 
+                            ? 'bg-white/10 border border-white/20 text-white' 
+                            : 'bg-white border border-gray-200 text-gray-900'
+                        }`}
+                      />
+                      <p className={`text-xs mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Upload JPG, PNG, GIF (max 1MB)
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Upload Button */}
+                  {avatarFile && (
+                    <button
+                      type="button"
+                      onClick={() => uploadAvatarFile(avatarFile)}
+                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-2 rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 transition-all duration-200 mb-4"
+                    >
+                      Upload New Picture
+                    </button>
+                  )}
+                </div>
+                
                 <div className="flex space-x-4 pt-4">
                   <button
                     type="submit"
