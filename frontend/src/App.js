@@ -606,7 +606,6 @@ function App() {
           username: loginForm.username,
           email: loginForm.email,
           real_name: loginForm.real_name,
-<<<<<<< HEAD
           membership_plan: loginForm.membership_plan,
           password: loginForm.password
         });
@@ -614,14 +613,6 @@ function App() {
         alert('Registration successful! Please wait for admin approval. You will be approved within 5 minutes.');
         setIsRegistering(false);
         setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
-=======
-          password: loginForm.password
-        });
-        
-        alert('Registration successful! Please wait for admin approval.');
-        setIsRegistering(false);
-        setLoginForm({ username: '', email: '', password: '', real_name: '' });
->>>>>>> origin/main
       } else {
         // Login
         const response = await axios.post(`${API}/users/login`, {
