@@ -348,10 +348,7 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-<<<<<<< HEAD
   // FIXED: Auto-scroll when messages change AND on initial load
-=======
->>>>>>> origin/main
   useEffect(() => {
     scrollToBottom();
   }, [filteredMessages]);
