@@ -1036,8 +1036,6 @@ function App() {
                       required
                     />
                   </div>
-<<<<<<< HEAD
-
                   <div>
                     <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                       Membership Plan *
@@ -1059,8 +1057,6 @@ function App() {
                       <option value="Enterprise">Enterprise Plan</option>
                     </select>
                   </div>
-=======
->>>>>>> origin/main
                 </>
               )}
               
