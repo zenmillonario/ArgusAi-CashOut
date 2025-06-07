@@ -377,6 +377,7 @@ function App() {
       
       ws.onopen = () => {
         setIsConnected(true);
+        setConnectionMode('websocket');
         console.log('WebSocket connected successfully');
         // Send a heartbeat to establish connection
         ws.send(JSON.stringify({ type: 'heartbeat', message: 'Hello' }));
