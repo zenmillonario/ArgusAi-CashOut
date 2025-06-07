@@ -392,6 +392,13 @@ def test_admin_notification_system():
         print("❌ Admin login failed, cannot test admin notification system")
         return False
     
+    # Verify admin user has is_admin flag set to true
+    if not admin_user.get('is_admin'):
+        print("❌ Admin user does not have is_admin flag set to true")
+        return False
+    else:
+        print("✅ Admin user has is_admin flag set correctly")
+    
     # Create a test user
     timestamp = datetime.now().strftime("%H%M%S")
     username = f"test_notify_{timestamp}"
@@ -428,6 +435,13 @@ def test_admin_notification_system():
         print("❌ Test user login failed")
         return False
     
+    # Verify non-admin user does not have is_admin flag set to true
+    if user_login.get('is_admin'):
+        print("❌ Regular user has is_admin flag incorrectly set to true")
+        return False
+    else:
+        print("✅ Regular user has is_admin flag set correctly to false")
+    
     # Send an admin message that should trigger notification
     success, response = tester.run_test(
         "Send admin notification message",
@@ -449,6 +463,13 @@ def test_admin_notification_system():
     print("✅ Admin notification message sent successfully")
     print(f"Message ID: {response.get('id')}")
     print(f"Is Admin: {response.get('is_admin')}")
+    
+    # Verify the message has is_admin flag set to true
+    if not response.get('is_admin'):
+        print("❌ Admin message does not have is_admin flag set to true")
+        return False
+    else:
+        print("✅ Admin message has is_admin flag set correctly")
     
     # Verify the message appears in the messages list
     success, messages = tester.run_test(
@@ -477,6 +498,12 @@ def test_admin_notification_system():
         print("✅ Latest admin message is from our admin user")
     else:
         print("⚠️ Latest admin message is not from our test admin user")
+    
+    # Check if the admin message content is correct
+    if "important admin test notification" in latest_admin_msg.get('content', ''):
+        print("✅ Admin message content is correct")
+    else:
+        print("❌ Admin message content is incorrect")
     
     # Backend API tests for notification system are successful
     print("✅ Admin notification system backend API tests passed")
