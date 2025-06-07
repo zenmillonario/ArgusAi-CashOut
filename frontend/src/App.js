@@ -353,18 +353,7 @@ function App() {
     scrollToBottom();
   }, [filteredMessages]);
 
-<<<<<<< HEAD
-  // NEW: Auto-scroll when chat tab is opened or app is loaded
-  useEffect(() => {
-    if (activeTab === 'chat' && messages.length > 0) {
-      setTimeout(() => {
-        scrollToBottom();
-      }, 100); // Small delay to ensure DOM is ready
-    }
-  }, [activeTab, messages.length]);
-
-=======
->>>>>>> origin/main
+  // FIXED: Auto-scroll when messages change AND on initial load
   // WebSocket connection
   useEffect(() => {
     if (currentUser && !wsRef.current && currentUser.active_session_id) {
