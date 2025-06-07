@@ -642,17 +642,10 @@ function App() {
               console.log('- From:', message.screen_name || message.username);
               console.log('- Message:', message.content.substring(0, 100));
               
-              // Play enhanced admin notification sound
-              await playSimpleAdminSound();
+              // Play simple admin sound
+              playSimpleAdminSound();
               
-              // Show browser notification
-              await showBrowserNotification(
-                '💰 CashoutAI - Admin Message',
-                `${message.screen_name || message.username}: ${message.content.substring(0, 100)}${message.content.length > 100 ? '...' : ''}`,
-                true
-              );
-              
-              // Visual notification in app
+              // Visual notification in app title
               setTimeout(() => {
                 if (document.hidden) {
                   document.title = `🔔 New Admin Message - CashoutAI`;
