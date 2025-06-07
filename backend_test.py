@@ -8,9 +8,18 @@ from datetime import datetime
 
 class CashoutAITester:
     def __init__(self, base_url=None):
-        # Use localhost for testing
+        # Use the public endpoint from frontend/.env
         if base_url is None:
-            base_url = "http://localhost:8001"
+            # Try to read from frontend/.env
+            try:
+                with open('/app/frontend/.env', 'r') as f:
+                    for line in f:
+                        if line.startswith('REACT_APP_BACKEND_URL='):
+                            base_url = line.strip().split('=', 1)[1].strip('"\'')
+                            break
+            except Exception as e:
+                print(f"Error reading frontend/.env: {e}")
+                base_url = "http://localhost:8001"
             
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
