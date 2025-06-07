@@ -348,7 +348,7 @@ class CashoutAITester:
 
 def main():
     # Get the backend URL from environment or use default
-    backend_url = "https://cashoutai.onrender.com"
+    backend_url = "http://localhost:8001"
     
     print(f"🚀 Starting CashoutAI Backend Tests against {backend_url}")
     tester = CashoutAITester(backend_url)
