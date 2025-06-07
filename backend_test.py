@@ -212,11 +212,11 @@ def test_membership_types():
     membership_types = ["Monthly", "Yearly", "Lifetime"]
     results = []
     
-    for plan in membership_types:
+    for i, plan in enumerate(membership_types):
         timestamp = datetime.now().strftime("%H%M%S")
-        username = f"test_user_{timestamp}"
-        email = f"test_{timestamp}@example.com"
-        real_name = f"Test User {timestamp}"
+        username = f"test_user_{timestamp}_{i}"
+        email = f"test_{timestamp}_{i}@example.com"
+        real_name = f"Test User {timestamp} {i}"
         
         result = tester.test_register_with_membership(
             username=username,
