@@ -2118,7 +2118,11 @@ function App() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowEditProfile(false)}
+                    onClick={() => {
+                      setShowEditProfile(false);
+                      setAvatarFile(null);
+                      setAvatarPreview(null);
+                    }}
                     className="flex-1 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
                   >
                     Cancel
