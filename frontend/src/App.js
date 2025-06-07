@@ -167,109 +167,40 @@ function App() {
     }
   };
 
-  // Enhanced notification sound for admin messages
-  const playAdminNotificationSound = async () => {
+  // Simple admin notification sound - no complex audio context
+  const playSimpleAdminSound = () => {
     try {
-      // Try to initialize audio context if not already done
-      if (!audioContext) {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        setAudioContext(ctx);
-        
-        // Resume if suspended
-        if (ctx.state === 'suspended') {
-          await ctx.resume();
+      // Create a simple audio beep
+      const audio = new Audio();
+      audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAABACAAAQCQAAAABAAEAGGV0YQoGAAAaFBUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRU';
+      audio.volume = 0.5;
+      audio.play().then(() => {
+        console.log('🔔 Simple admin sound played successfully');
+      }).catch((error) => {
+        console.log('Sound play failed:', error);
+        // Fallback - try a different approach
+        try {
+          const context = new (window.AudioContext || window.webkitAudioContext)();
+          const oscillator = context.createOscillator();
+          const gainNode = context.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(context.destination);
+          
+          oscillator.frequency.setValueAtTime(800, context.currentTime);
+          gainNode.gain.setValueAtTime(0.3, context.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.5);
+          
+          oscillator.start(context.currentTime);
+          oscillator.stop(context.currentTime + 0.5);
+          
+          console.log('🔔 Fallback admin sound played');
+        } catch (e) {
+          console.log('All sound methods failed');
         }
-        
-        // Create admin-specific alert sound - more urgent pattern
-        const oscillator1 = ctx.createOscillator();
-        const oscillator2 = ctx.createOscillator();
-        const gainNode = ctx.createGain();
-        
-        oscillator1.connect(gainNode);
-        oscillator2.connect(gainNode);
-        gainNode.connect(ctx.destination);
-        
-        // Create urgent admin notification pattern
-        oscillator1.frequency.setValueAtTime(1200, ctx.currentTime);
-        oscillator1.frequency.setValueAtTime(800, ctx.currentTime + 0.15);
-        oscillator1.frequency.setValueAtTime(1200, ctx.currentTime + 0.3);
-        oscillator1.frequency.setValueAtTime(800, ctx.currentTime + 0.45);
-        oscillator1.frequency.setValueAtTime(1400, ctx.currentTime + 0.6);
-        
-        oscillator2.frequency.setValueAtTime(600, ctx.currentTime);
-        oscillator2.frequency.setValueAtTime(400, ctx.currentTime + 0.15);
-        oscillator2.frequency.setValueAtTime(600, ctx.currentTime + 0.3);
-        oscillator2.frequency.setValueAtTime(400, ctx.currentTime + 0.45);
-        oscillator2.frequency.setValueAtTime(700, ctx.currentTime + 0.6);
-        
-        gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
-        
-        oscillator1.start(ctx.currentTime);
-        oscillator1.stop(ctx.currentTime + 0.8);
-        oscillator2.start(ctx.currentTime);
-        oscillator2.stop(ctx.currentTime + 0.8);
-        
-        console.log('🔔 Admin notification sound played successfully (new context)');
-        return;
-      }
-
-      // Resume audio context if suspended
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-
-      // Create dual-tone urgent admin notification
-      const oscillator1 = audioContext.createOscillator();
-      const oscillator2 = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator1.connect(gainNode);
-      oscillator2.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      // Urgent admin notification pattern
-      oscillator1.frequency.setValueAtTime(1200, audioContext.currentTime);
-      oscillator1.frequency.setValueAtTime(800, audioContext.currentTime + 0.15);
-      oscillator1.frequency.setValueAtTime(1200, audioContext.currentTime + 0.3);
-      oscillator1.frequency.setValueAtTime(800, audioContext.currentTime + 0.45);
-      oscillator1.frequency.setValueAtTime(1400, audioContext.currentTime + 0.6);
-      
-      oscillator2.frequency.setValueAtTime(600, audioContext.currentTime);
-      oscillator2.frequency.setValueAtTime(400, audioContext.currentTime + 0.15);
-      oscillator2.frequency.setValueAtTime(600, audioContext.currentTime + 0.3);
-      oscillator2.frequency.setValueAtTime(400, audioContext.currentTime + 0.45);
-      oscillator2.frequency.setValueAtTime(700, audioContext.currentTime + 0.6);
-      
-      gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.8);
-      
-      oscillator1.start(audioContext.currentTime);
-      oscillator1.stop(audioContext.currentTime + 0.8);
-      oscillator2.start(audioContext.currentTime);
-      oscillator2.stop(audioContext.currentTime + 0.8);
-      
-      console.log('🔔 Admin notification sound played successfully');
+      });
     } catch (error) {
-      console.error('Error playing admin notification sound:', error);
-      // Fallback to browser notification sound
-      try {
-        // Create distinct admin notification with HTML5 Audio
-        const audio = new Audio();
-        audio.src = 'data:audio/wav;base64,UklGRnoMAABXQVZFZm10IBAAAAABAAABAB8AAAEfAAAAfwAAAEREQMBpRGDAgERAaERgQIBEQGhEYECAREBoRGBAgERAaERgQIBEQGhEYECARG...';
-        audio.volume = 0.5;
-        audio.loop = false;
-        
-        // Play multiple times for urgency
-        await audio.play();
-        setTimeout(async () => { 
-          try { await audio.play(); } catch(e) { console.log('Audio repeat failed:', e); }
-        }, 200);
-        
-        console.log('🔔 Fallback admin notification sound played');
-      } catch (e) {
-        console.log('All admin audio methods failed:', e);
-      }
+      console.error('Error playing admin sound:', error);
     }
   };
 
