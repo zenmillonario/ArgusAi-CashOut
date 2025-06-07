@@ -1581,6 +1581,22 @@ function App() {
                         onChange={(e) => setTradeForm({...tradeForm, symbol: e.target.value.toUpperCase()})}
                         required
                       />
+                      {/* Current Price Display */}
+                      {tradeForm.symbol && (
+                        <div className={`mt-1 text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {priceLoading ? (
+                            '🔄 Loading price...'
+                          ) : currentStockPrice ? (
+                            <span className="text-green-500 font-medium">
+                              Current: ${currentStockPrice.toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="text-red-500">
+                              Price unavailable
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     
                     <div>
