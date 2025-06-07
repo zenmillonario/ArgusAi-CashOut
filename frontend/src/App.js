@@ -15,6 +15,7 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionMode, setConnectionMode] = useState('disconnected'); // 'websocket', 'polling', 'disconnected'
   const [showLogin, setShowLogin] = useState(true);
   const [loginForm, setLoginForm] = useState({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
   const [isRegistering, setIsRegistering] = useState(false);
