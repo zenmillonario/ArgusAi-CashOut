@@ -10,8 +10,18 @@ class CashoutAITester:
     def __init__(self, base_url=None):
         # Use the environment variable REACT_APP_BACKEND_URL from frontend/.env
         if base_url is None:
-            # Use localhost:8001 directly
-            base_url = "http://localhost:8001"
+            # Read from frontend/.env
+            env_path = "/app/frontend/.env"
+            if os.path.exists(env_path):
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        if line.startswith('REACT_APP_BACKEND_URL='):
+                            base_url = line.strip().split('=', 1)[1].strip('"\'')
+                            break
+            
+            # Fallback to localhost if not found
+            if not base_url:
+                base_url = "http://localhost:8001"
             
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
@@ -99,22 +109,6 @@ class CashoutAITester:
             return response
         return None
     
-    def test_session_status(self, user_id, session_id, session=None):
-        """Test session status endpoint"""
-        success, response = self.run_test(
-            "Session Status Check",
-            "GET",
-            f"users/{user_id}/session-status?session_id={session_id}",
-            200,
-            session=session
-        )
-        
-        if success:
-            print(f"Session status: {response.get('valid')}")
-            print(f"Message: {response.get('message')}")
-            return response
-        return None
-    
     def test_get_stock_price(self, symbol, session=None):
         """Test real-time stock price API"""
         success, response = self.run_test(
@@ -127,7 +121,6 @@ class CashoutAITester:
         
         if success:
             print(f"Current price for {symbol}: ${response.get('price')}")
-            print(f"Timestamp: {response.get('timestamp')}")
             return response
         return None
     
@@ -153,343 +146,150 @@ class CashoutAITester:
             return response
         return None
     
-    def test_get_messages(self, limit=50, session=None):
-        """Test getting chat messages"""
+    def test_get_all_users(self, admin_session):
+        """Test getting all approved users as admin"""
         success, response = self.run_test(
-            "Get chat messages",
+            "Get all users",
             "GET",
-            f"messages?limit={limit}",
+            "users",
+            200,
+            session=admin_session
+        )
+        
+        if success:
+            print(f"Found {len(response)} approved users")
+            return response
+        return None
+    
+    def test_user_approval(self, admin_session, user_id, admin_id, approved=True):
+        """Test approving or rejecting a user"""
+        action = "approving" if approved else "rejecting"
+        success, response = self.run_test(
+            f"Test {action} user",
+            "POST",
+            "users/approve",
+            200,
+            session=admin_session,
+            data={
+                "user_id": user_id,
+                "approved": approved,
+                "admin_id": admin_id,
+                "role": "member"
+            }
+        )
+        
+        if success:
+            print(f"Successfully {action} user {user_id}")
+            return response
+        return None
+    
+    def test_user_performance(self, user_id, session=None):
+        """Test getting user trading performance"""
+        success, response = self.run_test(
+            "Get user performance",
+            "GET",
+            f"users/{user_id}/performance",
             200,
             session=session
         )
         
         if success:
-            print(f"Retrieved {len(response)} messages")
-            # Check message format
-            if response and len(response) > 0:
-                message = response[0]
-                print(f"Message format: {message.get('username')}: {message.get('content')}")
-                print(f"Timestamp: {message.get('timestamp')}")
+            print(f"User performance: {response}")
             return response
         return None
     
-    def test_fmp_stock_api_integration(self):
-        """Test the Financial Modeling Prep API integration for stock prices"""
-        print("\n📈 Testing FMP Stock API Integration...")
-        
-        symbols = ["TSLA", "AAPL", "MSFT", "NVDA", "GOOGL"]
-        results = []
-        
-        for symbol in symbols:
-            result = self.test_get_stock_price(symbol)
-            
-            # Check if price and timestamp are present
-            if result:
-                has_price = 'price' in result
-                has_timestamp = 'timestamp' in result
-                
-                print(f"Stock {symbol} has price: {has_price}")
-                print(f"Stock {symbol} has timestamp: {has_timestamp}")
-                
-                if has_price and has_timestamp:
-                    print(f"✅ Stock price API working correctly for {symbol}")
-                    print(f"   Price: ${result.get('price')}")
-                else:
-                    print(f"❌ Missing price data for {symbol}")
-            
-            results.append(result is not None and 'price' in result)
-            
-            # Wait a bit between requests
-            time.sleep(1)
-        
-        success_rate = sum(results) / len(results) if results else 0
-        print(f"Stock price API tests completed with {success_rate * 100}% success rate")
-        return all(results)
-    
-    def test_single_session_auth(self):
-        """Test single-session authentication by logging in from two different sessions"""
-        print("\n🔒 Testing Single-Session Authentication...")
-        
-        # First login with session 1
-        user1 = self.test_login("admin", "admin", self.session1)
-        if not user1:
-            print("❌ First login failed, cannot continue test")
-            return False
-        
-        user_id = user1.get('id')
-        session_id1 = user1.get('active_session_id')
-        
-        # Check if session 1 is valid
-        session1_status = self.test_session_status(user_id, session_id1, self.session1)
-        if not session1_status or not session1_status.get('valid'):
-            print("❌ First session is not valid, cannot continue test")
-            return False
-        
-        print("\n⏳ Waiting 2 seconds before second login...")
-        time.sleep(2)
-        
-        # Second login with session 2 (should invalidate session 1)
-        user2 = self.test_login("admin", "admin", self.session2)
-        if not user2:
-            print("❌ Second login failed, cannot continue test")
-            return False
-        
-        session_id2 = user2.get('active_session_id')
-        
-        # Check if session 2 is valid
-        session2_status = self.test_session_status(user_id, session_id2, self.session2)
-        if not session2_status or not session2_status.get('valid'):
-            print("❌ Second session is not valid, test failed")
-            return False
-        
-        print("\n⏳ Waiting 2 seconds before checking if first session was invalidated...")
-        time.sleep(2)
-        
-        # Check if session 1 is now invalid
-        session1_status_after = self.test_session_status(user_id, session_id1, self.session1)
-        
-        if session1_status_after and not session1_status_after.get('valid'):
-            print("✅ First session was correctly invalidated after second login")
-            return True
-        else:
-            print("❌ First session is still valid, single-session auth failed")
-            return False
-    
-    def test_registration_with_membership_plans(self):
-        """Test registration with different membership plans"""
-        print("\n📝 Testing Registration with Membership Plans...")
-        
-        # Test with different membership plans as specified in the review request
-        plans = ["Basic Plan", "Premium Plan", "Professional Plan", "Enterprise Plan"]
-        results = []
-        
-        for i, plan in enumerate(plans):
-            timestamp = datetime.now().strftime("%H%M%S")
-            username = f"test_user_{timestamp}_{i}"
-            email = f"test_{timestamp}_{i}@example.com"
-            real_name = f"Test User {i}"
-            
-            result = self.test_register_with_membership(
-                username=username,
-                email=email,
-                real_name=real_name,
-                membership_plan=plan,
-                password="TestPass123!"
-            )
-            
-            results.append(result is not None)
-            
-            # Check if the response contains the membership plan
-            if result:
-                print(f"Checking if membership plan is saved: {result.get('membership_plan') == plan}")
-                if result.get('membership_plan') == plan:
-                    print(f"✅ Registration saved {plan} membership plan correctly")
-                else:
-                    print(f"❌ Registration did not save membership plan correctly")
-                
-                # Check if status is pending (awaiting approval)
-                if result.get('status') == 'pending':
-                    print("✅ Registration shows pending status as expected")
-                else:
-                    print("❌ Registration does not show pending status")
-        
-        success_rate = sum(results) / len(results) if results else 0
-        print(f"Registration tests completed with {success_rate * 100}% success rate")
-        return all(results)
-    
-    def test_admin_dashboard(self):
-        """Test admin dashboard functionality"""
-        print("\n⚙️ Testing Admin Dashboard...")
-        
-        # Login as admin
-        admin_user = self.test_login("admin", "admin", self.session1)
-        if not admin_user:
-            print("❌ Admin login failed, cannot test admin dashboard")
-            return False
-        
-        # Check if user is admin
-        if not admin_user.get('is_admin'):
-            print("❌ User is not an admin, cannot test admin dashboard")
-            return False
-        
-        # Get pending users
-        pending_users = self.test_get_pending_users(self.session1)
-        if pending_users is None:
-            print("❌ Failed to get pending users")
-            return False
-        
-        # Check if we can get all users (for member list)
-        success, all_users = self.run_test(
-            "Get all users",
+    def test_get_positions(self, user_id, session=None):
+        """Test getting user positions"""
+        success, response = self.run_test(
+            "Get user positions",
             "GET",
-            "users",
+            f"positions/{user_id}",
             200,
-            session=self.session1
+            session=session
         )
         
-        if not success:
-            print("❌ Failed to get all users")
-            return False
-        
-        print(f"✅ Successfully retrieved {len(all_users)} users for admin dashboard")
-        
-        # Check if membership plan is included in user data
-        if all_users and len(all_users) > 0:
-            for user in all_users[:5]:  # Check first 5 users
-                if 'membership_plan' in user:
-                    print(f"User {user.get('username')} has {user.get('membership_plan')} membership plan")
-                else:
-                    print(f"⚠️ Membership plan not found for user {user.get('username')}")
-        
-        return True
+        if success:
+            print(f"Found {len(response)} open positions")
+            return response
+        return None
 
-def test_admin_login(tester):
-    """Test login with admin credentials"""
-    print("\n🔑 Testing Admin Login...")
+def test_membership_types():
+    """Test the updated membership types in registration"""
+    print("\n🔍 TESTING FEATURE: Updated Membership Types")
     
-    # Login with the provided admin credentials
-    admin_user = tester.test_login("testadmin", "admin123", tester.session1)
-    if not admin_user:
-        print("❌ Admin login failed with testadmin/admin123")
-        # Try with default admin credentials
-        admin_user = tester.test_login("admin", "admin", tester.session1)
-        if not admin_user:
-            print("❌ Admin login failed with admin/admin")
-            return False
-    
-    # Check if user is admin
-    if not admin_user.get('is_admin'):
-        print("❌ User is not an admin")
-        return False
-    
-    print(f"✅ Successfully logged in as admin user: {admin_user.get('username')}")
-    return True
-
-def main():
-    # Create tester with the backend URL from frontend/.env
     tester = CashoutAITester()
     
-    print(f"🚀 Starting CashoutAI Backend Tests")
+    # Test registration with each of the new membership types
+    membership_types = ["Monthly", "Yearly", "Lifetime"]
+    results = []
     
-    # Test 1: Admin Login with provided credentials
-    admin_login_test_result = test_admin_login(tester)
+    for plan in membership_types:
+        timestamp = datetime.now().strftime("%H%M%S")
+        username = f"test_user_{timestamp}"
+        email = f"test_{timestamp}@example.com"
+        real_name = f"Test User {timestamp}"
+        
+        result = tester.test_register_with_membership(
+            username=username,
+            email=email,
+            real_name=real_name,
+            membership_plan=plan,
+            password="TestPass123!"
+        )
+        
+        if result:
+            print(f"✅ Registration with {plan} membership plan successful")
+            print(f"Saved membership plan: {result.get('membership_plan')}")
+            if result.get('membership_plan') == plan:
+                results.append(True)
+            else:
+                results.append(False)
+                print(f"❌ Membership plan mismatch: expected {plan}, got {result.get('membership_plan')}")
+        else:
+            results.append(False)
+            print(f"❌ Registration with {plan} membership plan failed")
     
-    # Test 2: Registration with Membership Plans
-    registration_test_result = tester.test_registration_with_membership_plans()
-    
-    # Test 3: Admin Dashboard
-    admin_dashboard_test_result = tester.test_admin_dashboard()
-    
-    # Print summary
-    print("\n📊 Test Summary:")
-    print(f"1. Admin Login: {'✅ PASSED' if admin_login_test_result else '❌ FAILED'}")
-    print(f"2. Registration with Membership Plans: {'✅ PASSED' if registration_test_result else '❌ FAILED'}")
-    print(f"3. Admin Dashboard: {'✅ PASSED' if admin_dashboard_test_result else '❌ FAILED'}")
-    print(f"Tests Passed: {tester.tests_passed}/{tester.tests_run}")
-    
-    # Return success if all tests passed
-    return 0 if (admin_login_test_result and registration_test_result and admin_dashboard_test_result) else 1
+    success_rate = sum(results) / len(results) if results else 0
+    print(f"Membership types test completed with {success_rate * 100}% success rate")
+    return all(results)
 
-def test_connection_status(tester):
-    """Test connection status and WebSocket/polling fallback"""
-    print("\n🔌 Testing Connection Status...")
+def test_stock_price_api():
+    """Test the stock price API for practice and favorites tabs"""
+    print("\n🔍 TESTING FEATURE: Stock Prices API")
     
-    # Test the root endpoint to check if the API is running
-    success, response = tester.run_test(
-        "API Root Endpoint",
-        "GET",
-        "",
-        200
-    )
+    tester = CashoutAITester()
     
-    if not success:
-        print("❌ API is not responding, cannot test connection status")
-        return False
+    # Test with popular stock symbols
+    symbols = ["TSLA", "AAPL", "MSFT", "NVDA", "GOOGL"]
+    results = []
     
-    print(f"✅ API is running: {response.get('message')}")
-    return True
+    for symbol in symbols:
+        result = tester.test_get_stock_price(symbol)
+        
+        if result and 'price' in result:
+            print(f"✅ Stock price API returned price for {symbol}: ${result.get('price')}")
+            results.append(True)
+        else:
+            print(f"❌ Stock price API failed for {symbol}")
+            results.append(False)
+    
+    success_rate = sum(results) / len(results) if results else 0
+    print(f"Stock price API test completed with {success_rate * 100}% success rate")
+    return all(results)
 
-def test_profile_page(tester):
-    """Test profile page functionality"""
-    print("\n👤 Testing Profile Page...")
+def test_user_approval_bug_fix():
+    """Test the user approval bug fix"""
+    print("\n🔍 TESTING FEATURE: User Approval Bug Fix")
     
-    # Login first
-    user = tester.test_login("admin", "admin", tester.session1)
-    if not user:
-        print("❌ Login failed, cannot test profile page")
-        return False
-    
-    # Check if user data contains all required profile fields
-    required_fields = ['username', 'email', 'real_name', 'role']
-    missing_fields = [field for field in required_fields if field not in user]
-    
-    if missing_fields:
-        print(f"❌ User data is missing required profile fields: {', '.join(missing_fields)}")
-        return False
-    
-    print("✅ User profile data is complete with all required fields")
-    
-    # Test profile update endpoint
-    profile_data = {
-        "real_name": user.get('real_name', 'Test Admin'),
-        "screen_name": user.get('screen_name', 'testadmin'),
-        "username": user.get('username'),
-        "email": user.get('email')
-    }
-    
-    success, response = tester.run_test(
-        "Update Profile",
-        "PUT",
-        f"users/{user['id']}/profile",
-        200,
-        session=tester.session1,
-        data=profile_data
-    )
-    
-    if not success:
-        print("❌ Profile update endpoint failed")
-        return False
-    
-    print("✅ Profile update endpoint is working")
-    return True
-
-def test_admin_page(tester):
-    """Test admin page functionality"""
-    print("\n⚙️ Testing Admin Page...")
+    tester = CashoutAITester()
     
     # Login as admin
     admin_user = tester.test_login("admin", "admin", tester.session1)
     if not admin_user:
-        print("❌ Admin login failed, cannot test admin page")
+        print("❌ Admin login failed, cannot test user approval bug fix")
         return False
     
-    # Check if user is admin
-    if not admin_user.get('is_admin'):
-        print("❌ User is not an admin, cannot test admin page")
-        return False
-    
-    # Test getting pending users
-    pending_users = tester.test_get_pending_users(tester.session1)
-    if pending_users is None:
-        print("❌ Failed to get pending users")
-        return False
-    
-    # Test getting all users
-    success, all_users = tester.run_test(
-        "Get all users",
-        "GET",
-        "users",
-        200,
-        session=tester.session1
-    )
-    
-    if not success:
-        print("❌ Failed to get all users")
-        return False
-    
-    print(f"✅ Successfully retrieved {len(all_users)} users for admin dashboard")
-    
-    # Create a test user to approve
+    # Create a test user to approve/reject
     timestamp = datetime.now().strftime("%H%M%S")
     username = f"test_user_{timestamp}"
     email = f"test_{timestamp}@example.com"
@@ -499,63 +299,114 @@ def test_admin_page(tester):
         username=username,
         email=email,
         real_name=real_name,
-        membership_plan="Basic Plan",
+        membership_plan="Monthly",
         password="TestPass123!"
     )
     
     if not test_user:
-        print("⚠️ Could not create test user for approval test")
+        print("❌ Failed to create test user")
+        return False
+    
+    # Get initial list of all users
+    initial_users = tester.test_get_all_users(tester.session1)
+    if initial_users is None:
+        print("❌ Failed to get initial list of users")
+        return False
+    
+    # Reject the user
+    reject_result = tester.test_user_approval(
+        tester.session1, 
+        test_user['id'], 
+        admin_user['id'], 
+        approved=False
+    )
+    
+    if not reject_result:
+        print("❌ Failed to reject user")
+        return False
+    
+    # Get updated list of all users
+    updated_users = tester.test_get_all_users(tester.session1)
+    if updated_users is None:
+        print("❌ Failed to get updated list of users")
+        return False
+    
+    # Check if rejected user is NOT in the list of all users
+    rejected_user_found = any(user['id'] == test_user['id'] for user in updated_users)
+    
+    if rejected_user_found:
+        print("❌ Bug still exists: Rejected user still appears in the list of all users")
+        return False
     else:
-        # Test user approval
-        success, response = tester.run_test(
-            "Approve User",
-            "POST",
-            "users/approve",
-            200,
-            session=tester.session1,
-            data={
-                "user_id": test_user['id'],
-                "approved": True,
-                "admin_id": admin_user['id'],
-                "role": "member"
-            }
-        )
-        
-        if success:
-            print("✅ User approval functionality is working")
-        else:
-            print("❌ User approval functionality failed")
+        print("✅ Bug fixed: Rejected user does NOT appear in the list of all users")
+        return True
+
+def test_profile_performance_metrics():
+    """Test the profile tab enhancements for trading performance"""
+    print("\n🔍 TESTING FEATURE: Profile Tab Trading Performance Metrics")
+    
+    tester = CashoutAITester()
+    
+    # Login as a user
+    user = tester.test_login("admin", "admin", tester.session1)
+    if not user:
+        print("❌ Login failed, cannot test profile performance metrics")
+        return False
+    
+    # Get user performance metrics
+    performance = tester.test_user_performance(user['id'], tester.session1)
+    if not performance:
+        print("❌ Failed to get user performance metrics")
+        return False
+    
+    # Check if all required metrics are present
+    required_metrics = ['total_profit', 'win_percentage', 'trades_count', 'average_gain']
+    missing_metrics = [metric for metric in required_metrics if metric not in performance]
+    
+    if missing_metrics:
+        print(f"❌ Missing performance metrics: {', '.join(missing_metrics)}")
+        return False
+    
+    print("✅ All required performance metrics are present:")
+    print(f"  - Total Trades: {performance.get('trades_count')}")
+    print(f"  - Total P&L: ${performance.get('total_profit')}")
+    print(f"  - Win Rate: {performance.get('win_percentage')}%")
+    
+    # Get open positions count
+    positions = tester.test_get_positions(user['id'], tester.session1)
+    if positions is None:
+        print("❌ Failed to get user positions")
+        return False
+    
+    print(f"  - Open Positions: {len(positions)}")
     
     return True
 
 def main():
-    # Create tester with the backend URL from frontend/.env
-    tester = CashoutAITester()
+    print("🚀 Starting ArgusAI-CashOut Backend Tests")
     
-    print(f"🚀 Starting ArgusAi-CashOut Backend Tests")
+    # Test 1: Updated Membership Types
+    membership_test_result = test_membership_types()
     
-    # Test 1: Connection Status
-    connection_test_result = test_connection_status(tester)
+    # Test 2: Stock Price API
+    stock_price_test_result = test_stock_price_api()
     
-    # Test 2: Profile Page
-    profile_test_result = test_profile_page(tester)
+    # Test 3: User Approval Bug Fix
+    user_approval_test_result = test_user_approval_bug_fix()
     
-    # Test 3: Admin Page
-    admin_test_result = test_admin_page(tester)
-    
-    # Test 4: Admin Login with provided credentials
-    admin_login_test_result = test_admin_login(tester)
+    # Test 4: Profile Performance Metrics
+    profile_metrics_test_result = test_profile_performance_metrics()
     
     # Print summary
     print("\n📊 Test Summary:")
-    print(f"1. Connection Status: {'✅ PASSED' if connection_test_result else '❌ FAILED'}")
-    print(f"2. Profile Page: {'✅ PASSED' if profile_test_result else '❌ FAILED'}")
-    print(f"3. Admin Page: {'✅ PASSED' if admin_test_result else '❌ FAILED'}")
-    print(f"4. Admin Login: {'✅ PASSED' if admin_login_test_result else '❌ FAILED'}")
-    print(f"Tests Passed: {tester.tests_passed}/{tester.tests_run}")
+    print(f"1. Updated Membership Types: {'✅ PASSED' if membership_test_result else '❌ FAILED'}")
+    print(f"2. Stock Price API: {'✅ PASSED' if stock_price_test_result else '❌ FAILED'}")
+    print(f"3. User Approval Bug Fix: {'✅ PASSED' if user_approval_test_result else '❌ FAILED'}")
+    print(f"4. Profile Performance Metrics: {'✅ PASSED' if profile_metrics_test_result else '❌ FAILED'}")
     
     # Return success if all tests passed
-    return 0 if (connection_test_result and profile_test_result and admin_test_result and admin_login_test_result) else 1
+    return 0 if (membership_test_result and stock_price_test_result and 
+                user_approval_test_result and profile_metrics_test_result) else 1
 
 if __name__ == "__main__":
     sys.exit(main())
