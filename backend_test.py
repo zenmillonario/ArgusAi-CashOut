@@ -10,17 +10,9 @@ class CashoutAITester:
     def __init__(self, base_url=None):
         # Use the environment variable REACT_APP_BACKEND_URL from frontend/.env
         if base_url is None:
-            # Read from frontend/.env
-            with open('/app/frontend/.env', 'r') as f:
-                for line in f:
-                    if line.startswith('REACT_APP_BACKEND_URL=') and not line.startswith('<<<<<<< HEAD') and not line.startswith('======='):
-                        base_url = line.strip().split('=')[1].strip('"\'')
-                        break
+            # Use localhost:8001 directly
+            base_url = "http://localhost:8001"
             
-            if not base_url:
-                base_url = "http://localhost:8001"
-                print(f"⚠️ Warning: Could not find REACT_APP_BACKEND_URL in frontend/.env, using default: {base_url}")
-        
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.tests_run = 0
