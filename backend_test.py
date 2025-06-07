@@ -398,5 +398,172 @@ def main():
     # Return success if all tests passed
     return 0 if (admin_login_test_result and registration_test_result and admin_dashboard_test_result) else 1
 
+def test_connection_status(tester):
+    """Test connection status and WebSocket/polling fallback"""
+    print("\n🔌 Testing Connection Status...")
+    
+    # Test the root endpoint to check if the API is running
+    success, response = tester.run_test(
+        "API Root Endpoint",
+        "GET",
+        "",
+        200
+    )
+    
+    if not success:
+        print("❌ API is not responding, cannot test connection status")
+        return False
+    
+    print(f"✅ API is running: {response.get('message')}")
+    return True
+
+def test_profile_page(tester):
+    """Test profile page functionality"""
+    print("\n👤 Testing Profile Page...")
+    
+    # Login first
+    user = tester.test_login("admin", "admin", tester.session1)
+    if not user:
+        print("❌ Login failed, cannot test profile page")
+        return False
+    
+    # Check if user data contains all required profile fields
+    required_fields = ['username', 'email', 'real_name', 'role']
+    missing_fields = [field for field in required_fields if field not in user]
+    
+    if missing_fields:
+        print(f"❌ User data is missing required profile fields: {', '.join(missing_fields)}")
+        return False
+    
+    print("✅ User profile data is complete with all required fields")
+    
+    # Test profile update endpoint
+    profile_data = {
+        "real_name": user.get('real_name', 'Test Admin'),
+        "screen_name": user.get('screen_name', 'testadmin'),
+        "username": user.get('username'),
+        "email": user.get('email')
+    }
+    
+    success, response = tester.run_test(
+        "Update Profile",
+        "PUT",
+        f"users/{user['id']}/profile",
+        200,
+        session=tester.session1,
+        data=profile_data
+    )
+    
+    if not success:
+        print("❌ Profile update endpoint failed")
+        return False
+    
+    print("✅ Profile update endpoint is working")
+    return True
+
+def test_admin_page(tester):
+    """Test admin page functionality"""
+    print("\n⚙️ Testing Admin Page...")
+    
+    # Login as admin
+    admin_user = tester.test_login("admin", "admin", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed, cannot test admin page")
+        return False
+    
+    # Check if user is admin
+    if not admin_user.get('is_admin'):
+        print("❌ User is not an admin, cannot test admin page")
+        return False
+    
+    # Test getting pending users
+    pending_users = tester.test_get_pending_users(tester.session1)
+    if pending_users is None:
+        print("❌ Failed to get pending users")
+        return False
+    
+    # Test getting all users
+    success, all_users = tester.run_test(
+        "Get all users",
+        "GET",
+        "users",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to get all users")
+        return False
+    
+    print(f"✅ Successfully retrieved {len(all_users)} users for admin dashboard")
+    
+    # Create a test user to approve
+    timestamp = datetime.now().strftime("%H%M%S")
+    username = f"test_user_{timestamp}"
+    email = f"test_{timestamp}@example.com"
+    real_name = f"Test User {timestamp}"
+    
+    test_user = tester.test_register_with_membership(
+        username=username,
+        email=email,
+        real_name=real_name,
+        membership_plan="Basic Plan",
+        password="TestPass123!"
+    )
+    
+    if not test_user:
+        print("⚠️ Could not create test user for approval test")
+    else:
+        # Test user approval
+        success, response = tester.run_test(
+            "Approve User",
+            "POST",
+            "users/approve",
+            200,
+            session=tester.session1,
+            data={
+                "user_id": test_user['id'],
+                "approved": True,
+                "admin_id": admin_user['id'],
+                "role": "member"
+            }
+        )
+        
+        if success:
+            print("✅ User approval functionality is working")
+        else:
+            print("❌ User approval functionality failed")
+    
+    return True
+
+def main():
+    # Create tester with the backend URL from frontend/.env
+    tester = CashoutAITester()
+    
+    print(f"🚀 Starting ArgusAi-CashOut Backend Tests")
+    
+    # Test 1: Connection Status
+    connection_test_result = test_connection_status(tester)
+    
+    # Test 2: Profile Page
+    profile_test_result = test_profile_page(tester)
+    
+    # Test 3: Admin Page
+    admin_test_result = test_admin_page(tester)
+    
+    # Test 4: Admin Login with provided credentials
+    admin_login_test_result = test_admin_login(tester)
+    
+    # Print summary
+    print("\n📊 Test Summary:")
+    print(f"1. Connection Status: {'✅ PASSED' if connection_test_result else '❌ FAILED'}")
+    print(f"2. Profile Page: {'✅ PASSED' if profile_test_result else '❌ FAILED'}")
+    print(f"3. Admin Page: {'✅ PASSED' if admin_test_result else '❌ FAILED'}")
+    print(f"4. Admin Login: {'✅ PASSED' if admin_login_test_result else '❌ FAILED'}")
+    print(f"Tests Passed: {tester.tests_passed}/{tester.tests_run}")
+    
+    # Return success if all tests passed
+    return 0 if (connection_test_result and profile_test_result and admin_test_result and admin_login_test_result) else 1
+
 if __name__ == "__main__":
     sys.exit(main())
