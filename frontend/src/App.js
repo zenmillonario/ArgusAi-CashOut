@@ -1496,8 +1496,8 @@ function App() {
         </div>
       </div>
 
-      {/* Main Content - Back to normal spacing */}
-      <div className="max-w-6xl mx-auto p-4 h-[calc(100vh-80px)]">
+      {/* Main Content - Mobile-friendly spacing */}
+      <div className="max-w-6xl mx-auto p-4 pb-20">
 
         {/* Mobile Navigation Dropdown */}
         {showMobileMenu && (
