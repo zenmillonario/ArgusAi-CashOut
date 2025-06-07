@@ -1,0 +1,53 @@
+🔗 Using API URL: https://51fcef3a-693c-4470-abb9-bf192f177cbe.preview.emergentagent.com/api
+🚀 Starting CashoutAI Backend Tests
+
+🔑 Testing Admin Login...
+
+🔍 Testing Login...
+URL: https://51fcef3a-693c-4470-abb9-bf192f177cbe.preview.emergentagent.com/api/users/login
+❌ Failed - Expected 200, got 502
+Response: 
+❌ Admin login failed with testadmin/admin123
+
+🔍 Testing Login...
+URL: https://51fcef3a-693c-4470-abb9-bf192f177cbe.preview.emergentagent.com/api/users/login
+❌ Failed - Expected 200, got 502
+Response: 
+❌ Admin login failed with admin/admin
+
+📝 Testing Registration with Membership Plans...
+
+🔍 Testing Register user with Basic Plan membership plan...
+URL: https://51fcef3a-693c-4470-abb9-bf192f177cbe.preview.emergentagent.com/api/users/register
+❌ Failed - Expected 200, got 502
+Response: 
+
+🔍 Testing Register user with Premium Plan membership plan...
+URL: https://51fcef3a-693c-4470-abb9-bf192f177cbe.preview.emergentagent.com/api/users/register
+❌ Failed - Expected 200, got 502
+Response: 
+
+🔍 Testing Register user with Professional Plan membership plan...
+URL: https://51fcef3a-693c-4470-abb9-bf192f177cbe.preview.emergentagent.com/api/users/register
+❌ Failed - Expected 200, got 502
+Response: 
+
+🔍 Testing Register user with Enterprise Plan membership plan...
+URL: https://51fcef3a-693c-4470-abb9-bf192f177cbe.preview.emergentagent.com/api/users/register
+❌ Failed - Expected 200, got 502
+Response: 
+Registration tests completed with 0.0% success rate
+
+⚙️ Testing Admin Dashboard...
+
+🔍 Testing Login...
+URL: https://51fcef3a-693c-4470-abb9-bf192f177cbe.preview.emergentagent.com/api/users/login
+❌ Failed - Expected 200, got 502
+Response: 
+❌ Admin login failed, cannot test admin dashboard
+
+📊 Test Summary:
+1. Admin Login: ❌ FAILED
+2. Registration with Membership Plans: ❌ FAILED
+3. Admin Dashboard: ❌ FAILED
+Tests Passed: 0/7
