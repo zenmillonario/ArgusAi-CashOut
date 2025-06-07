@@ -543,7 +543,19 @@ function App() {
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    try {
+      // Add a small delay and check if element exists to prevent mobile scroll issues
+      setTimeout(() => {
+        if (messagesEndRef.current && !document.hidden) {
+          messagesEndRef.current.scrollIntoView({ 
+            behavior: "smooth",
+            block: "nearest" // Less aggressive scrolling
+          });
+        }
+      }, 100);
+    } catch (error) {
+      console.log('Scroll error (non-critical):', error);
+    }
   };
 
   // Fetch stock price when symbol changes
@@ -581,10 +593,13 @@ function App() {
     return () => clearTimeout(debounceTimer);
   }, [tradeForm.symbol]);
 
-  // Auto-scroll when messages change AND on initial load
+  // Auto-scroll when messages change AND on initial load - with mobile optimization
   useEffect(() => {
-    scrollToBottom();
-  }, [filteredMessages]);
+    // Only auto-scroll if user is actively viewing chat tab and app is visible
+    if (activeTab === 'chat' && !document.hidden && filteredMessages.length > 0) {
+      scrollToBottom();
+    }
+  }, [filteredMessages, activeTab]);
 
   // WebSocket connection
   useEffect(() => {
