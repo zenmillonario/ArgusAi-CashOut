@@ -348,12 +348,11 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // FIXED: Auto-scroll when messages change AND on initial load
+  // Auto-scroll when messages change AND on initial load
   useEffect(() => {
     scrollToBottom();
   }, [filteredMessages]);
 
-  // FIXED: Auto-scroll when messages change AND on initial load
   // WebSocket connection
   useEffect(() => {
     if (currentUser && !wsRef.current && currentUser.active_session_id) {
@@ -1051,10 +1050,10 @@ function App() {
                       required
                     >
                       <option value="">Select Membership Plan</option>
-                      <option value="Basic">Basic Plan</option>
-                      <option value="Premium">Premium Plan</option>
-                      <option value="Professional">Professional Plan</option>
-                      <option value="Enterprise">Enterprise Plan</option>
+                      <option value="Basic Plan">Basic Plan</option>
+                      <option value="Premium Plan">Premium Plan</option>
+                      <option value="Professional Plan">Professional Plan</option>
+                      <option value="Enterprise Plan">Enterprise Plan</option>
                     </select>
                   </div>
                 </>
@@ -1636,63 +1635,21 @@ function App() {
                       }`}
                       value={tradeForm.notes}
                       onChange={(e) => setTradeForm({...tradeForm, notes: e.target.value})}
-                      rows="2"
                     />
                   </div>
                   
                   <button
                     type="submit"
-                    className="w-full bg-gradient-to-r from-green-600 to-blue-600 text-white py-2 rounded-lg font-semibold hover:from-green-700 hover:to-blue-700 transition-all duration-200"
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
                   >
-                    🎯 Record Trade
+                    Submit Trade
                   </button>
                 </form>
               </div>
-
-              {/* Recent Trades - COMPACT LOG */}
-              <div className={`backdrop-blur-lg rounded-xl border p-4 ${
-                isDarkTheme 
-                  ? 'bg-white/5 border-white/10' 
-                  : 'bg-white/80 border-gray-200'
-              }`}>
-                <h2 className={`text-lg font-bold mb-3 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                  📋 Trade Log
-                </h2>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {userTrades.slice(0, 15).map((trade) => (
-                    <div key={trade.id} className={`p-2 rounded text-sm border ${
-                      isDarkTheme ? 'bg-white/10 border-white/20' : 'bg-gray-100 border-gray-300'
-                    }`}>
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center space-x-2">
-                          <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
-                            trade.action === 'BUY' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                          }`}>
-                            {trade.action}
-                          </span>
-                      )}
-                    </div>
-                  ))}
-                  {userTrades.length === 0 && (
-                  )}
-                </div>
-              </div>
             </div>
           </div>
         )}
-
-        {/* Profile Tab */}
-        {activeTab === 'profile' && (
-          </div>
-        )}
-
-        {/* Admin Tab */}
-        {activeTab === 'admin' && currentUser?.is_admin && (
-          <div className="space-y-6">
-              </div>
-            </div>
-          </div>
-        )}
+      </div>
     </div>
   );
 }
