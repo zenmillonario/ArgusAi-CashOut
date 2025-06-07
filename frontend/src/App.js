@@ -1064,10 +1064,9 @@ function App() {
                       required
                     >
                       <option value="">Select Membership Plan</option>
-                      <option value="Basic Plan">Basic Plan</option>
-                      <option value="Premium Plan">Premium Plan</option>
-                      <option value="Professional Plan">Professional Plan</option>
-                      <option value="Enterprise Plan">Enterprise Plan</option>
+                      <option value="Monthly">Monthly</option>
+                      <option value="Yearly">Yearly</option>
+                      <option value="Lifetime">Lifetime</option>
                     </select>
                   </div>
                 </>
