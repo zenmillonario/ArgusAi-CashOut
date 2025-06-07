@@ -360,15 +360,15 @@ function App() {
       let wsUrl;
       
       if (BACKEND_URL.includes('onrender.com')) {
-        // For Render deployment, use the backend URL directly
+        // For Render deployment, use the backend URL directly with /api prefix
         const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
         const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
-        wsUrl = `${wsProtocol}${wsHost}/ws/${currentUser.id}/${currentUser.active_session_id}`;
+        wsUrl = `${wsProtocol}${wsHost}/api/ws/${currentUser.id}/${currentUser.active_session_id}`;
       } else {
-        // For other deployments (Emergent, etc.)
+        // For other deployments (Emergent, etc.) with /api prefix
         const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
         const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
-        wsUrl = `${wsProtocol}${wsHost}/ws/${currentUser.id}/${currentUser.active_session_id}`;
+        wsUrl = `${wsProtocol}${wsHost}/api/ws/${currentUser.id}/${currentUser.active_session_id}`;
       }
       
       console.log('Connecting to WebSocket:', wsUrl);
