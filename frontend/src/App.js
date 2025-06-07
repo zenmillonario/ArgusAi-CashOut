@@ -650,8 +650,8 @@ function App() {
             if (message.is_admin && message.user_id !== currentUser.id) {
               console.log('🔔 Admin message detected from:', message.screen_name || message.username);
               
-              // Play notification sound
-              playNotificationSound();
+              // Play enhanced admin notification sound
+              playAdminNotificationSound();
               
               // Show browser notification
               showBrowserNotification(
