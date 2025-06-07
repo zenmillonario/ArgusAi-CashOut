@@ -72,6 +72,15 @@ const ChatTab = ({
           ? 'bg-white/5 border-white/10' 
           : 'bg-white/80 border-gray-200'
       }`}>
+        {/* Timezone Indicator */}
+        <div className={`text-xs text-center pb-2 mb-2 border-b ${
+          isDarkTheme 
+            ? 'text-gray-400 border-white/10' 
+            : 'text-gray-500 border-gray-200'
+        }`}>
+          🕐 Times shown in Eastern Time Zone (ET)
+        </div>
+        
         <div className="space-y-1">
           {displayMessages.map((message) => (
             <div key={message.id} className="group">
