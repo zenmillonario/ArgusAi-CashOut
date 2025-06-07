@@ -16,7 +16,7 @@ function App() {
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [showLogin, setShowLogin] = useState(true);
-  const [loginForm, setLoginForm] = useState({ username: '', email: '', password: '', real_name: '' });
+  const [loginForm, setLoginForm] = useState({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
   const [isRegistering, setIsRegistering] = useState(false);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
@@ -348,9 +348,19 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // FIXED: Auto-scroll when messages change AND on initial load
   useEffect(() => {
     scrollToBottom();
   }, [filteredMessages]);
+
+  // NEW: Auto-scroll when chat tab is opened or app is loaded
+  useEffect(() => {
+    if (activeTab === 'chat' && messages.length > 0) {
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100); // Small delay to ensure DOM is ready
+    }
+  }, [activeTab, messages.length]);
 
   // WebSocket connection
   useEffect(() => {
@@ -604,12 +614,13 @@ function App() {
           username: loginForm.username,
           email: loginForm.email,
           real_name: loginForm.real_name,
+          membership_plan: loginForm.membership_plan,
           password: loginForm.password
         });
         
-        alert('Registration successful! Please wait for admin approval.');
+        alert('Registration successful! Please wait for admin approval. You will be approved within 5 minutes.');
         setIsRegistering(false);
-        setLoginForm({ username: '', email: '', password: '', real_name: '' });
+        setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
       } else {
         // Login
         const response = await axios.post(`${API}/users/login`, {
@@ -619,7 +630,7 @@ function App() {
         
         setCurrentUser(response.data);
         setShowLogin(false);
-        setLoginForm({ username: '', email: '', password: '', real_name: '' });
+        setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
         
         // Save user to localStorage for persistence
         localStorage.setItem('cashoutai_user', JSON.stringify(response.data));
@@ -1033,6 +1044,28 @@ function App() {
                       required
                     />
                   </div>
+
+                  <div>
+                    <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Membership Plan *
+                    </label>
+                    <select
+                      className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        isDarkTheme 
+                          ? 'bg-white/10 border border-white/20 text-white' 
+                          : 'bg-white border border-gray-200 text-gray-900'
+                      }`}
+                      value={loginForm.membership_plan}
+                      onChange={(e) => setLoginForm({...loginForm, membership_plan: e.target.value})}
+                      required
+                    >
+                      <option value="">Select Membership Plan</option>
+                      <option value="Basic">Basic Plan</option>
+                      <option value="Premium">Premium Plan</option>
+                      <option value="Professional">Professional Plan</option>
+                      <option value="Enterprise">Enterprise Plan</option>
+                    </select>
+                  </div>
                 </>
               )}
               
@@ -1052,6 +1085,18 @@ function App() {
                   required
                 />
               </div>
+              
+              {isRegistering && (
+                <div className={`p-3 rounded-lg border ${
+                  isDarkTheme 
+                    ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
+                    : 'bg-blue-50 border-blue-200 text-blue-600'
+                }`}>
+                  <p className="text-sm">
+                    📝 Your account will be approved within 5 minutes after registration.
+                  </p>
+                </div>
+              )}
               
               <button
                 type="submit"
@@ -1634,28 +1679,21 @@ function App() {
                           }`}>
                             {trade.action}
                           </span>
-                          <span className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                            {trade.symbol}
-                          </span>
-                          <span className={isDarkTheme ? 'text-gray-300' : 'text-gray-600'}>
-                            {trade.quantity}@${trade.price}
-                          </span>
+                          <span className="font-medium">{trade.symbol}</span>
                         </div>
-                        <span className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {new Date(trade.timestamp).toLocaleDateString()}
+                        <span className="text-xs opacity-75">
+                          {trade.quantity}x ${trade.price}
                         </span>
                       </div>
                       {trade.notes && (
-                        <div className={`text-xs mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'} truncate`}>
-                          💡 {trade.notes}
-                        </div>
+                        <p className="text-xs opacity-75 mt-1 truncate">{trade.notes}</p>
                       )}
                     </div>
                   ))}
                   {userTrades.length === 0 && (
-                    <div className={`text-center py-8 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
-                      No trades yet. Record your first trade!
-                    </div>
+                    <p className={`text-center text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                      No trades yet. Start trading to see your history!
+                    </p>
                   )}
                 </div>
               </div>
@@ -1665,502 +1703,514 @@ function App() {
 
         {/* Profile Tab */}
         {activeTab === 'profile' && (
-          <div className="space-y-6">
-            {/* Profile Header */}
-            <div className={`backdrop-blur-lg rounded-2xl border p-6 ${
-              isDarkTheme 
-                ? 'bg-white/5 border-white/10' 
-                : 'bg-white/80 border-gray-200'
-            }`}>
-              <div className="flex items-center space-x-6">
-                {/* Profile Picture - LARGER SIZE */}
-                <div className="relative">
-                  <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white/20">
-                    {currentUser?.avatar_url ? (
-                      <img 
-                        src={currentUser.avatar_url} 
-                        alt="Profile" 
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
-                    <div 
-                      className={`w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-4xl ${currentUser?.avatar_url ? 'hidden' : 'flex'}`}
-                    >
-                      {currentUser?.username?.charAt(0).toUpperCase()}
+          <div className="max-w-4xl mx-auto space-y-6">
+            <h2 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+              👤 User Profile
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Profile Information Card */}
+              <div className={`backdrop-blur-lg rounded-xl border p-6 ${
+                isDarkTheme ? 'bg-white/5 border-white/10' : 'bg-white/80 border-gray-200'
+              }`}>
+                <h3 className={`text-lg font-semibold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                  Profile Information
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-blue-500/30 bg-gradient-to-br from-blue-600 to-purple-600">
+                      {currentUser?.avatar_url ? (
+                        <img 
+                          src={currentUser.avatar_url} 
+                          alt="Avatar" 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white font-bold text-xl">
+                          {currentUser?.real_name?.[0] || currentUser?.username?.[0] || '?'}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        {currentUser?.real_name || currentUser?.username}
+                      </h4>
+                      <p className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                        @{currentUser?.username}
+                        {currentUser?.screen_name && ` • ${currentUser.screen_name}`}
+                      </p>
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
+                        currentUser?.is_admin ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'
+                      }`}>
+                        {currentUser?.is_admin ? 'Admin' : currentUser?.role || 'Member'}
+                      </span>
                     </div>
                   </div>
-                  <button
-                    onClick={openEditProfile}
-                    className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white hover:bg-blue-700 transition-colors"
-                  >
-                    ✏️
-                  </button>
-                </div>
-                
-                {/* Profile Info */}
-                <div className="flex-1">
-                  <h2 className={`text-3xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                    {currentUser?.real_name || currentUser?.username}
-                  </h2>
-                  <p className={`text-lg ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                    @{currentUser?.screen_name || currentUser?.username}
-                  </p>
-                  <p className={isDarkTheme ? 'text-gray-400' : 'text-gray-500'}>
-                    {currentUser?.email}
-                  </p>
-                  <div className="flex items-center space-x-2 mt-2">
-                    {currentUser?.is_admin && (
-                      <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">
-                        Admin
-                      </span>
-                    )}
-                    <span className="text-green-400 text-sm">
-                      Member since {new Date(currentUser?.created_at).toLocaleDateString()}
-                    </span>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-sm font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Email
+                      </label>
+                      <p className={`mt-1 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        {currentUser?.email}
+                      </p>
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Member Since
+                      </label>
+                      <p className={`mt-1 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        {currentUser?.created_at ? new Date(currentUser.created_at).toLocaleDateString() : 'Unknown'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <button
+                      onClick={openEditProfile}
+                      className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      ✏️ Edit Profile
+                    </button>
+                    
+                    <button
+                      onClick={() => setShowChangePassword(true)}
+                      className="w-full bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      🔒 Change Password
+                    </button>
                   </div>
                 </div>
+              </div>
+
+              {/* Trading Performance Card */}
+              <div className={`backdrop-blur-lg rounded-xl border p-6 ${
+                isDarkTheme ? 'bg-white/5 border-white/10' : 'bg-white/80 border-gray-200'
+              }`}>
+                <h3 className={`text-lg font-semibold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                  📊 Trading Performance
+                </h3>
                 
-                <div className="flex space-x-3">
-                  <button
-                    onClick={openEditProfile}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Edit Profile
-                  </button>
-                  <button
-                    onClick={() => setShowChangePassword(true)}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    Change Password
-                  </button>
-                </div>
+                {userPerformance ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className={`p-3 rounded-lg ${isDarkTheme ? 'bg-white/10' : 'bg-gray-100'}`}>
+                        <h4 className={`text-sm font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Total Profit
+                        </h4>
+                        <p className={`text-lg font-bold ${
+                          userPerformance.total_profit >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          ${userPerformance.total_profit}
+                        </p>
+                      </div>
+                      
+                      <div className={`p-3 rounded-lg ${isDarkTheme ? 'bg-white/10' : 'bg-gray-100'}`}>
+                        <h4 className={`text-sm font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Win Rate
+                        </h4>
+                        <p className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                          {userPerformance.win_percentage}%
+                        </p>
+                      </div>
+                      
+                      <div className={`p-3 rounded-lg ${isDarkTheme ? 'bg-white/10' : 'bg-gray-100'}`}>
+                        <h4 className={`text-sm font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Total Trades
+                        </h4>
+                        <p className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                          {userPerformance.trades_count}
+                        </p>
+                      </div>
+                      
+                      <div className={`p-3 rounded-lg ${isDarkTheme ? 'bg-white/10' : 'bg-gray-100'}`}>
+                        <h4 className={`text-sm font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Avg Gain
+                        </h4>
+                        <p className={`text-lg font-bold ${
+                          userPerformance.average_gain >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          ${userPerformance.average_gain}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className={`text-center ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                    No trading performance data yet.
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Performance Stats */}
-            {userPerformance && (
-              <div className={`backdrop-blur-lg rounded-2xl border p-6 ${
-                isDarkTheme 
-                  ? 'bg-white/5 border-white/10' 
-                  : 'bg-white/80 border-gray-200'
-              }`}>
-                <h3 className={`text-xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                  Trading Performance
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <div className={`p-6 rounded-xl text-center ${
-                    isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-                  }`}>
-                    <div className="text-3xl font-bold text-green-400">
-                      ${userPerformance.total_profit.toFixed(2)}
-                    </div>
-                    <div className={`mt-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                      Total Profit
-                    </div>
+            {/* Profile Picture Upload */}
+            <div className={`backdrop-blur-lg rounded-xl border p-6 ${
+              isDarkTheme ? 'bg-white/5 border-white/10' : 'bg-white/80 border-gray-200'
+            }`}>
+              <h3 className={`text-lg font-semibold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                📷 Profile Picture
+              </h3>
+              
+              <div className="space-y-4">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className={`w-full px-3 py-2 rounded-lg border ${
+                    isDarkTheme 
+                      ? 'bg-white/10 border-white/20 text-white' 
+                      : 'bg-white border-gray-200 text-gray-900'
+                  }`}
+                />
+                
+                {avatarPreview && (
+                  <div className="flex items-center space-x-4">
+                    <img 
+                      src={avatarPreview} 
+                      alt="Avatar Preview" 
+                      className="w-16 h-16 rounded-full object-cover border-2 border-blue-500/30"
+                    />
+                    <button
+                      onClick={() => uploadAvatarFile(avatarFile)}
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Upload
+                    </button>
                   </div>
-                  
-                  <div className={`p-6 rounded-xl text-center ${
-                    isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-                  }`}>
-                    <div className="text-3xl font-bold text-blue-400">
-                      {userPerformance.win_percentage.toFixed(1)}%
-                    </div>
-                    <div className={`mt-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                      Win Rate
-                    </div>
-                  </div>
-                  
-                  <div className={`p-6 rounded-xl text-center ${
-                    isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-                  }`}>
-                    <div className="text-3xl font-bold text-purple-400">
-                      {userPerformance.trades_count}
-                    </div>
-                    <div className={`mt-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                      Total Trades
-                    </div>
-                  </div>
-                  
-                  <div className={`p-6 rounded-xl text-center ${
-                    isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-                  }`}>
-                    <div className="text-3xl font-bold text-yellow-400">
-                      ${userPerformance.average_gain.toFixed(2)}
-                    </div>
-                    <div className={`mt-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                      Avg Gain
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         )}
 
         {/* Admin Tab */}
         {activeTab === 'admin' && currentUser?.is_admin && (
           <div className="space-y-6">
-            {/* Pending Approvals */}
-            <div className={`backdrop-blur-lg rounded-2xl border p-6 ${
-              isDarkTheme 
-                ? 'bg-white/5 border-white/10' 
-                : 'bg-white/80 border-gray-200'
-            }`}>
-              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                👥 Pending Approvals
-              </h2>
-              <div className="space-y-4">
-                {pendingUsers.length === 0 ? (
-                  <div className={`text-center py-8 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
-                    No pending approvals
-                  </div>
-                ) : (
-                  pendingUsers.map((user) => (
-                    <div key={user.id} className={`p-4 rounded-lg flex items-center justify-between ${
-                      isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
+            <h2 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+              ⚙️ Admin Dashboard
+            </h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Pending Approvals */}
+              <div className={`backdrop-blur-lg rounded-xl border p-4 ${
+                isDarkTheme ? 'bg-white/5 border-white/10' : 'bg-white/80 border-gray-200'
+              }`}>
+                <h3 className={`text-lg font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                  👥 Pending Approvals ({pendingUsers.length})
+                </h3>
+                
+                <div className={`space-y-3 max-h-96 overflow-y-auto ${
+                  isDarkTheme ? 'scrollbar-dark' : 'scrollbar-light'
+                }`}>
+                  {pendingUsers.map((user) => (
+                    <div key={user.id} className={`p-3 rounded-lg border ${
+                      isDarkTheme ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'
                     }`}>
-                      <div>
-                        <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                          {user.real_name} (@{user.username})
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h4 className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                            {user.real_name} (@{user.username})
+                          </h4>
+                          <p className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {user.email}
+                          </p>
+                          <p className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Plan: {user.membership_plan}
+                          </p>
+                          <p className={`text-xs ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'}`}>
+                            Registered: {new Date(user.created_at).toLocaleDateString()}
+                          </p>
                         </div>
-                        <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {user.email}
+                        
+                        <div className="flex space-x-2 ml-4">
+                          <button
+                            onClick={() => handleApproval(user.id, true)}
+                            className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            onClick={() => handleApproval(user.id, false)}
+                            className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 transition-colors"
+                          >
+                            ✗ Reject
+                          </button>
                         </div>
-                        <div className={`text-xs ${isDarkTheme ? 'text-gray-500' : 'text-gray-500'}`}>
-                          Registered: {new Date(user.created_at).toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleApproval(user.id, true)}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleApproval(user.id, false)}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                        >
-                          Reject
-                        </button>
                       </div>
                     </div>
-                  ))
-                )}
+                  ))}
+                  
+                  {pendingUsers.length === 0 && (
+                    <p className={`text-center py-8 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                      No pending approvals
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* All Users Management */}
-            <div className={`backdrop-blur-lg rounded-2xl border p-6 ${
-              isDarkTheme 
-                ? 'bg-white/5 border-white/10' 
-                : 'bg-white/80 border-gray-200'
-            }`}>
-              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                👨‍👩‍👧‍👦 All Members
-              </h2>
-              <div className="space-y-3">
-                {allUsers.filter(user => user.status === 'approved').map((user) => (
-                  <div key={user.id} className={`p-4 rounded-lg flex items-center justify-between ${
-                    isDarkTheme ? 'bg-white/5' : 'bg-gray-50'
-                  }`}>
-                    <div className="flex items-center space-x-4">
-                      <div className={`w-3 h-3 rounded-full ${user.is_online ? 'bg-green-400' : 'bg-gray-400'}`}></div>
-                      <div>
-                        <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                          {user.real_name || user.username} 
-                          {user.screen_name && ` (@${user.screen_name})`}
+              {/* All Members Management */}
+              <div className={`backdrop-blur-lg rounded-xl border p-4 ${
+                isDarkTheme ? 'bg-white/5 border-white/10' : 'bg-white/80 border-gray-200'
+              }`}>
+                <h3 className={`text-lg font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                  👤 Member Management ({allUsers.length})
+                </h3>
+                
+                <div className={`space-y-3 max-h-96 overflow-y-auto ${
+                  isDarkTheme ? 'scrollbar-dark' : 'scrollbar-light'
+                }`}>
+                  {allUsers.map((user) => (
+                    <div key={user.id} className={`p-3 rounded-lg border ${
+                      isDarkTheme ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'
+                    }`}>
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <h4 className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                              {user.real_name || user.username}
+                            </h4>
+                            <span className={`w-2 h-2 rounded-full ${
+                              user.is_online ? 'bg-green-400' : 'bg-gray-400'
+                            }`}></span>
+                          </div>
+                          <p className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
+                            @{user.username} • {user.email}
+                          </p>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                              user.is_admin ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'
+                            }`}>
+                              {user.role}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-xs ${
+                              user.status === 'approved' 
+                                ? 'bg-green-500/20 text-green-400'
+                                : user.status === 'pending'
+                                ? 'bg-yellow-500/20 text-yellow-400'
+                                : 'bg-red-500/20 text-red-400'
+                            }`}>
+                              {user.status}
+                            </span>
+                          </div>
                         </div>
-                        <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {user.email} • {user.role} • {user.is_online ? 'Online' : `Last seen: ${user.last_seen ? new Date(user.last_seen).toLocaleString() : 'Never'}`}
-                        </div>
+                        
+                        {!user.is_admin && user.status === 'approved' && (
+                          <div className="flex flex-col space-y-1 ml-4">
+                            <select
+                              value={user.role}
+                              onChange={(e) => handleUserRoleChange(user.id, e.target.value)}
+                              className={`text-xs px-2 py-1 rounded border ${
+                                isDarkTheme 
+                                  ? 'bg-gray-700 border-gray-600 text-white'
+                                  : 'bg-white border-gray-300 text-gray-900'
+                              }`}
+                            >
+                              <option value="member">Member</option>
+                              <option value="moderator">Moderator</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                            <button
+                              onClick={() => handleUserRemoval(user.id)}
+                              className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="flex space-x-2">
-                      <select
-                        value={user.role}
-                        onChange={(e) => handleUserRoleChange(user.id, e.target.value)}
-                        className={`px-3 py-1 rounded text-sm ${
-                          isDarkTheme 
-                            ? 'bg-white/10 border border-white/20 text-white' 
-                            : 'bg-white border border-gray-200 text-gray-900'
-                        }`}
-                        disabled={user.id === currentUser.id}
-                      >
-                        <option value="member">Member</option>
-                        <option value="moderator">Moderator</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                      {!user.is_admin && user.id !== currentUser.id && (
-                        <button
-                          onClick={() => handleUserRemoval(user.id)}
-                          className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                  
+                  {allUsers.length === 0 && (
+                    <p className={`text-center py-8 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                      No members found
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         )}
-      </div>
 
-      {/* Edit Profile Modal */}
-      {showEditProfile && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className={`backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border max-h-[90vh] overflow-y-auto ${
-            isDarkTheme 
-              ? 'bg-white/10 border-white/20' 
-              : 'bg-white/90 border-gray-200'
-          }`}>
-            <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-              Edit Profile
-            </h2>
-            
-            <form onSubmit={updateProfile} className="space-y-4">
-              <div>
-                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Real Name
-                </label>
-                <input
-                  type="text"
-                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    isDarkTheme 
-                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                  }`}
-                  value={editProfileForm.real_name}
-                  onChange={(e) => setEditProfileForm({...editProfileForm, real_name: e.target.value})}
-                />
-              </div>
-
-              <div>
-                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Screen Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="Display name for chat"
-                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    isDarkTheme 
-                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                  }`}
-                  value={editProfileForm.screen_name}
-                  onChange={(e) => setEditProfileForm({...editProfileForm, screen_name: e.target.value})}
-                />
-              </div>
+        {/* Edit Profile Modal */}
+        {showEditProfile && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className={`w-full max-w-md rounded-xl border p-6 ${
+              isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+            }`}>
+              <h3 className={`text-lg font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                Edit Profile
+              </h3>
               
-              <div>
-                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Username
-                </label>
-                <input
-                  type="text"
-                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    isDarkTheme 
-                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                  }`}
-                  value={editProfileForm.username}
-                  onChange={(e) => setEditProfileForm({...editProfileForm, username: e.target.value})}
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Email
-                </label>
-                <input
-                  type="email"
-                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    isDarkTheme 
-                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                  }`}
-                  value={editProfileForm.email}
-                  onChange={(e) => setEditProfileForm({...editProfileForm, email: e.target.value})}
-                  required
-                />
-              </div>
-              
-              {/* Profile Picture Upload - UPLOAD ONLY */}
-              <div>
-                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Profile Picture
-                </label>
-                
-                {/* Current/Preview Avatar */}
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-white/20">
-                    {avatarPreview ? (
-                      <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
-                    ) : currentUser?.avatar_url ? (
-                      <img src={currentUser.avatar_url} alt="Current" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
-                        {currentUser?.username?.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex-1">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileSelect}
-                      className={`w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        isDarkTheme 
-                          ? 'bg-white/10 border border-white/20 text-white' 
-                          : 'bg-white border border-gray-200 text-gray-900'
-                      }`}
-                    />
-                    <p className={`text-xs mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Upload JPG, PNG, GIF (max 1MB)
-                    </p>
-                  </div>
+              <form onSubmit={updateProfile} className="space-y-4">
+                <div>
+                  <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Real Name
+                  </label>
+                  <input
+                    type="text"
+                    className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white' 
+                        : 'bg-white border border-gray-200 text-gray-900'
+                    }`}
+                    value={editProfileForm.real_name}
+                    onChange={(e) => setEditProfileForm({...editProfileForm, real_name: e.target.value})}
+                  />
                 </div>
                 
-                {/* Upload Button */}
-                {avatarFile && (
+                <div>
+                  <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Screen Name
+                  </label>
+                  <input
+                    type="text"
+                    className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white' 
+                        : 'bg-white border border-gray-200 text-gray-900'
+                    }`}
+                    value={editProfileForm.screen_name}
+                    onChange={(e) => setEditProfileForm({...editProfileForm, screen_name: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white' 
+                        : 'bg-white border border-gray-200 text-gray-900'
+                    }`}
+                    value={editProfileForm.username}
+                    onChange={(e) => setEditProfileForm({...editProfileForm, username: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white' 
+                        : 'bg-white border border-gray-200 text-gray-900'
+                    }`}
+                    value={editProfileForm.email}
+                    onChange={(e) => setEditProfileForm({...editProfileForm, email: e.target.value})}
+                  />
+                </div>
+                
+                <div className="flex space-x-3 pt-4">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Save Changes
+                  </button>
                   <button
                     type="button"
-                    onClick={() => uploadAvatarFile(avatarFile)}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-2 rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 transition-all duration-200 mb-4"
+                    onClick={() => setShowEditProfile(false)}
+                    className="flex-1 bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700 transition-colors"
                   >
-                    Upload New Picture
+                    Cancel
                   </button>
-                )}
-              </div>
-              
-              <div className="flex space-x-4 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
-                >
-                  Save Changes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowEditProfile(false);
-                    setAvatarFile(null);
-                    setAvatarPreview(null);
-                  }}
-                  className="flex-1 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Change Password Modal */}
-      {showChangePassword && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className={`backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border ${
-            isDarkTheme 
-              ? 'bg-white/10 border-white/20' 
-              : 'bg-white/90 border-gray-200'
-          }`}>
-            <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-              Change Password
-            </h2>
-            
-            <form onSubmit={changePassword} className="space-y-4">
-              <div>
-                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Current Password
-                </label>
-                <input
-                  type="password"
-                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    isDarkTheme 
-                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                  }`}
-                  value={passwordForm.current_password}
-                  onChange={(e) => setPasswordForm({...passwordForm, current_password: e.target.value})}
-                  required
-                />
-                <p className={`text-sm mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
-                  For demo: use your username as current password
-                </p>
-              </div>
+        {/* Change Password Modal */}
+        {showChangePassword && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className={`w-full max-w-md rounded-xl border p-6 ${
+              isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+            }`}>
+              <h3 className={`text-lg font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                Change Password
+              </h3>
               
-              <div>
-                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    isDarkTheme 
-                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                  }`}
-                  value={passwordForm.new_password}
-                  onChange={(e) => setPasswordForm({...passwordForm, new_password: e.target.value})}
-                  required
-                  minLength="6"
-                />
-              </div>
-              
-              <div>
-                <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    isDarkTheme 
-                      ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                      : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                  }`}
-                  value={passwordForm.confirm_password}
-                  onChange={(e) => setPasswordForm({...passwordForm, confirm_password: e.target.value})}
-                  required
-                  minLength="6"
-                />
-              </div>
-              
-              <div className="flex space-x-4 pt-4">
-                <button
-                  type="submit"
-                  disabled={passwordForm.new_password !== passwordForm.confirm_password}
-                  className="flex-1 bg-gradient-to-r from-green-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-green-700 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Change Password
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowChangePassword(false);
-                    setPasswordForm({
-                      current_password: '',
-                      new_password: '',
-                      confirm_password: ''
-                    });
-                  }}
-                  className="flex-1 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+              <form onSubmit={changePassword} className="space-y-4">
+                <div>
+                  <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white' 
+                        : 'bg-white border border-gray-200 text-gray-900'
+                    }`}
+                    value={passwordForm.current_password}
+                    onChange={(e) => setPasswordForm({...passwordForm, current_password: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white' 
+                        : 'bg-white border border-gray-200 text-gray-900'
+                    }`}
+                    value={passwordForm.new_password}
+                    onChange={(e) => setPasswordForm({...passwordForm, new_password: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isDarkTheme 
+                        ? 'bg-white/10 border border-white/20 text-white' 
+                        : 'bg-white border border-gray-200 text-gray-900'
+                    }`}
+                    value={passwordForm.confirm_password}
+                    onChange={(e) => setPasswordForm({...passwordForm, confirm_password: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div className="flex space-x-3 pt-4">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Change Password
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowChangePassword(false)}
+                    className="flex-1 bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
