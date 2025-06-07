@@ -122,7 +122,22 @@ const FavoritesTab = ({
                       ${symbol}
                     </div>
                     <div className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                      ${getMockPrice(symbol).toFixed(2)}
+                      {loading ? (
+                        'Loading...'
+                      ) : stockPrices[symbol] ? (
+                        <>
+                          ${stockPrices[symbol].toFixed(2)}
+                          <button
+                            onClick={() => refreshPrice(symbol)}
+                            className="ml-2 text-xs hover:text-blue-500"
+                            title="Refresh price"
+                          >
+                            🔄
+                          </button>
+                        </>
+                      ) : (
+                        'Price unavailable'
+                      )}
                     </div>
                   </div>
                   <button
