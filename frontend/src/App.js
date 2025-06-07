@@ -684,7 +684,7 @@ function App() {
         ws.send(JSON.stringify({ type: 'heartbeat', message: 'Hello' }));
       };
       
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         try {
           const data = JSON.parse(event.data);
           console.log('WebSocket message received:', data);
