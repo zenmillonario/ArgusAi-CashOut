@@ -622,11 +622,7 @@ function App() {
         
         setCurrentUser(response.data);
         setShowLogin(false);
-<<<<<<< HEAD
         setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
-=======
-        setLoginForm({ username: '', email: '', password: '', real_name: '' });
->>>>>>> origin/main
         
         // Save user to localStorage for persistence
         localStorage.setItem('cashoutai_user', JSON.stringify(response.data));
