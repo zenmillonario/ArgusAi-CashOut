@@ -259,7 +259,21 @@ class CashoutAITester:
         
         for symbol in symbols:
             result = self.test_get_stock_price(symbol)
-            results.append(result is not None and 'price' in result)
+            
+            # Check if price and change percentage are present
+            if result:
+                has_price = 'price' in result
+                has_change_percent = 'change_percent' in result
+                
+                print(f"Stock {symbol} has price: {has_price}")
+                print(f"Stock {symbol} has change percentage: {has_change_percent}")
+                
+                if has_price and has_change_percent:
+                    print(f"✅ Stock price integration working correctly for {symbol}")
+                else:
+                    print(f"❌ Missing price data for {symbol}")
+            
+            results.append(result is not None and 'price' in result and 'change_percent' in result)
             
             # Wait a bit between requests
             time.sleep(1)
