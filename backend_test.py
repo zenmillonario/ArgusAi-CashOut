@@ -280,9 +280,9 @@ def test_user_approval_bug_fix():
     
     # Create a test user to approve/reject
     timestamp = datetime.now().strftime("%H%M%S")
-    username = f"test_user_{timestamp}"
-    email = f"test_{timestamp}@example.com"
-    real_name = f"Test User {timestamp}"
+    username = f"test_reject_{timestamp}"
+    email = f"test_reject_{timestamp}@example.com"
+    real_name = f"Test Reject User {timestamp}"
     
     test_user = tester.test_register_with_membership(
         username=username,
