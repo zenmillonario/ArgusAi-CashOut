@@ -16,11 +16,7 @@ function App() {
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [showLogin, setShowLogin] = useState(true);
-<<<<<<< HEAD
   const [loginForm, setLoginForm] = useState({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
-=======
-  const [loginForm, setLoginForm] = useState({ username: '', email: '', password: '', real_name: '' });
->>>>>>> origin/main
   const [isRegistering, setIsRegistering] = useState(false);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
