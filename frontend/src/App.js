@@ -59,6 +59,8 @@ function App() {
     stop_loss: '',
     take_profit: ''
   });
+  const [currentStockPrice, setCurrentStockPrice] = useState(null);
+  const [priceLoading, setPriceLoading] = useState(false);
   const wsRef = useRef(null);
   const messagesEndRef = useRef(null);
 
