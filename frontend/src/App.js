@@ -732,11 +732,6 @@ function App() {
                   if (message.is_admin && message.user_id !== currentUser.id) {
                     console.log('🔔 Admin message detected via polling:', message.screen_name || message.username);
                     playSimpleAdminSound();
-                    showBrowserNotification(
-                      '💰 CashoutAI - Admin Message',
-                      `${message.screen_name || message.username}: ${message.content.substring(0, 100)}${message.content.length > 100 ? '...' : ''}`,
-                      true
-                    );
                   }
                 });
                 
