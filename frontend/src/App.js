@@ -461,6 +461,83 @@ function App() {
     }
   }, []);
 
+  // Service Worker registration and push notification setup
+  useEffect(() => {
+    const registerServiceWorker = async () => {
+      if ('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.register('/sw.js');
+          console.log('Service Worker registered successfully:', registration);
+          
+          // Get the active service worker
+          const worker = registration.active || registration.waiting || registration.installing;
+          if (worker) {
+            setServiceWorker(worker);
+          }
+          
+          // Listen for service worker updates
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            if (newWorker) {
+              setServiceWorker(newWorker);
+            }
+          });
+          
+          // Request notification permission if not already granted
+          if (Notification.permission === 'default') {
+            const permission = await Notification.requestPermission();
+            console.log('Notification permission result:', permission);
+          }
+          
+          // Set up push notifications if supported
+          if ('PushManager' in window && registration.pushManager) {
+            try {
+              const subscription = await registration.pushManager.getSubscription();
+              if (subscription) {
+                setPushSubscription(subscription);
+                console.log('Existing push subscription found');
+              } else {
+                // Create new subscription (you would need VAPID keys for production)
+                console.log('No existing push subscription found');
+              }
+            } catch (error) {
+              console.error('Push subscription error:', error);
+            }
+          }
+          
+        } catch (error) {
+          console.error('Service Worker registration failed:', error);
+        }
+      }
+    };
+
+    registerServiceWorker();
+  }, []);
+
+  // Background sync for admin message checking
+  useEffect(() => {
+    if (serviceWorker && currentUser) {
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          // App went to background, register background sync
+          if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
+            navigator.serviceWorker.ready.then((registration) => {
+              return registration.sync.register('admin-message-check');
+            }).catch((error) => {
+              console.error('Background sync registration failed:', error);
+            });
+          }
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }
+  }, [serviceWorker, currentUser]);
+
   const [messageReactions, setMessageReactions] = useState({});
 
   const addReaction = (messageId, reaction) => {
