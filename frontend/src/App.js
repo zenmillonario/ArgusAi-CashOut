@@ -473,6 +473,7 @@ function App() {
           setTimeout(() => {
             if (!wsRef.current || wsRef.current.type === 'polling') {
               setIsConnected(true); // Show as connected since polling works
+              setConnectionMode('polling');
             }
           }, 1000);
           
