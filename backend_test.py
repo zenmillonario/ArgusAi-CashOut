@@ -380,6 +380,108 @@ def test_profile_performance_metrics():
     
     return True
 
+def test_admin_notification_system():
+    """Test the enhanced admin notification system"""
+    print("\n🔍 TESTING FEATURE: Enhanced Admin Notification System")
+    
+    tester = CashoutAITester()
+    
+    # Login as admin
+    admin_user = tester.test_login("admin", "admin", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed, cannot test admin notification system")
+        return False
+    
+    # Create a test user
+    timestamp = datetime.now().strftime("%H%M%S")
+    username = f"test_notify_{timestamp}"
+    email = f"test_notify_{timestamp}@example.com"
+    real_name = f"Test Notify User {timestamp}"
+    
+    test_user = tester.test_register_with_membership(
+        username=username,
+        email=email,
+        real_name=real_name,
+        membership_plan="Monthly",
+        password="TestPass123!"
+    )
+    
+    if not test_user:
+        print("❌ Failed to create test user")
+        return False
+    
+    # Approve the user
+    approve_result = tester.test_user_approval(
+        tester.session1, 
+        test_user['id'], 
+        admin_user['id'], 
+        approved=True
+    )
+    
+    if not approve_result:
+        print("❌ Failed to approve user")
+        return False
+    
+    # Login as the test user
+    user_login = tester.test_login(username, "TestPass123!", tester.session2)
+    if not user_login:
+        print("❌ Test user login failed")
+        return False
+    
+    # Send an admin message that should trigger notification
+    success, response = tester.run_test(
+        "Send admin notification message",
+        "POST",
+        "messages",
+        200,
+        session=tester.session1,
+        data={
+            "content": "This is an important admin test notification message!",
+            "content_type": "text",
+            "user_id": admin_user['id']
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to send admin message")
+        return False
+    
+    print("✅ Admin notification message sent successfully")
+    print(f"Message ID: {response.get('id')}")
+    print(f"Is Admin: {response.get('is_admin')}")
+    
+    # Verify the message appears in the messages list
+    success, messages = tester.run_test(
+        "Get messages including admin notification",
+        "GET",
+        "messages",
+        200,
+        session=tester.session2
+    )
+    
+    if not success:
+        print("❌ Failed to retrieve messages")
+        return False
+    
+    # Check if our admin message is in the list
+    admin_messages = [msg for msg in messages if msg.get('is_admin', False)]
+    if not admin_messages:
+        print("❌ No admin messages found in the message list")
+        return False
+    
+    print(f"✅ Found {len(admin_messages)} admin messages in the list")
+    
+    # Check if the most recent admin message is our test message
+    latest_admin_msg = admin_messages[-1]
+    if latest_admin_msg.get('user_id') == admin_user['id']:
+        print("✅ Latest admin message is from our admin user")
+    else:
+        print("⚠️ Latest admin message is not from our test admin user")
+    
+    # Backend API tests for notification system are successful
+    print("✅ Admin notification system backend API tests passed")
+    return True
+
 def main():
     print("🚀 Starting ArgusAI-CashOut Backend Tests")
     
@@ -395,15 +497,21 @@ def main():
     # Test 4: Profile Performance Metrics
     profile_metrics_test_result = test_profile_performance_metrics()
     
+    # Test 5: Enhanced Admin Notification System
+    notification_test_result = test_admin_notification_system()
+    
     # Print summary
     print("\n📊 Test Summary:")
     print(f"1. Updated Membership Types: {'✅ PASSED' if membership_test_result else '❌ FAILED'}")
     print(f"2. Stock Price API: {'✅ PASSED' if stock_price_test_result else '❌ FAILED'}")
     print(f"3. User Approval Bug Fix: {'✅ PASSED' if user_approval_test_result else '❌ FAILED'}")
     print(f"4. Profile Performance Metrics: {'✅ PASSED' if profile_metrics_test_result else '❌ FAILED'}")
+    print(f"5. Enhanced Admin Notification System: {'✅ PASSED' if notification_test_result else '❌ FAILED'}")
     
     # Return success if all tests passed
-    return 0 if (membership_test_result and stock_price_test_result and user_approval_test_result and profile_metrics_test_result) else 1
+    return 0 if (membership_test_result and stock_price_test_result and 
+                user_approval_test_result and profile_metrics_test_result and 
+                notification_test_result) else 1
 
 if __name__ == "__main__":
     sys.exit(main())
