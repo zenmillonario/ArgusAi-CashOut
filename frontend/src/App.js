@@ -663,7 +663,7 @@ function App() {
             // New admin notification handling
             console.log('🔔 Admin notification received:', data);
             
-            await playAdminNotificationSound();
+            await playSimpleAdminSound();
             
             await showBrowserNotification(
               '💰 CashoutAI - Admin Message',
@@ -678,7 +678,7 @@ function App() {
           } else if (data.type === 'admin_message') {
             // Legacy admin message handling
             console.log('🔔 Legacy admin message notification');
-            await playAdminNotificationSound();
+            await playSimpleAdminSound();
             await showBrowserNotification(
               '💰 CashoutAI - Admin Notification',
               data.message,
