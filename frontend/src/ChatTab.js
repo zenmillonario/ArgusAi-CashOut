@@ -109,7 +109,11 @@ const ChatTab = ({
                         <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">Admin</span>
                       )}
                       <span className="text-xs text-gray-400">
-                        {new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        {new Date(message.timestamp).toLocaleTimeString([], {
+                        hour: '2-digit', 
+                        minute:'2-digit',
+                        timeZone: 'America/New_York'
+                      })}
                       </span>
                     </div>
                     <img 
