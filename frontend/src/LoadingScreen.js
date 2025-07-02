@@ -12,8 +12,22 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
       const handleCanPlay = () => {
         setIsVideoLoaded(true);
         // Small delay to ensure smooth start
-        setTimeout(() => {
-          video.play().catch(console.error);
+        setTimeout(async () => {
+          try {
+            // Try to play with sound first
+            await video.play();
+          } catch (error) {
+            console.log('Autoplay with sound blocked, trying muted...');
+            try {
+              // If autoplay with sound fails, try muted
+              video.muted = true;
+              await video.play();
+            } catch (mutedError) {
+              console.log('Autoplay completely blocked, showing click to play');
+              // If even muted autoplay fails, we'll show a click to play button
+              setShowClickToPlay(true);
+            }
+          }
         }, 100);
       };
 
