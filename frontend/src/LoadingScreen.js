@@ -15,19 +15,21 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         // Small delay to ensure smooth start
         setTimeout(async () => {
           try {
-            // Try to play with sound first
+            // Start playing muted first (more likely to work)
+            video.muted = true;
             await video.play();
+            
+            // Once playing, try to unmute for sound
+            setTimeout(() => {
+              try {
+                video.muted = false;
+              } catch (unmuteError) {
+                console.log('Could not unmute video, playing silently');
+              }
+            }, 100);
           } catch (error) {
-            console.log('Autoplay with sound blocked, trying muted...');
-            try {
-              // If autoplay with sound fails, try muted
-              video.muted = true;
-              await video.play();
-            } catch (mutedError) {
-              console.log('Autoplay completely blocked, showing click to play');
-              // If even muted autoplay fails, we'll show a click to play button
-              setShowClickToPlay(true);
-            }
+            console.log('Autoplay failed, showing click to play');
+            setShowClickToPlay(true);
           }
         }, 100);
       };
