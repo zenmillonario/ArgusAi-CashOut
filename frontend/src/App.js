@@ -1259,6 +1259,16 @@ function App() {
     );
   }
 
+  // If showing loading screen, return early with loading screen
+  if (showLoadingScreen) {
+    return (
+      <LoadingScreen 
+        onComplete={() => setShowLoadingScreen(false)}
+        isDarkTheme={isDarkTheme}
+      />
+    );
+  }
+
   if (showLogin) {
     return (
       <div className={`min-h-screen ${isDarkTheme ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
