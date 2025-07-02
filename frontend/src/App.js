@@ -1434,19 +1434,6 @@ function App() {
                 </div>
               )}
               
-
-              {!isRegistering && (
-                <div className="text-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotPassword(true)}
-                    className={`text-sm ${isDarkTheme ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-700'} transition-colors`}
-                  >
-                    Forgot your password?
-                  </button>
-                </div>
-              )}
-              
               <div className="text-center">
                 <button
                   type="button"
