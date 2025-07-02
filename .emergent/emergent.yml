@@ -1,0 +1,7 @@
+{
+<<<<<<< HEAD
+  "env_image_name": "fastapi_react_mongo_base_image_cloud_arm:v2.8.3"
+=======
+  "env_image_name": "fastapi_react_mongo_base_image_cloud_arm:2.8.0"
+>>>>>>> origin/main
+}
