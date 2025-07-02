@@ -70,5 +70,4 @@ __pycache__/
 android-sdk/
 
 # Firebase credentials - NEVER commit these!
-*firebase-admin.json*
 backend/firebase-admin.json
