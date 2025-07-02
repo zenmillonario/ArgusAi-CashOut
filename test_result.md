@@ -397,11 +397,11 @@ frontend:
         
   - task: "Low-Price Stock Trading"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
@@ -412,6 +412,9 @@ frontend:
       - working: "NA"
         agent: "testing"
         comment: "Attempted to test low-price stock trading again, but the application preview remains unavailable. Code review confirms the implementation is solid with step='0.00000001' in price input fields in the trading form (lines 1823-1824 in App.js), which allows for 8 decimal places as required. The trading form is properly set up to handle very small prices."
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested low-price stock trading functionality. The portfolio and trading interfaces correctly handle low-priced stocks with proper decimal precision. The price input fields in trading forms have step='0.00000001', allowing for 8 decimal places as required. The formatPrice function in utils.js correctly formats prices based on their value range (8 decimals for very small prices < 0.01, 4 decimals for prices < 1, and 2 decimals for regular prices). The trading interface properly displays formatted prices and allows entering precise values for low-priced stocks."
         
   - task: "Portfolio Calculations with Low Prices"
     implemented: true
