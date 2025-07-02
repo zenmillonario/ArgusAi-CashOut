@@ -34,7 +34,7 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         }, 100);
       };
 
-      // Handle video end
+      // Handle video end - always proceed after video completes
       const handleVideoEnd = () => {
         // Fade out and then call onComplete
         setIsVisible(false);
@@ -52,16 +52,6 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         video.removeEventListener('ended', handleVideoEnd);
       };
     }
-
-    // Auto-skip after 10 seconds if video doesn't play
-    const autoSkipTimer = setTimeout(() => {
-      console.log('Auto-skipping loading screen after 10 seconds');
-      onComplete();
-    }, 10000);
-
-    return () => {
-      clearTimeout(autoSkipTimer);
-    };
   }, [onComplete]);
 
   if (!isVisible) {
