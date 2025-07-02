@@ -376,11 +376,11 @@ frontend:
         
   - task: "P&L Display in Portfolio Tab"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/PortfolioTab.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
@@ -391,6 +391,9 @@ frontend:
       - working: "NA"
         agent: "testing"
         comment: "Attempted to test the P&L display in Portfolio tab again, but the application preview remains unavailable. Code review confirms the implementation is solid with formatPrice and formatPnL functions in utils.js that handle low-price values correctly. The formatPrice function properly formats prices < 0.01 with up to 8 decimal places, and formatPnL shows 6 decimal places for very small P&L values."
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested P&L display in Portfolio tab. The portfolio summary shows properly formatted P&L values with appropriate color coding (green for positive, red for negative). The formatPrice and formatPnL functions in utils.js are working correctly, handling low-price values with proper decimal precision. The implementation correctly displays prices with appropriate decimal places based on the value range (8 decimals for very small prices < 0.01, 4 decimals for prices < 1, and 2 decimals for regular prices). Found multiple formatted prices displayed in the portfolio view, confirming the functionality is working as expected."
         
   - task: "Low-Price Stock Trading"
     implemented: true
