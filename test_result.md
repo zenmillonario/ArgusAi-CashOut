@@ -418,11 +418,11 @@ frontend:
         
   - task: "Portfolio Calculations with Low Prices"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/PortfolioTab.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
@@ -433,6 +433,9 @@ frontend:
       - working: "NA"
         agent: "testing"
         comment: "Attempted to test portfolio calculations with low prices again, but the application preview remains unavailable. Code review confirms the implementation uses formatPrice (lines 134 and 143) and formatPnL (line 163) functions in PortfolioTab.js that handle low prices correctly. The calculations for unrealized P&L and percentage changes are properly implemented."
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested portfolio calculations with low prices. The portfolio view correctly displays formatted prices and P&L values with appropriate decimal precision. The implementation uses formatPrice and formatPnL functions that handle low prices correctly. For positions, the current price and average price are displayed with appropriate decimal places based on the value range. P&L calculations are correctly formatted with the formatPnL function, showing more precision (6 decimal places) for very small P&L values. The percentage calculations also work correctly, showing appropriate precision for small percentage changes."
         
   - task: "Favorites Tab with Low Prices"
     implemented: true
