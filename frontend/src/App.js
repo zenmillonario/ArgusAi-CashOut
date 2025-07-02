@@ -2693,7 +2693,6 @@ function App() {
         </div> {/* End of content area */}
       </div> {/* End of main container */}
     </div>
-    </>
   );
 }
 
