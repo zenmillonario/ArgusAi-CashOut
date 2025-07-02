@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 const LoadingScreen = ({ onComplete, isDarkTheme }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const [showClickToPlay, setShowClickToPlay] = useState(false);
   const videoRef = useRef(null);
 
   useEffect(() => {
