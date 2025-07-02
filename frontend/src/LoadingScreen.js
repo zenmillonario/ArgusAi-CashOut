@@ -80,6 +80,26 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
           </div>
         )}
 
+        {/* Click to Play Button */}
+        {showClickToPlay && (
+          <button
+            onClick={() => {
+              const video = videoRef.current;
+              if (video) {
+                video.play().catch(console.error);
+              }
+              setShowClickToPlay(false);
+            }}
+            className={`absolute z-10 px-6 py-3 rounded-lg ${
+              isDarkTheme 
+                ? 'bg-white text-black hover:bg-gray-200' 
+                : 'bg-black text-white hover:bg-gray-800'
+            } transition-colors`}
+          >
+            Click to Play
+          </button>
+        )}
+
         {/* Video Element */}
         <video
           ref={videoRef}
