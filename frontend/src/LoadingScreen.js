@@ -8,6 +8,13 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
 
   useEffect(() => {
     const video = videoRef.current;
+    
+    // EMERGENCY: Auto-proceed after 3 seconds no matter what
+    const emergencyTimeout = setTimeout(() => {
+      console.log('Emergency timeout: Proceeding to app after 3 seconds');
+      onComplete();
+    }, 3000);
+
     if (video) {
       // Handle video load
       const handleCanPlay = () => {
@@ -36,6 +43,7 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
 
       // Handle video end - always proceed after video completes
       const handleVideoEnd = () => {
+        clearTimeout(emergencyTimeout); // Cancel emergency timeout if video completes
         // Fade out and then call onComplete
         setIsVisible(false);
         setTimeout(() => {
@@ -50,8 +58,13 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
       return () => {
         video.removeEventListener('canplay', handleCanPlay);
         video.removeEventListener('ended', handleVideoEnd);
+        clearTimeout(emergencyTimeout);
       };
     }
+
+    return () => {
+      clearTimeout(emergencyTimeout);
+    };
   }, [onComplete]);
 
   if (!isVisible) {
