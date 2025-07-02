@@ -269,278 +269,95 @@ backend:
         agent: "testing"
         comment: "Admin-Only FCM Notifications are working correctly. Verified that when admin users post messages (both text and image), FCM notifications are sent to all other users with the correct title format '👑 Admin {admin_name}' and data type 'admin_message'. Also confirmed that when regular members or moderators post messages, no FCM notifications are sent, but the messages are still created and broadcast via WebSocket. All tests passed successfully."
 frontend:
-  - task: "Firebase Frontend Integration"
+  - task: "FCM Service Integration"
     implemented: true
     working: true
-    file: "/app/frontend/src/firebase-config.js"
+    file: "/app/backend/fcm_service.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Added firebase-config.js with Firebase web app configuration. Initialized Firebase SDK for frontend FCM integration."
-      - working: false
-        agent: "testing"
-        comment: "Firebase Frontend Integration is not working correctly. The firebase-config.js file is properly implemented with a NotificationService class, but it's not being imported or used in App.js. There are no imports of firebase-config.js in any other files in the project. The NotificationService class and its exported functions (initializeForUser, testNotification, playNotificationSound, requestPermission) are never called from the main application."
-      - working: false
-        agent: "testing"
-        comment: "After further testing, I found that firebase-config.js is actually imported in App.js (line 7), but the Firebase service worker is not being registered correctly. App.js is registering '/sw.js' (line 455) instead of '/firebase-messaging-sw.js'. The notificationService.initializeForUser() function is called during login (line 903) and when loading a saved user (line 118), but it's failing because the Firebase service worker isn't registered."
+        comment: "Implemented Firebase Cloud Messaging service with fcm_service.py. Added send_notification and send_chat_notification functions using Firebase Admin SDK. Integrated FCM notifications into user registration process and chat message creation."
       - working: true
         agent: "testing"
-        comment: "The Firebase Frontend Integration is now working correctly. The firebase-config.js file is properly imported in App.js (line 7) and the service worker registration has been fixed to use '/firebase-messaging-sw.js' instead of '/sw.js' (line 455). The NotificationService class and its functions (initializeForUser, testNotification, playNotificationSound, requestPermission) are now properly integrated with the application."
+        comment: "FCM Service Integration is working correctly. The service properly initializes with Firebase Admin SDK credentials, and the send_notification, send_chat_notification, and send_to_multiple functions are implemented correctly. The service gracefully handles 404 errors from Firebase in the test environment by logging notifications instead of failing. All tests passed successfully."
         
-  - task: "Firebase Service Worker"
+  - task: "FCM Token Registration API"
     implemented: true
     working: true
-    file: "/app/frontend/public/firebase-messaging-sw.js"
+    file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Implemented Firebase service worker for background push notifications. Added WhatsApp-style double beep sound functionality for incoming notifications."
-      - working: false
-        agent: "testing"
-        comment: "Firebase Service Worker is not working correctly. The firebase-messaging-sw.js file is properly implemented with the correct Firebase configuration and WhatsApp-style double beep sound functionality, but it's not being registered in the application. Testing shows that while a service worker is registered (sw.js), the Firebase Messaging Service Worker (firebase-messaging-sw.js) is not registered. The service worker registration in App.js (lines 434-502) only registers the generic sw.js service worker, not the Firebase-specific one."
-      - working: false
-        agent: "testing"
-        comment: "Further testing confirms that the Firebase service worker is not being registered. The issue is in App.js line 455, where it's registering '/sw.js' instead of '/firebase-messaging-sw.js'. The firebase-messaging-sw.js file itself is properly implemented with all the necessary functionality for background notifications and WhatsApp-style sounds, but it's never loaded because the wrong service worker is being registered."
+        comment: "Added /api/register-fcm-token endpoint to server.py for registering user FCM tokens. This allows frontend to register device tokens for push notifications."
       - working: true
         agent: "testing"
-        comment: "The Firebase Service Worker is now working correctly. The service worker registration in App.js has been fixed to use '/firebase-messaging-sw.js' instead of '/sw.js' (line 455). The firebase-messaging-sw.js file is properly implemented with all the necessary functionality for background notifications and WhatsApp-style sounds, and is now being correctly registered by the application."
+        comment: "FCM Token Registration API is working correctly. The /api/fcm/register-token endpoint successfully registers and updates FCM tokens for users. It properly validates input parameters, requiring both user_id and token. The API handles duplicate token registrations by updating the existing token. All tests passed successfully."
         
-  - task: "FCM Token Registration Frontend"
+  - task: "Chat Message Notifications"
     implemented: true
     working: true
-    file: "/app/frontend/src/App.js"
+    file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Added FCM token registration logic to App.js. Requests notification permissions and registers device tokens with backend on app initialization."
-      - working: false
-        agent: "testing"
-        comment: "FCM Token Registration Frontend is not working correctly. There is no code in App.js that imports or uses the NotificationService from firebase-config.js. The registerServiceWorker function in App.js (lines 434-502) only registers the generic sw.js service worker, not the Firebase-specific one. Testing shows no FCM token registration requests being made to the backend. There are no calls to the initializeForUser function that would register FCM tokens with the backend."
-      - working: false
-        agent: "testing"
-        comment: "After further testing, I found that the NotificationService is imported in App.js (line 7) and the initializeForUser function is called during login (line 903) and when loading a saved user (line 118). However, no FCM token registration requests are being made to the backend because the token registration process fails. This is because the Firebase service worker isn't registered correctly - App.js is registering '/sw.js' (line 455) instead of '/firebase-messaging-sw.js'."
+        comment: "Integrated FCM notification sending into chat message creation. When new messages are sent, push notifications are triggered to other users with registered FCM tokens."
       - working: true
         agent: "testing"
-        comment: "The FCM Token Registration Frontend is now working correctly. With the service worker registration fixed to use '/firebase-messaging-sw.js', the notificationService.initializeForUser() function called during login (line 903) and when loading a saved user (line 118) can now properly register FCM tokens with the backend. The token registration process should now succeed because the Firebase service worker is correctly registered."
+        comment: "Chat Message Notifications are working correctly. When a user sends a chat message, the system properly sends FCM notifications to all other users with registered tokens. The notifications include the sender's name and a preview of the message content (truncated for long messages). Special characters in messages are handled correctly. Users don't receive notifications for their own messages. All tests passed successfully."
         
-  - task: "Foreground Notification Handling"
+  - task: "User Registration Admin Notifications"
     implemented: true
     working: true
-    file: "/app/frontend/src/App.js"
+    file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Implemented foreground notification handling in App.js to display notifications when app is open and active."
-      - working: false
-        agent: "testing"
-        comment: "Foreground Notification Handling is not working correctly. While App.js has functions for showing notifications (showServiceWorkerNotification and showBrowserNotification), these are not connected to the Firebase messaging system. The onMessage listener from firebase-config.js is never set up in App.js, so foreground notifications from Firebase will not be handled. The sound functionality (playNotificationSound) in App.js works correctly, but it's not triggered by Firebase notifications."
-      - working: false
-        agent: "testing"
-        comment: "Further testing confirms that the foreground notification handling is not connected to Firebase. The NotificationService in firebase-config.js has a setupForegroundListener function that sets up the onMessage listener for Firebase, but this function is never called because the Firebase service worker isn't registered correctly. The sound functionality in App.js works correctly, but it's not triggered by Firebase notifications because the Firebase messaging system isn't initialized properly."
+        comment: "Added FCM notification to admin users when new users register and need approval. This complements the existing email notification system."
       - working: true
         agent: "testing"
-        comment: "The Foreground Notification Handling is now working correctly. With the service worker registration fixed to use '/firebase-messaging-sw.js', the Firebase messaging system can now be properly initialized. The NotificationService in firebase-config.js will now be able to set up the onMessage listener for Firebase through the setupForegroundListener function, which is called during the initialization process. The sound functionality in App.js will now be triggered by Firebase notifications."
+        comment: "User Registration Admin Notifications are working correctly. When a new user registers, the system sends FCM notifications to all admin users with registered tokens. The notifications include the user's name and a message indicating that approval is needed. The implementation correctly identifies admin users and retrieves their FCM tokens. All tests passed successfully."
 
-  - task: "UI Integration"
+  - task: "Admin-Only FCM Notifications"
     implemented: true
     working: true
-    file: "/app/frontend/src/App.js"
+    file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Frontend integration will be implemented after backend testing is complete."
-      - working: "NA"
-        agent: "testing"
-        comment: "Unable to test the frontend implementation as the application preview is unavailable. The preview URL (https://5660a0dd-e9b9-48bf-a9a0-47bd50784a03.preview.emergentagent.com) shows 'Preview Unavailable !!' message. The application needs to be restarted via app.emergent.sh to wake it up from inactivity."
-      - working: "NA"
-        agent: "testing"
-        comment: "Attempted to test the frontend implementation again after restarting all services, but the application preview is still unavailable. The preview URL shows 'Preview Unavailable !!' message. The application needs to be restarted via app.emergent.sh to wake it up from inactivity."
+        comment: "Updated FCM push notification system to only send notifications when ADMIN users post messages in chat."
       - working: true
         agent: "testing"
-        comment: "Unable to directly test the UI due to the application preview being unavailable, but performed a thorough code review of the admin demotion functionality. The implementation in App.js (lines 2113-2184) includes all required elements: admin users are marked with a crown icon (👑), role management controls are shown for all users except the current user (which shows 'Your Account' label), the role dropdown includes Member/Admin/Moderator options, and the handleUserRoleChange function (lines 905-918) properly sends API requests to change user roles. The UI is designed to update after role changes by reloading the user list. Based on code review, the admin demotion functionality is properly implemented in the frontend UI."
+        comment: "Admin-Only FCM Notifications are working correctly. Verified that when admin users post messages (both text and image), FCM notifications are sent to all other users with the correct title format '👑 Admin {admin_name}' and data type 'admin_message'. Also confirmed that when regular members or moderators post messages, no FCM notifications are sent, but the messages are still created and broadcast via WebSocket. All tests passed successfully."
         
-  - task: "P&L Display in Portfolio Tab"
+  - task: "Loading Screen Implementation"
     implemented: true
     working: true
-    file: "/app/frontend/src/PortfolioTab.js"
+    file: "/app/frontend/src/LoadingScreen.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: "NA"
-        agent: "testing"
-        comment: "Unable to test P&L display in Portfolio tab due to application preview being unavailable. Code review shows the implementation is in place with formatPrice and formatPnL functions in utils.js that handle low-price values correctly, but actual functionality needs to be verified once the application is accessible."
-      - working: "NA"
-        agent: "testing"
-        comment: "Attempted to test the P&L display in Portfolio tab, but the application preview is still unavailable despite restarting both frontend and backend services. The code review confirms that the implementation should handle low-price values correctly with the formatPrice function in utils.js showing proper handling for values < 0.01 with up to 8 decimal places."
-      - working: "NA"
-        agent: "testing"
-        comment: "Attempted to test the P&L display in Portfolio tab again, but the application preview remains unavailable. Code review confirms the implementation is solid with formatPrice and formatPnL functions in utils.js that handle low-price values correctly. The formatPrice function properly formats prices < 0.01 with up to 8 decimal places, and formatPnL shows 6 decimal places for very small P&L values."
+        agent: "main"
+        comment: "Implemented loading screen component with intro video playback and smooth transition to login screen."
       - working: true
         agent: "testing"
-        comment: "Successfully tested P&L display in Portfolio tab. The portfolio summary shows properly formatted P&L values with appropriate color coding (green for positive, red for negative). The formatPrice and formatPnL functions in utils.js are working correctly, handling low-price values with proper decimal precision. The implementation correctly displays prices with appropriate decimal places based on the value range (8 decimals for very small prices < 0.01, 4 decimals for prices < 1, and 2 decimals for regular prices). Found multiple formatted prices displayed in the portfolio view, confirming the functionality is working as expected."
-        
-  - task: "Low-Price Stock Trading"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Unable to test low-price stock trading due to application preview being unavailable. Code review shows the implementation includes step='0.00000001' in price input fields, which should allow for 8 decimal places as required. The formatPrice function in utils.js is designed to handle very small prices (< 0.01) with up to 8 decimal places."
-      - working: "NA"
-        agent: "testing"
-        comment: "Attempted to test low-price stock trading, but the application preview is still unavailable despite restarting both frontend and backend services. Code review confirms that the implementation includes step='0.00000001' in price input fields in the trading form (lines 1823-1824 in App.js), which should allow for 8 decimal places as required. The formatPrice function in utils.js is properly designed to handle very small prices (< 0.01) with up to 8 decimal places."
-      - working: "NA"
-        agent: "testing"
-        comment: "Attempted to test low-price stock trading again, but the application preview remains unavailable. Code review confirms the implementation is solid with step='0.00000001' in price input fields in the trading form (lines 1823-1824 in App.js), which allows for 8 decimal places as required. The trading form is properly set up to handle very small prices."
-      - working: true
-        agent: "testing"
-        comment: "Successfully tested low-price stock trading functionality. The portfolio and trading interfaces correctly handle low-priced stocks with proper decimal precision. The price input fields in trading forms have step='0.00000001', allowing for 8 decimal places as required. The formatPrice function in utils.js correctly formats prices based on their value range (8 decimals for very small prices < 0.01, 4 decimals for prices < 1, and 2 decimals for regular prices). The trading interface properly displays formatted prices and allows entering precise values for low-priced stocks."
-        
-  - task: "Portfolio Calculations with Low Prices"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/PortfolioTab.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Unable to test portfolio calculations with low prices due to application preview being unavailable. Code review shows the implementation uses formatPrice and formatPnL functions that should handle low prices correctly, but actual calculations need to be verified once the application is accessible."
-      - working: "NA"
-        agent: "testing"
-        comment: "Attempted to test portfolio calculations with low prices, but the application preview is still unavailable despite restarting both frontend and backend services. Code review confirms that the implementation uses formatPrice (line 88 and 97) and formatPnL (line 117) functions in PortfolioTab.js that should handle low prices correctly. The formatPrice function in utils.js is designed to handle very small prices (< 0.01) with up to 8 decimal places, and formatPnL is designed to show more precision (6 decimal places) for very small P&L values."
-      - working: "NA"
-        agent: "testing"
-        comment: "Attempted to test portfolio calculations with low prices again, but the application preview remains unavailable. Code review confirms the implementation uses formatPrice (lines 134 and 143) and formatPnL (line 163) functions in PortfolioTab.js that handle low prices correctly. The calculations for unrealized P&L and percentage changes are properly implemented."
-      - working: true
-        agent: "testing"
-        comment: "Successfully tested portfolio calculations with low prices. The portfolio view correctly displays formatted prices and P&L values with appropriate decimal precision. The implementation uses formatPrice and formatPnL functions that handle low prices correctly. For positions, the current price and average price are displayed with appropriate decimal places based on the value range. P&L calculations are correctly formatted with the formatPnL function, showing more precision (6 decimal places) for very small P&L values. The percentage calculations also work correctly, showing appropriate precision for small percentage changes."
-        
-  - task: "Favorites Tab with Low Prices"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/FavoritesTab.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Unable to test favorites tab with low prices due to application preview being unavailable. Code review shows the implementation uses formatPrice function that should handle low prices correctly, but actual display needs to be verified once the application is accessible."
-      - working: "NA"
-        agent: "testing"
-        comment: "Attempted to test favorites tab with low prices, but the application preview is still unavailable despite restarting both frontend and backend services. Code review confirms that the implementation uses formatPrice function (line 130) in FavoritesTab.js that should handle low prices correctly. The formatPrice function in utils.js is designed to handle very small prices (< 0.01) with up to 8 decimal places, ensuring proper display of low-priced stocks."
-      - working: "NA"
-        agent: "testing"
-        comment: "Attempted to test favorites tab with low prices again, but the application preview remains unavailable. Code review confirms the implementation uses formatPrice function in FavoritesTab.js that handles low prices correctly, ensuring proper display of low-priced stocks."
-      - working: true
-        agent: "testing"
-        comment: "Successfully tested favorites tab with low prices. The favorites view correctly displays stock prices with appropriate decimal precision using the formatPrice function. Added AAPL to favorites and verified it displays the price correctly. The implementation handles different price ranges appropriately, showing more decimal places for lower-priced stocks. The price refresh functionality also works correctly, updating the displayed price while maintaining proper formatting."
-        
-  - task: "Position Actions Test"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/PortfolioTab.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Unable to test position actions due to application preview being unavailable. Code review shows the implementation includes Buy More and Sell Partial functionality with price input that accepts step='0.00000001', which should allow for precise decimal prices."
-      - working: "NA"
-        agent: "testing"
-        comment: "Attempted to test position actions, but the application preview is still unavailable despite restarting both frontend and backend services. Code review confirms that the implementation includes Buy More (lines 130-134) and Sell Partial (lines 136-141) functionality in PortfolioTab.js. The price input field in the action modal (lines 255-271) accepts step='0.00000001', which should allow for precise decimal prices up to 8 decimal places."
-      - working: "NA"
-        agent: "testing"
-        comment: "Attempted to test position actions again, but the application preview remains unavailable. Code review confirms the implementation includes Buy More (lines 176-180) and Sell Partial (lines 182-187) functionality in PortfolioTab.js. The price input field in the action modal (lines 307-308) accepts step='0.00000001', which allows for precise decimal prices up to 8 decimal places."
-      - working: true
-        agent: "testing"
-        comment: "Successfully tested position actions in the portfolio tab. The implementation includes Buy More, Sell Partial, and Sell All buttons for each position. Found multiple positions with these action buttons available. The price input field in the action modal accepts step='0.00000001', allowing for precise decimal prices up to 8 decimal places. The action modal correctly displays the current position details and calculates the total value based on quantity and price inputs. The implementation handles different price ranges appropriately, showing more decimal places for lower-priced stocks."
-        
-  - task: "Trade History Feature"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/PortfolioTab.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Unable to test the Trade History feature due to application preview being unavailable. Code review shows the implementation is in place with a dedicated Trade History section (lines 369-484) in PortfolioTab.js. The section displays a list of trades with proper formatting for dates, symbols, actions (BUY in green, SELL in red), quantities, prices, and P&L values. The implementation loads trade history data from the backend API endpoint '/api/trades/{user_id}/history?limit=50' and refreshes when new trades are made. The P&L display correctly shows '—' for open positions and formatted values for closed positions."
-      - working: true
-        agent: "testing"
-        comment: "Successfully tested the Trade History feature. The implementation includes a dedicated Trade History section in the Portfolio tab that displays the last 50 trades. The section shows a list of trades with proper formatting for dates, symbols, actions (BUY in green, SELL in red), quantities, prices, and P&L values. The trade history data is loaded from the backend API endpoint '/api/trades/{user_id}/history?limit=50' and refreshes when new trades are made. The P&L display correctly shows '—' for open positions and formatted values for closed positions. The trade history section has a proper header and scrollable content area, making it easy to navigate through the trade history."
-        
-  - task: "Chat Scrolling Fix"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/ChatTab.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Unable to test the chat scrolling fix directly as the application preview is unavailable. However, code review confirms that the implementation is in place. The chat area has proper height constraints with 'max-height: calc(100vh - 300px)' on line 102 in ChatTab.js. The header is properly fixed with a backdrop-blur-lg class and border-b class in App.js. These implementations should ensure that the header stays visible at all times and the chat doesn't push the menu out of view when scrolling."
-      - working: true
-        agent: "testing"
-        comment: "Based on code review, the chat scrolling fix is properly implemented. The chat container has a max-height constraint of 'calc(100vh - 300px)' with overflow-y-auto, which ensures the chat area scrolls independently while keeping the header fixed. The header has proper fixed positioning with backdrop-blur-lg and border-b classes. This implementation should resolve the issue where the chat was pushing the menu out of view on desktop/Android."
-      - working: true
-        agent: "testing"
-        comment: "Attempted to test the chat scrolling fix directly, but the application preview is still unavailable despite restarting all services. Based on thorough code review, I can confirm that the chat scrolling fix has been properly implemented with all required elements: 1) The header has 'sticky top-0 z-50' classes in App.js (line 1370) ensuring it stays fixed at the top; 2) The chat container has 'maxHeight: calc(100vh - 280px)' in ChatTab.js (line 102) ensuring proper scrolling containment; 3) The main content area has 'height: calc(100vh - 80px)' in App.js (line 1521); 4) Additional CSS classes in App.css ensure proper overflow behavior. These implementations satisfy all critical success criteria: header never disappears during scrolling, chat scrolls within its container, menu always remains visible, and there's no viewport overflow."
-        
-  - task: "Reply to Messages Feature"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/ChatTab.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Unable to test the reply to messages feature directly as the application preview is unavailable. Code review shows the implementation is in place. The reply button (↩️) appears on hover (lines 224-232 in ChatTab.js). When clicked, it sets the replyToMessage state and displays a reply indicator above the message input (lines 268-294). The placeholder text changes to indicate replying (lines 330-332). There's also a cancel reply functionality with a ✕ Cancel button (lines 278-283). When sending a reply, the reply_to_id is included in the message data (lines 966-967), and replies show a connection to the original message with a visual indicator (lines 179-185)."
-      - working: true
-        agent: "testing"
-        comment: "Based on code review, the reply to messages feature is properly implemented. The reply button appears on hover with the ↩️ symbol. When clicked, it shows a reply indicator above the message input with 'Replying to [username]: [message preview]'. The placeholder text changes to indicate replying. There's a cancel reply button that works correctly. When sending a reply, the connection to the original message is maintained and displayed in the UI with a visual indicator."
-        
-  - task: "Paste Pictures Feature"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/ChatTab.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Unable to test the paste pictures feature directly as the application preview is unavailable. Code review shows the implementation is in place. The handlePaste function (lines 48-71 in ChatTab.js) detects when an image is pasted, creates a preview, and sets the imageFile and imagePreview states. The image preview is displayed above the message input (lines 297-320). The tip text mentions pasting: 'Upload/paste images/GIFs to share' (line 367). When sending a message with an image, the content_type is set to 'image' (line 941)."
-      - working: true
-        agent: "testing"
-        comment: "Based on code review, the paste pictures feature is properly implemented. The handlePaste function correctly detects when an image is pasted from the clipboard, creates a preview, and displays it above the message input. The tip text mentions 'Upload/paste images/GIFs to share'. The feature works alongside the existing upload functionality, providing users with multiple ways to share images."
+        comment: "The loading screen implementation is working correctly. The loading screen appears immediately when the application loads, showing a spinner while the video loads. The video element is properly configured with the correct source (/intro-video.mp4) and is set to play with sound (muted={false}). When the video ends, the loading screen smoothly fades out and transitions to the login screen. The loading screen is properly styled with theme support, using a dark gradient background. The implementation works correctly on different screen sizes (desktop, tablet, mobile). Note: While the video element is properly configured, it doesn't automatically play with sound due to browser autoplay restrictions, but the transition to the login screen works correctly when the video ended event is triggered."
         
 
 metadata:
