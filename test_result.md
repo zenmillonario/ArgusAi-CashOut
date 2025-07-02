@@ -460,11 +460,11 @@ frontend:
         
   - task: "Position Actions Test"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/PortfolioTab.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
@@ -475,6 +475,9 @@ frontend:
       - working: "NA"
         agent: "testing"
         comment: "Attempted to test position actions again, but the application preview remains unavailable. Code review confirms the implementation includes Buy More (lines 176-180) and Sell Partial (lines 182-187) functionality in PortfolioTab.js. The price input field in the action modal (lines 307-308) accepts step='0.00000001', which allows for precise decimal prices up to 8 decimal places."
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested position actions in the portfolio tab. The implementation includes Buy More, Sell Partial, and Sell All buttons for each position. Found multiple positions with these action buttons available. The price input field in the action modal accepts step='0.00000001', allowing for precise decimal prices up to 8 decimal places. The action modal correctly displays the current position details and calculates the total value based on quantity and price inputs. The implementation handles different price ranges appropriately, showing more decimal places for lower-priced stocks."
         
   - task: "Trade History Feature"
     implemented: true
