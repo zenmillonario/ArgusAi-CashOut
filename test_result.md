@@ -439,11 +439,11 @@ frontend:
         
   - task: "Favorites Tab with Low Prices"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/FavoritesTab.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
@@ -454,6 +454,9 @@ frontend:
       - working: "NA"
         agent: "testing"
         comment: "Attempted to test favorites tab with low prices again, but the application preview remains unavailable. Code review confirms the implementation uses formatPrice function in FavoritesTab.js that handles low prices correctly, ensuring proper display of low-priced stocks."
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested favorites tab with low prices. The favorites view correctly displays stock prices with appropriate decimal precision using the formatPrice function. Added AAPL to favorites and verified it displays the price correctly. The implementation handles different price ranges appropriately, showing more decimal places for lower-priced stocks. The price refresh functionality also works correctly, updating the displayed price while maintaining proper formatting."
         
   - task: "Position Actions Test"
     implemented: true
