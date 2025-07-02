@@ -2386,5 +2386,532 @@ def test_admin_only_notifications():
     print("✅ Non-admin messages are created and broadcast but do not trigger FCM notifications")
     
     return True
+def test_admin_demotion():
+    """Test admin demotion functionality"""
+    print("\n🔍 TESTING FEATURE: Admin Demotion Functionality")
+    
+    tester = CashoutAITester()
+    
+    # Test 1: Login with admin account
+    print("\n🔍 Test 1: Login with admin account")
+    admin_user = tester.test_login("admin", "admin123", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed")
+        return False
+    
+    print("✅ Admin login successful")
+    
+    # Test 2: Create a test user
+    print("\n🔍 Test 2: Create a test user")
+    
+    timestamp = datetime.now().strftime("%H%M%S")
+    username = f"admin_test_{timestamp}"
+    email = f"admin_{timestamp}@example.com"
+    real_name = f"Admin Test User {timestamp}"
+    
+    test_user = tester.test_register_with_membership(
+        username=username,
+        email=email,
+        real_name=real_name,
+        membership_plan="Monthly",
+        password="TestPass123!"
+    )
+    
+    if not test_user:
+        print("❌ User registration failed")
+        return False
+    
+    print("✅ Test user created successfully")
+    
+    # Approve the user
+    approve_result = tester.test_user_approval(
+        tester.session1, 
+        test_user['id'], 
+        admin_user['id'], 
+        approved=True
+    )
+    
+    if not approve_result:
+        print("❌ Failed to approve user")
+        return False
+    
+    # Test 3: Promote user to admin
+    print("\n🔍 Test 3: Promote user to admin")
+    
+    success, response = tester.run_test(
+        "Change user role to admin",
+        "POST",
+        "users/change-role",
+        200,
+        session=tester.session1,
+        data={
+            "user_id": test_user['id'],
+            "admin_id": admin_user['id'],
+            "new_role": "admin"
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to promote user to admin")
+        return False
+    
+    print("✅ User promoted to admin successfully")
+    
+    # Test 4: Login as the new admin
+    print("\n🔍 Test 4: Login as the new admin")
+    
+    new_admin = tester.test_login(username, "TestPass123!", tester.session2)
+    if not new_admin:
+        print("❌ Login failed for new admin")
+        return False
+    
+    print("✅ Login successful for new admin")
+    
+    # Verify admin status
+    if not new_admin.get('is_admin'):
+        print("❌ New admin does not have is_admin flag set to true")
+        return False
+    
+    print("✅ New admin has is_admin flag set to true")
+    
+    # Test 5: Original admin demotes new admin to member
+    print("\n🔍 Test 5: Original admin demotes new admin to member")
+    
+    success, response = tester.run_test(
+        "Demote admin to member",
+        "POST",
+        "users/change-role",
+        200,
+        session=tester.session1,
+        data={
+            "user_id": test_user['id'],
+            "admin_id": admin_user['id'],
+            "new_role": "member"
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to demote admin to member")
+        return False
+    
+    print("✅ Admin demoted to member successfully")
+    
+    # Test 6: Verify demotion worked by logging in again
+    print("\n🔍 Test 6: Verify demotion worked by logging in again")
+    
+    demoted_user = tester.test_login(username, "TestPass123!", tester.session3)
+    if not demoted_user:
+        print("❌ Login failed for demoted user")
+        return False
+    
+    print("✅ Login successful for demoted user")
+    
+    # Verify admin status is now false
+    if demoted_user.get('is_admin'):
+        print("❌ Demoted user still has is_admin flag set to true")
+        return False
+    
+    print("✅ Demoted user has is_admin flag set to false")
+    
+    # Test 7: Create another admin user
+    print("\n🔍 Test 7: Create another admin user")
+    
+    timestamp2 = datetime.now().strftime("%H%M%S")
+    username2 = f"admin_test2_{timestamp2}"
+    email2 = f"admin2_{timestamp2}@example.com"
+    real_name2 = f"Admin Test User 2 {timestamp2}"
+    
+    test_user2 = tester.test_register_with_membership(
+        username=username2,
+        email=email2,
+        real_name=real_name2,
+        membership_plan="Monthly",
+        password="TestPass123!"
+    )
+    
+    if not test_user2:
+        print("❌ Second user registration failed")
+        return False
+    
+    print("✅ Second test user created successfully")
+    
+    # Approve and promote to admin
+    approve_result2 = tester.test_user_approval(
+        tester.session1, 
+        test_user2['id'], 
+        admin_user['id'], 
+        approved=True,
+        role="admin"
+    )
+    
+    if not approve_result2:
+        print("❌ Failed to approve second user as admin")
+        return False
+    
+    # Test 8: Login as the second admin
+    print("\n🔍 Test 8: Login as the second admin")
+    
+    admin2 = tester.test_login(username2, "TestPass123!", tester.session2)
+    if not admin2:
+        print("❌ Login failed for second admin")
+        return False
+    
+    print("✅ Login successful for second admin")
+    
+    # Test 9: First admin demotes second admin to moderator
+    print("\n🔍 Test 9: First admin demotes second admin to moderator")
+    
+    success, response = tester.run_test(
+        "Demote second admin to moderator",
+        "POST",
+        "users/change-role",
+        200,
+        session=tester.session1,
+        data={
+            "user_id": test_user2['id'],
+            "admin_id": admin_user['id'],
+            "new_role": "moderator"
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to demote second admin to moderator")
+        return False
+    
+    print("✅ Second admin demoted to moderator successfully")
+    
+    # Test 10: Attempt self-demotion (should fail)
+    print("\n🔍 Test 10: Attempt self-demotion (should fail)")
+    
+    success, response = tester.run_test(
+        "Self-demotion attempt",
+        "POST",
+        "users/change-role",
+        400,  # Expect 400 Bad Request
+        session=tester.session1,
+        data={
+            "user_id": admin_user['id'],
+            "admin_id": admin_user['id'],
+            "new_role": "member"
+        }
+    )
+    
+    if not success:
+        print("❌ Self-demotion test failed - should return 400")
+        return False
+    
+    print("✅ Self-demotion correctly rejected")
+    
+    print("✅ Admin Demotion Functionality tests passed")
+    return True
+
+def test_fcm_graceful_handling():
+    """Test graceful handling of missing Firebase credentials"""
+    print("\n🔍 TESTING FEATURE: FCM Graceful Handling of Missing Credentials")
+    
+    # Test 1: Check FCM service initialization
+    print("\n🔍 Test 1: Check FCM service initialization")
+    
+    # Import FCM service to check initialization
+    sys.path.append('/app/backend')
+    try:
+        from fcm_service import fcm_service
+        
+        print(f"✅ FCM service imported successfully, initialized: {fcm_service.initialized}")
+        
+        # Check if firebase-admin.json exists
+        cred_path = os.path.join('/app/backend', 'firebase-admin.json')
+        if os.path.exists(cred_path):
+            print(f"✅ Firebase credentials file exists at {cred_path}")
+        else:
+            print(f"ℹ️ Firebase credentials file not found at {cred_path} - this is expected in development mode")
+            
+            # Test 2: Verify fallback to logging
+            print("\n🔍 Test 2: Verify fallback to logging when credentials are missing")
+            
+            # Check if the service has the fallback logic
+            if not fcm_service.initialized:
+                print("✅ FCM service correctly detected missing credentials")
+                
+                # Test sending a notification
+                result = asyncio.run(fcm_service.send_notification(
+                    token="test_token",
+                    title="Test Title",
+                    body="Test Body",
+                    data={"type": "test"}
+                ))
+                
+                if result:
+                    print("✅ FCM service gracefully handled missing credentials and returned success")
+                else:
+                    print("❌ FCM service failed to handle missing credentials gracefully")
+                    return False
+            else:
+                print("❌ FCM service incorrectly reports as initialized despite missing credentials")
+                return False
+    except Exception as e:
+        print(f"❌ Error testing FCM service: {str(e)}")
+        return False
+    
+    print("✅ FCM Graceful Handling of Missing Credentials tests passed")
+    return True
+
+def test_password_reset_flow():
+    """Test complete password reset flow"""
+    print("\n🔍 TESTING FEATURE: Password Reset Flow")
+    
+    tester = CashoutAITester()
+    
+    # Test 1: Create a test user
+    print("\n🔍 Test 1: Create a test user")
+    
+    timestamp = datetime.now().strftime("%H%M%S")
+    username = f"reset_test_{timestamp}"
+    email = f"reset_{timestamp}@example.com"
+    real_name = f"Reset Test User {timestamp}"
+    password = "OrigPass123!"
+    
+    test_user = tester.test_register_with_membership(
+        username=username,
+        email=email,
+        real_name=real_name,
+        membership_plan="Monthly",
+        password=password
+    )
+    
+    if not test_user:
+        print("❌ User registration failed")
+        return False
+    
+    print("✅ Test user created successfully")
+    
+    # Login as admin to approve the user
+    admin_user = tester.test_login("admin", "admin123", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed")
+        return False
+    
+    # Approve the user
+    approve_result = tester.test_user_approval(
+        tester.session1, 
+        test_user['id'], 
+        admin_user['id'], 
+        approved=True
+    )
+    
+    if not approve_result:
+        print("❌ Failed to approve user")
+        return False
+    
+    # Test 2: Request password reset
+    print("\n🔍 Test 2: Request password reset")
+    
+    reset_request = tester.run_test(
+        "Request password reset",
+        "POST",
+        "users/reset-password-request",
+        200,
+        session=requests.Session(),
+        data={"email": email}
+    )
+    
+    if not reset_request[0]:
+        print("❌ Password reset request failed")
+        return False
+    
+    print("✅ Password reset requested successfully")
+    
+    # Test 3: Get reset token from database
+    print("\n🔍 Test 3: Get reset token from database")
+    
+    # Connect to MongoDB to get the reset token
+    mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017/emergent_db')
+    db_name = os.environ.get('DB_NAME', 'emergent_db')
+    
+    try:
+        client = pymongo.MongoClient(mongo_url)
+        db = client[db_name]
+        
+        # Find the user and get the reset token
+        user_doc = db.users.find_one({"email": email})
+        if not user_doc or 'reset_token' not in user_doc:
+            print("❌ Reset token not found in database")
+            return False
+        
+        reset_token = user_doc['reset_token']
+        reset_expires = user_doc.get('reset_expires')
+        
+        print(f"✅ Reset token found in database: {reset_token}")
+        print(f"✅ Reset token expires at: {reset_expires}")
+        
+        # Verify token expiration is set correctly (1 hour in the future)
+        now = datetime.utcnow()
+        if reset_expires and reset_expires > now and reset_expires < now + timedelta(hours=2):
+            print("✅ Reset token expiration set correctly")
+        else:
+            print("❌ Reset token expiration not set correctly")
+            return False
+        
+        # Test 4: Confirm password reset
+        print("\n🔍 Test 4: Confirm password reset")
+        
+        reset_password = "ResetPass789!"
+        
+        reset_confirm = tester.run_test(
+            "Confirm password reset",
+            "POST",
+            "users/reset-password-confirm",
+            200,
+            session=requests.Session(),
+            data={
+                "token": reset_token,
+                "new_password": reset_password
+            }
+        )
+        
+        if not reset_confirm[0]:
+            print("❌ Password reset confirmation failed")
+            return False
+        
+        print("✅ Password reset confirmed successfully")
+        
+        # Test 5: Login with reset password
+        print("\n🔍 Test 5: Login with reset password")
+        
+        reset_login = tester.test_login(username, reset_password, requests.Session())
+        if not reset_login:
+            print("❌ Login failed with reset password")
+            return False
+        
+        print("✅ Login successful with reset password")
+        
+        # Test 6: Verify reset token is cleared from database
+        print("\n🔍 Test 6: Verify reset token is cleared from database")
+        
+        updated_user = db.users.find_one({"email": email})
+        if 'reset_token' in updated_user or 'reset_expires' in updated_user:
+            print("❌ Reset token not cleared from database after use")
+            return False
+        
+        print("✅ Reset token cleared from database after use")
+        
+        # Test 7: Attempt to use invalid token
+        print("\n🔍 Test 7: Attempt to use invalid token")
+        
+        invalid_token = str(uuid.uuid4())
+        
+        success, response = tester.run_test(
+            "Use invalid reset token",
+            "POST",
+            "users/reset-password-confirm",
+            400,  # Expect 400 Bad Request
+            session=requests.Session(),
+            data={
+                "token": invalid_token,
+                "new_password": "InvalidPass123!"
+            }
+        )
+        
+        if not success:
+            print("❌ Invalid token test failed - should return 400")
+            return False
+        
+        print("✅ Invalid token correctly rejected")
+        
+        # Test 8: Request reset for non-existent email
+        print("\n🔍 Test 8: Request reset for non-existent email")
+        
+        non_existent_email = f"nonexistent_{uuid.uuid4()}@example.com"
+        
+        success, response = tester.run_test(
+            "Request reset for non-existent email",
+            "POST",
+            "users/reset-password-request",
+            200,  # Should still return 200 for security
+            session=requests.Session(),
+            data={"email": non_existent_email}
+        )
+        
+        if not success:
+            print("❌ Non-existent email test failed - should return 200")
+            return False
+        
+        print("✅ Non-existent email request correctly handled (returned 200 for security)")
+        
+    except Exception as e:
+        print(f"❌ Error testing password reset flow: {str(e)}")
+        return False
+    
+    print("✅ Password Reset Flow tests passed")
+    return True
+
+def test_case_insensitive_login():
+    """Test case-insensitive login"""
+    print("\n🔍 TESTING FEATURE: Case-Insensitive Login")
+    
+    tester = CashoutAITester()
+    
+    # Test 1: Login with lowercase username
+    print("\n🔍 Test 1: Login with lowercase username")
+    lowercase_login = tester.test_login("admin", "admin123", tester.session1)
+    if not lowercase_login:
+        print("❌ Login failed with lowercase username")
+        return False
+    
+    print("✅ Login successful with lowercase username")
+    
+    # Test 2: Login with uppercase username
+    print("\n🔍 Test 2: Login with uppercase username")
+    uppercase_login = tester.test_login("ADMIN", "admin123", tester.session2)
+    if not uppercase_login:
+        print("❌ Login failed with uppercase username")
+        return False
+    
+    print("✅ Login successful with uppercase username")
+    
+    # Test 3: Login with mixed case username
+    print("\n🔍 Test 3: Login with mixed case username")
+    mixedcase_login = tester.test_login("AdMiN", "admin123", tester.session3)
+    if not mixedcase_login:
+        print("❌ Login failed with mixed case username")
+        return False
+    
+    print("✅ Login successful with mixed case username")
+    
+    # Test 4: Verify all logins return the same user ID
+    print("\n🔍 Test 4: Verify all logins return the same user ID")
+    if lowercase_login.get('id') != uppercase_login.get('id') or lowercase_login.get('id') != mixedcase_login.get('id'):
+        print("❌ User IDs don't match across different case logins")
+        return False
+    
+    print("✅ Same user ID returned for all case variations")
+    print("✅ Case-Insensitive Login tests passed")
+    return True
+
+def main():
+    """Run all tests and report results"""
+    print("\n🔍 RUNNING ALL TESTS FOR ARGUSAI CASHOUT BACKEND")
+    
+    test_results = {
+        "Admin Demotion Functionality": test_admin_demotion(),
+        "FCM Graceful Handling": test_fcm_graceful_handling(),
+        "Password Reset Flow": test_password_reset_flow(),
+        "Case-Insensitive Login": test_case_insensitive_login()
+    }
+    
+    print("\n📊 TEST RESULTS SUMMARY:")
+    
+    all_passed = True
+    for test_name, result in test_results.items():
+        status = "✅ PASSED" if result else "❌ FAILED"
+        if not result:
+            all_passed = False
+        print(f"{test_name}: {status}")
+    
+    overall_status = "✅ ALL TESTS PASSED" if all_passed else "❌ SOME TESTS FAILED"
+    print(f"\n🏁 OVERALL STATUS: {overall_status}")
+    
+    return 0 if all_passed else 1
+
 if __name__ == "__main__":
     sys.exit(main())
