@@ -1,16 +1,16 @@
-🔗 Using API URL: https://185439fa-ff6e-4bb9-8811-2775b26cd749.preview.emergentagent.com/api
+🔗 Using API URL: https://5660a0dd-e9b9-48bf-a9a0-47bd50784a03.preview.emergentagent.com/api
 🚀 Starting CashoutAI Backend Tests
 
 🔑 Testing Admin Login...
 
 🔍 Testing Login...
-URL: https://185439fa-ff6e-4bb9-8811-2775b26cd749.preview.emergentagent.com/api/users/login
+URL: https://5660a0dd-e9b9-48bf-a9a0-47bd50784a03.preview.emergentagent.com/api/users/login
 ❌ Failed - Expected 200, got 502
 Response: 
 ❌ Admin login failed with testadmin/admin123
 
 🔍 Testing Login...
-URL: https://185439fa-ff6e-4bb9-8811-2775b26cd749.preview.emergentagent.com/api/users/login
+URL: https://5660a0dd-e9b9-48bf-a9a0-47bd50784a03.preview.emergentagent.com/api/users/login
 ❌ Failed - Expected 200, got 502
 Response: 
 ❌ Admin login failed with admin/admin
@@ -18,22 +18,22 @@ Response:
 📝 Testing Registration with Membership Plans...
 
 🔍 Testing Register user with Basic Plan membership plan...
-URL: https://185439fa-ff6e-4bb9-8811-2775b26cd749.preview.emergentagent.com/api/users/register
+URL: https://5660a0dd-e9b9-48bf-a9a0-47bd50784a03.preview.emergentagent.com/api/users/register
 ❌ Failed - Expected 200, got 502
 Response: 
 
 🔍 Testing Register user with Premium Plan membership plan...
-URL: https://185439fa-ff6e-4bb9-8811-2775b26cd749.preview.emergentagent.com/api/users/register
+URL: https://5660a0dd-e9b9-48bf-a9a0-47bd50784a03.preview.emergentagent.com/api/users/register
 ❌ Failed - Expected 200, got 502
 Response: 
 
 🔍 Testing Register user with Professional Plan membership plan...
-URL: https://185439fa-ff6e-4bb9-8811-2775b26cd749.preview.emergentagent.com/api/users/register
+URL: https://5660a0dd-e9b9-48bf-a9a0-47bd50784a03.preview.emergentagent.com/api/users/register
 ❌ Failed - Expected 200, got 502
 Response: 
 
 🔍 Testing Register user with Enterprise Plan membership plan...
-URL: https://185439fa-ff6e-4bb9-8811-2775b26cd749.preview.emergentagent.com/api/users/register
+URL: https://5660a0dd-e9b9-48bf-a9a0-47bd50784a03.preview.emergentagent.com/api/users/register
 ❌ Failed - Expected 200, got 502
 Response: 
 Registration tests completed with 0.0% success rate
@@ -41,7 +41,7 @@ Registration tests completed with 0.0% success rate
 ⚙️ Testing Admin Dashboard...
 
 🔍 Testing Login...
-URL: https://185439fa-ff6e-4bb9-8811-2775b26cd749.preview.emergentagent.com/api/users/login
+URL: https://5660a0dd-e9b9-48bf-a9a0-47bd50784a03.preview.emergentagent.com/api/users/login
 ❌ Failed - Expected 200, got 502
 Response: 
 ❌ Admin login failed, cannot test admin dashboard
