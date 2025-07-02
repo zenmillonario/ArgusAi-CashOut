@@ -73,13 +73,17 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
 
   return (
     <div 
-      className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-500 ${
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-500 cursor-pointer ${
         isVisible ? 'opacity-100' : 'opacity-0'
       } ${isDarkTheme ? 'bg-black' : 'bg-white'}`}
       style={{
         background: isDarkTheme 
           ? 'linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%)'
           : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 50%, #ffffff 100%)'
+      }}
+      onClick={() => {
+        // Emergency: Click anywhere to proceed
+        onComplete();
       }}
     >
       {/* Video Container */}
