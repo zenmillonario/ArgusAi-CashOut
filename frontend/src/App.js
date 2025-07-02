@@ -1463,16 +1463,7 @@ function App() {
   }
 
   return (
-    <>
-      {/* Loading Screen - Show on app startup */}
-      {showLoadingScreen && (
-        <LoadingScreen 
-          onComplete={() => setShowLoadingScreen(false)}
-          isDarkTheme={isDarkTheme}
-        />
-      )}
-      
-      <div className={`min-h-screen ${isDarkTheme ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
+    <div className={`min-h-screen ${isDarkTheme ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
       {/* Header - Fixed/Sticky */}
       <div className={`sticky top-0 z-50 border-b ${isDarkTheme ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white/80'} backdrop-blur-lg`}>
         <div className="max-w-6xl mx-auto px-4 py-4">
