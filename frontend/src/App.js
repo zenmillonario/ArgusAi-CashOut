@@ -3,6 +3,7 @@ import axios from 'axios';
 import ChatTab from './ChatTab';
 import PortfolioTab from './PortfolioTab';
 import FavoritesTab from './FavoritesTab';
+import LoadingScreen from './LoadingScreen';
 import { formatPrice, formatPnL, formatCurrency } from './utils';
 import notificationService from './firebase-config';
 import './App.css';
