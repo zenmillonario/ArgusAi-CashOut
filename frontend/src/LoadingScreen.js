@@ -106,9 +106,10 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
           className={`max-w-full max-h-full object-contain transition-opacity duration-300 ${
             isVideoLoaded ? 'opacity-100' : 'opacity-0'
           }`}
-          muted={false} // Enable sound
+          muted={true} // Start muted for autoplay
           playsInline
           preload="auto"
+          autoPlay
         >
           <source src="/intro-video.mp4" type="video/mp4" />
           <source src="/intro-video.webm" type="video/webm" />
