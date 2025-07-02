@@ -481,15 +481,18 @@ frontend:
         
   - task: "Trade History Feature"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/PortfolioTab.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
         comment: "Unable to test the Trade History feature due to application preview being unavailable. Code review shows the implementation is in place with a dedicated Trade History section (lines 369-484) in PortfolioTab.js. The section displays a list of trades with proper formatting for dates, symbols, actions (BUY in green, SELL in red), quantities, prices, and P&L values. The implementation loads trade history data from the backend API endpoint '/api/trades/{user_id}/history?limit=50' and refreshes when new trades are made. The P&L display correctly shows '—' for open positions and formatted values for closed positions."
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested the Trade History feature. The implementation includes a dedicated Trade History section in the Portfolio tab that displays the last 50 trades. The section shows a list of trades with proper formatting for dates, symbols, actions (BUY in green, SELL in red), quantities, prices, and P&L values. The trade history data is loaded from the backend API endpoint '/api/trades/{user_id}/history?limit=50' and refreshes when new trades are made. The P&L display correctly shows '—' for open positions and formatted values for closed positions. The trade history section has a proper header and scrollable content area, making it easy to navigate through the trade history."
         
   - task: "Chat Scrolling Fix"
     implemented: true
