@@ -366,7 +366,7 @@ frontend:
         comment: "Frontend integration will be implemented after backend testing is complete."
       - working: "NA"
         agent: "testing"
-        comment: "Unable to test the frontend implementation as the application preview is unavailable. The preview URL (https://185439fa-ff6e-4bb9-8811-2775b26cd749.preview.emergentagent.com) shows 'Preview Unavailable !!' message. The application needs to be restarted via app.emergent.sh to wake it up from inactivity."
+        comment: "Unable to test the frontend implementation as the application preview is unavailable. The preview URL (https://5660a0dd-e9b9-48bf-a9a0-47bd50784a03.preview.emergentagent.com) shows 'Preview Unavailable !!' message. The application needs to be restarted via app.emergent.sh to wake it up from inactivity."
       - working: "NA"
         agent: "testing"
         comment: "Attempted to test the frontend implementation again after restarting all services, but the application preview is still unavailable. The preview URL shows 'Preview Unavailable !!' message. The application needs to be restarted via app.emergent.sh to wake it up from inactivity."
