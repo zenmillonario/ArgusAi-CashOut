@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArgusAI Fisher - Game Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to bottom, #87CEEB 0%, #4682B4 50%, #191970 100%);
+            height: 100vh;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        .game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Water Animation */
+        .water {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 60%;
+            background: linear-gradient(to bottom, rgba(30, 144, 255, 0.8), rgba(0, 0, 139, 0.9));
+            animation: waves 3s ease-in-out infinite;
+        }
+
+        .water::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: 0;
+            width: 200%;
+            height: 20px;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent 20px,
+                rgba(255, 255, 255, 0.3) 20px,
+                rgba(255, 255, 255, 0.3) 40px
+            );
+            animation: waterFlow 2s linear infinite;
+        }
+
+        @keyframes waves {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+        }
+
+        @keyframes waterFlow {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-40px); }
+        }
+
+        /* Boat */
+        .boat {
+            position: absolute;
+            top: 35%;
+            left: 20%;
+            width: 120px;
+            height: 80px;
+            animation: bobbing 2s ease-in-out infinite;
+        }
+
+        .boat-body {
+            width: 100%;
+            height: 40px;
+            background: #8B4513;
+            border-radius: 0 0 50px 50px;
+            position: relative;
+        }
+
+        .boat-deck {
+            width: 90%;
+            height: 15px;
+            background: #DEB887;
+            position: absolute;
+            top: -10px;
+            left: 5%;
+            border-radius: 10px;
+        }
+
+        .fisher {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 30px;
+        }
+
+        .fisher-head {
+            width: 20px;
+            height: 20px;
+            background: #FFDBAC;
+            border-radius: 50%;
+            margin: 0 auto;
+        }
+
+        .fisher-body {
+            width: 15px;
+            height: 25px;
+            background: #4169E1;
+            margin: 0 auto;
+            border-radius: 0 0 5px 5px;
+        }
+
+        .fishing-rod {
+            position: absolute;
+            top: -20px;
+            right: -10px;
+            width: 3px;
+            height: 50px;
+            background: #8B4513;
+            transform-origin: bottom;
+            animation: rodCasting 4s ease-in-out infinite;
+        }
+
+        .fishing-line {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 1px;
+            height: 100px;
+            background: rgba(0, 0, 0, 0.3);
+            transform-origin: top;
+            animation: lineSwaying 2s ease-in-out infinite;
+        }
+
+        @keyframes bobbing {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(1deg); }
+        }
+
+        @keyframes rodCasting {
+            0%, 80%, 100% { transform: rotate(-10deg); }
+            40% { transform: rotate(-30deg); }
+        }
+
+        @keyframes lineSwaying {
+            0%, 100% { transform: rotate(-2deg); }
+            50% { transform: rotate(2deg); }
+        }
+
+        /* Fish */
+        .fish {
+            position: absolute;
+            width: 40px;
+            height: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .fish-body {
+            width: 100%;
+            height: 100%;
+            border-radius: 50% 10px 50% 10px;
+            position: relative;
+            animation: swimming 3s ease-in-out infinite;
+        }
+
+        .fish-tail {
+            position: absolute;
+            right: -10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid;
+            border-top: 8px solid transparent;
+            border-bottom: 8px solid transparent;
+            animation: tailWagging 1s ease-in-out infinite;
+        }
+
+        .fish-eye {
+            position: absolute;
+            top: 6px;
+            left: 8px;
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .fish-eye::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 4px;
+            height: 4px;
+            background: black;
+            border-radius: 50%;
+        }
+
+        @keyframes swimming {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes tailWagging {
+            0%, 100% { transform: translateY(-50%) scaleX(1); }
+            50% { transform: translateY(-50%) scaleX(0.8); }
+        }
+
+        /* Fish Types */
+        .fish-small { 
+            transform: scale(0.8);
+            opacity: 0.8;
+        }
+        .fish-small .fish-body { background: #32CD32; }
+        .fish-small .fish-tail { border-left-color: #32CD32; }
+
+        .fish-medium { 
+            transform: scale(1.2);
+            opacity: 0.9;
+        }
+        .fish-medium .fish-body { background: #FFD700; }
+        .fish-medium .fish-tail { border-left-color: #FFD700; }
+
+        .fish-large { 
+            transform: scale(1.8);
+            opacity: 1;
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8));
+        }
+        .fish-large .fish-body { background: #FF6347; }
+        .fish-large .fish-tail { border-left-color: #FF6347; }
+
+        /* Catch Effect */
+        .catch-effect {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 215, 0, 0.8), transparent);
+            animation: catchSplash 0.5s ease-out;
+            pointer-events: none;
+        }
+
+        @keyframes catchSplash {
+            0% { transform: scale(0.1); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+
+        /* UI Elements */
+        .game-ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+        }
+
+        .profit-display {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+        }
+
+        .fish-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            text-shadow: none;
+        }
+
+        .fish-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .legend-fish {
+            width: 20px;
+            height: 12px;
+            border-radius: 50% 5px 50% 5px;
+        }
+
+        .legend-small { background: #32CD32; }
+        .legend-medium { background: #FFD700; }
+        .legend-large { background: #FF6347; }
+
+        /* Coin Animation */
+        .coin {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: #FFD700;
+            border-radius: 50%;
+            animation: coinFly 1s ease-out forwards;
+            pointer-events: none;
+        }
+
+        .coin::before {
+            content: '$';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #FFA500;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        @keyframes coinFly {
+            0% {
+                opacity: 1;
+                transform: translateY(0px) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-100px) scale(0.3);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- Water Background -->
+        <div class="water"></div>
+        
+        <!-- Boat with Fisher -->
+        <div class="boat">
+            <div class="boat-body">
+                <div class="boat-deck"></div>
+            </div>
+            <div class="fisher">
+                <div class="fisher-head"></div>
+                <div class="fisher-body"></div>
+            </div>
+            <div class="fishing-rod">
+                <div class="fishing-line"></div>
+            </div>
+        </div>
+
+        <!-- Game UI -->
+        <div class="game-ui">
+            <div class="profit-display">
+                💰 Total Profit: $<span id="totalProfit">0</span>
+            </div>
+            <div class="profit-display">
+                🎣 Fish Caught: <span id="fishCaught">0</span>
+            </div>
+        </div>
+
+        <!-- Fish Info -->
+        <div class="fish-info">
+            <h3>🐟 Fish Values</h3>
+            <div class="fish-legend">
+                <div class="legend-item">
+                    <div class="legend-fish legend-small"></div>
+                    <span>Small: $50-100</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-fish legend-medium"></div>
+                    <span>Medium: $200-500</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-fish legend-large"></div>
+                    <span>Large: $1000-2000</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="instructions">
+            <p>🎮 <strong>ArgusAI Fisher Preview</strong></p>
+            <p>Click on fish to catch them! Bigger fish = Higher profits!</p>
+            <p>Fish represent stock alerts that grow as profit potential increases</p>
+        </div>
+    </div>
+
+    <script>
+        let totalProfit = 0;
+        let fishCaught = 0;
+        let fishId = 0;
+
+        // Game state
+        const gameContainer = document.querySelector('.game-container');
+        const totalProfitEl = document.getElementById('totalProfit');
+        const fishCaughtEl = document.getElementById('fishCaught');
+
+        // Fish types and values
+        const fishTypes = [
+            { class: 'fish-small', minValue: 50, maxValue: 100, probability: 0.5 },
+            { class: 'fish-medium', minValue: 200, maxValue: 500, probability: 0.3 },
+            { class: 'fish-large', minValue: 1000, maxValue: 2000, probability: 0.2 }
+        ];
+
+        // Create a fish
+        function createFish() {
+            const fish = document.createElement('div');
+            fish.className = 'fish';
+            fish.id = `fish-${fishId++}`;
+            
+            // Random fish type based on probability
+            const rand = Math.random();
+            let selectedType = fishTypes[0]; // default to small
+            let cumulative = 0;
+            
+            for (const type of fishTypes) {
+                cumulative += type.probability;
+                if (rand <= cumulative) {
+                    selectedType = type;
+                    break;
+                }
+            }
+            
+            fish.classList.add(selectedType.class);
+            
+            // Random starting position and movement
+            const startY = Math.random() * 200 + 300; // Water area
+            const startX = -60; // Start off-screen left
+            const endX = window.innerWidth + 60; // End off-screen right
+            const speed = Math.random() * 3 + 2; // 2-5 seconds
+            
+            fish.style.top = startY + 'px';
+            fish.style.left = startX + 'px';
+            
+            // Fish HTML structure
+            fish.innerHTML = `
+                <div class="fish-body">
+                    <div class="fish-tail"></div>
+                    <div class="fish-eye"></div>
+                </div>
+            `;
+            
+            gameContainer.appendChild(fish);
+            
+            // Animate fish movement
+            fish.style.transition = `left ${speed}s linear`;
+            setTimeout(() => {
+                fish.style.left = endX + 'px';
+            }, 100);
+            
+            // Click to catch fish
+            fish.addEventListener('click', (e) => {
+                e.stopPropagation();
+                catchFish(fish, selectedType, e);
+            });
+            
+            // Remove fish after animation
+            setTimeout(() => {
+                if (fish.parentNode) {
+                    fish.remove();
+                }
+            }, speed * 1000 + 1000);
+        }
+
+        // Catch fish function
+        function catchFish(fishElement, fishType, event) {
+            // Calculate profit
+            const profit = Math.floor(Math.random() * (fishType.maxValue - fishType.minValue + 1)) + fishType.minValue;
+            totalProfit += profit;
+            fishCaught++;
+            
+            // Update UI
+            totalProfitEl.textContent = totalProfit.toLocaleString();
+            fishCaughtEl.textContent = fishCaught;
+            
+            // Create catch effect
+            const effect = document.createElement('div');
+            effect.className = 'catch-effect';
+            effect.style.left = (event.clientX - 25) + 'px';
+            effect.style.top = (event.clientY - 25) + 'px';
+            gameContainer.appendChild(effect);
+            
+            // Create coin animation
+            const coin = document.createElement('div');
+            coin.className = 'coin';
+            coin.style.left = (event.clientX - 15) + 'px';
+            coin.style.top = (event.clientY - 15) + 'px';
+            gameContainer.appendChild(coin);
+            
+            // Remove effect and coin after animation
+            setTimeout(() => {
+                effect.remove();
+                coin.remove();
+            }, 1000);
+            
+            // Remove fish
+            fishElement.remove();
+            
+            console.log(`Caught ${fishType.class} fish for $${profit}!`);
+        }
+
+        // Spawn fish periodically
+        function spawnFish() {
+            createFish();
+            // Random spawn time between 1-3 seconds
+            const nextSpawn = Math.random() * 2000 + 1000;
+            setTimeout(spawnFish, nextSpawn);
+        }
+
+        // Start the game
+        setTimeout(spawnFish, 1000);
+        
+        // Click water for missed catches (optional feedback)
+        gameContainer.addEventListener('click', (e) => {
+            if (e.target === gameContainer || e.target.classList.contains('water')) {
+                // Create small splash effect for missed clicks
+                const splash = document.createElement('div');
+                splash.style.position = 'absolute';
+                splash.style.left = (e.clientX - 10) + 'px';
+                splash.style.top = (e.clientY - 10) + 'px';
+                splash.style.width = '20px';
+                splash.style.height = '20px';
+                splash.style.background = 'rgba(255, 255, 255, 0.6)';
+                splash.style.borderRadius = '50%';
+                splash.style.animation = 'catchSplash 0.3s ease-out';
+                splash.style.pointerEvents = 'none';
+                gameContainer.appendChild(splash);
+                
+                setTimeout(() => splash.remove(), 300);
+            }
+        });
+    </script>
+</body>
+</html>
