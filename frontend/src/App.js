@@ -2196,7 +2196,7 @@ function App() {
 
         {/* Profile Tab */}
         {activeTab === 'profile' && (
-          <div className="space-y-6">
+          <div className="flex-1 overflow-y-auto space-y-6 p-4 max-h-screen">{/* Allow scrolling */}
             {/* XP Progress - Mobile/Tablet */}
             <div className="lg:hidden">
               <XPProgressBar 
