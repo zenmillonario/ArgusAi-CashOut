@@ -1957,6 +1957,14 @@ function App() {
           />
         )}
 
+        {/* Achievements Tab */}
+        {activeTab === 'achievements' && (
+          <AchievementsTab 
+            currentUser={currentUser}
+            isDarkTheme={isDarkTheme}
+          />
+        )}
+
         {/* Portfolio Tab */}
         {activeTab === 'portfolio' && (
           <PortfolioTab 
