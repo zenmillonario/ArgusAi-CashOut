@@ -290,6 +290,24 @@ class UserRole(str, Enum):
     MODERATOR = "moderator"
     ADMIN = "admin"
 
+class NotificationType(str, Enum):
+    FOLLOW = "follow"
+    REPLY = "reply"
+    REACTION = "reaction"
+    ACHIEVEMENT = "achievement"
+    TRADE_ALERT = "trade_alert"
+
+class Notification(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str  # User who receives the notification
+    type: NotificationType
+    title: str
+    message: str
+    data: Dict[str, Any] = Field(default_factory=dict)  # Additional data (user IDs, etc.)
+    read: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: Optional[datetime] = None  # Optional expiration for temporary notifications
+
 # Define Models
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
