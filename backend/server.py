@@ -313,6 +313,25 @@ class User(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     approved_at: Optional[datetime] = None
     approved_by: Optional[str] = None
+    
+    # NEW: Experience Points System
+    experience_points: int = 0
+    level: int = 1
+    daily_login_streak: int = 0
+    last_login_date: Optional[str] = None  # YYYY-MM-DD format
+    
+    # NEW: Profile Customization
+    profile_banner: Optional[str] = None  # URL or base64
+    bio: Optional[str] = None
+    trading_style_tags: List[str] = Field(default_factory=list)
+    
+    # NEW: Theme Customization
+    custom_theme: Optional[Dict[str, Any]] = None
+    active_theme_name: str = "dark"  # default theme
+    
+    # NEW: Achievements
+    achievements: List[str] = Field(default_factory=list)  # Achievement IDs
+    achievement_progress: Dict[str, int] = Field(default_factory=dict)  # Progress tracking
 
 class UserCreate(BaseModel):
     username: str
