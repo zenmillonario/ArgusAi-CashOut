@@ -1148,6 +1148,29 @@ function App() {
     }
   };
 
+  const fetchAllUsers = async () => {
+    try {
+      const response = await axios.get(`${API}/all-users`);
+      setAllUsers(response.data.users || []);
+    } catch (error) {
+      console.error('Error fetching all users:', error);
+    }
+  };
+
+  const fetchUserXPData = async () => {
+    try {
+      if (currentUser?.id) {
+        const response = await axios.get(`${API}/api/users/${currentUser.id}/profile`);
+        setUserXP({
+          experience_points: response.data.experience_points || 0,
+          level: response.data.level || 1
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user XP data:', error);
+    }
+  };
+
   const formatMessageContent = (content, tickers) => {
     let formattedContent = content;
     
