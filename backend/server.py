@@ -2236,6 +2236,16 @@ async def create_paper_trade(trade_data: PaperTradeCreate, user_id: str):
         {"$set": performance}
     )
     
+    # Award XP for trading activity
+    await award_xp(user_id, "trade_executed", 25)
+    
+    # Award extra XP for profitable trades  
+    if trade_data.action == "SELL":
+        # For sell trades, check if the overall position became profitable
+        # This is a simplified check - you might want more sophisticated logic
+        if performance.get("total_profit", 0) > 0:
+            await award_xp(user_id, "profitable_trade", 50)
+    
     return trade
 
 @api_router.get("/positions/{user_id}")
