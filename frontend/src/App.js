@@ -2331,9 +2331,10 @@ function App() {
                 />
               )}
             </div>
-                  </div>
-                  
-                  <div>
+          </div>
+        )}
+
+        {/* Admin Tab */}
                     <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                       Email
                     </label>
