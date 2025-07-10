@@ -1967,6 +1967,8 @@ async def update_user_profile(user_id: str, profile_update: ProfileUpdate):
         update_data["trading_style_tags"] = profile_update.trading_style_tags
     if profile_update.profile_banner is not None:
         update_data["profile_banner"] = profile_update.profile_banner
+    if profile_update.avatar_url is not None:
+        update_data["avatar_url"] = profile_update.avatar_url
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided")
@@ -1978,6 +1980,10 @@ async def update_user_profile(user_id: str, profile_update: ProfileUpdate):
     
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Award XP for profile completion
+    if profile_update.avatar_url or profile_update.bio or profile_update.profile_banner:
+        await award_xp(user_id, "profile_update", 25)
     
     return {"message": "Profile updated successfully"}
 
