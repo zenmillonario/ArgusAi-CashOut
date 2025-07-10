@@ -764,6 +764,25 @@ function App() {
             
             playSimpleAdminSound();
             
+          } else if (data.type === 'notification') {
+            // New notification received
+            console.log('🔔 Notification received:', data);
+            
+            // Add to notifications list
+            setNotifications(prev => [data.notification, ...prev]);
+            
+            // Play notification sound for follow notifications
+            if (data.notification.type === 'follow') {
+              playNotificationSound();
+            }
+            
+            // Visual notification in app title
+            setTimeout(() => {
+              if (document.hidden) {
+                document.title = `🔔 ${data.notification.title} - CashoutAI`;
+              }
+            }, 100);
+            
           } else if (data.type === 'user_joined') {
             // User joined chat
             setOnlineUsers(prev => {
