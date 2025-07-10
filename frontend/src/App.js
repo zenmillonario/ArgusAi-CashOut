@@ -1992,7 +1992,7 @@ function App() {
 
         {/* Portfolio Tab */}
         {activeTab === 'portfolio' && (
-          <div className="space-y-6">
+          <div className="flex-1 overflow-y-auto space-y-6 p-4 max-h-screen">
             {/* Asset Allocation Wheel */}
             <AssetAllocationWheel 
               positions={openPositions}
