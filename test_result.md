@@ -373,21 +373,41 @@ frontend:
         agent: "testing"
         comment: "User Registration Admin Notifications are working correctly. When a new user registers, the system sends FCM notifications to all admin users with registered tokens. The notifications include the user's name and a message indicating that approval is needed. The implementation correctly identifies admin users and retrieves their FCM tokens. All tests passed successfully."
 
-  - task: "Admin-Only FCM Notifications"
+  - task: "Optional Location Field Frontend"
     implemented: true
-    working: true
-    file: "/app/backend/server.py"
+    working: "NA"
+    file: "/app/frontend/src/ProfileCustomization.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Updated FCM push notification system to only send notifications when ADMIN users post messages in chat."
-      - working: true
-        agent: "testing"
-        comment: "Admin-Only FCM Notifications are working correctly. Verified that when admin users post messages (both text and image), FCM notifications are sent to all other users with the correct title format '👑 Admin {admin_name}' and data type 'admin_message'. Also confirmed that when regular members or moderators post messages, no FCM notifications are sent, but the messages are still created and broadcast via WebSocket. All tests passed successfully."
-  - task: "Scrolling and Layout Fixes"
+        comment: "Added location field to ProfileCustomization component. Users can now enter their location and choose whether to show it on their public profile."
+        
+  - task: "Follow/Unfollow Frontend"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/PublicProfile.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added follow/unfollow functionality to PublicProfile component. Users can now follow/unfollow other users with a button. Follow status is displayed and counts are updated in real-time."
+        
+  - task: "Follower/Following Display Frontend"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/PublicProfile.js, /app/frontend/src/UserList.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added follower/following counts display to PublicProfile component. Updated UserList component to show follow indicators and follower counts for each user."
     implemented: true
     working: true
     file: "/app/frontend/src/AchievementsTab.js, /app/frontend/src/PortfolioTab.js, /app/frontend/src/ProfileCustomization.js"
