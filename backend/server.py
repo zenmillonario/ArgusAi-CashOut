@@ -363,7 +363,33 @@ class UserApproval(BaseModel):
 
 class UserRoleUpdate(BaseModel):
     user_id: str
-    role: UserRole
+    new_role: UserRole
+
+# NEW: XP and Achievement Models
+class XPAction(BaseModel):
+    user_id: str
+    action: str  # 'daily_login', 'trade', 'chat_message', etc.
+    points: int
+    metadata: Optional[Dict[str, Any]] = None
+
+class Achievement(BaseModel):
+    id: str
+    name: str
+    description: str
+    icon: str
+    points_reward: int
+    requirement_type: str  # 'count', 'streak', 'value', 'milestone'
+    requirement_value: int
+    category: str  # 'trading', 'social', 'platform'
+
+class ProfileUpdate(BaseModel):
+    bio: Optional[str] = None
+    trading_style_tags: Optional[List[str]] = None
+    profile_banner: Optional[str] = None
+
+class ThemeUpdate(BaseModel):
+    theme_name: str
+    custom_colors: Optional[Dict[str, str]] = None
     admin_id: str
 
 class ProfileUpdate(BaseModel):
