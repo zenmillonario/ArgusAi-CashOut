@@ -44,7 +44,9 @@ const ProfileCustomization = ({ currentUser, isDarkTheme, onUpdate }) => {
         bio: response.data.bio || '',
         trading_style_tags: response.data.trading_style_tags || [],
         profile_banner: response.data.profile_banner || '',
-        avatar_url: response.data.avatar_url || ''
+        avatar_url: response.data.avatar_url || '',
+        location: response.data.location || '',
+        show_location: response.data.show_location || false
       });
       setBannerPreview(response.data.profile_banner);
       setAvatarPreview(response.data.avatar_url);
