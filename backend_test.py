@@ -2888,6 +2888,678 @@ def test_case_insensitive_login():
     print("✅ Case-Insensitive Login tests passed")
     return True
 
+def test_optional_location_field():
+    """Test the optional location field functionality"""
+    print("\n🔍 TESTING FEATURE: Optional Location Field")
+    
+    tester = CashoutAITester()
+    
+    # Login as admin
+    admin_user = tester.test_login("admin", "admin123", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed, cannot test optional location field")
+        return False
+    
+    print("✅ Admin login successful")
+    
+    # Test 1: Update profile with location field
+    location_data = "San Francisco, CA"
+    success, response = tester.run_test(
+        "Update profile with location",
+        "PUT",
+        "users/update-profile",
+        200,
+        session=tester.session1,
+        data={
+            "user_id": admin_user['id'],
+            "location": location_data,
+            "show_location": True
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to update profile with location")
+        return False
+    
+    print(f"✅ Successfully updated profile with location: {location_data}")
+    
+    # Test 2: Retrieve user profile with location field
+    success, profile_response = tester.run_test(
+        "Get user profile with location",
+        "GET",
+        f"users/profile/{admin_user['id']}",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to retrieve user profile")
+        return False
+    
+    # Verify location field is present and correct
+    if 'location' not in profile_response:
+        print("❌ Location field not found in profile response")
+        return False
+    
+    if profile_response['location'] != location_data:
+        print(f"❌ Location field mismatch. Expected: {location_data}, Got: {profile_response['location']}")
+        return False
+    
+    print(f"✅ Location field correctly retrieved: {profile_response['location']}")
+    
+    # Test 3: Update profile with empty/null location
+    success, response = tester.run_test(
+        "Update profile with null location",
+        "PUT",
+        "users/update-profile",
+        200,
+        session=tester.session1,
+        data={
+            "user_id": admin_user['id'],
+            "location": None,
+            "show_location": False
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to update profile with null location")
+        return False
+    
+    print("✅ Successfully updated profile with null location")
+    
+    # Test 4: Retrieve profile with null location
+    success, profile_response = tester.run_test(
+        "Get user profile with null location",
+        "GET",
+        f"users/profile/{admin_user['id']}",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to retrieve user profile with null location")
+        return False
+    
+    # Verify location field is null or empty
+    location_value = profile_response.get('location')
+    if location_value is not None and location_value != "":
+        print(f"❌ Location should be null/empty but got: {location_value}")
+        return False
+    
+    print("✅ Location field correctly set to null/empty")
+    
+    # Test 5: Update profile with different location
+    new_location = "New York, NY"
+    success, response = tester.run_test(
+        "Update profile with new location",
+        "PUT",
+        "users/update-profile",
+        200,
+        session=tester.session1,
+        data={
+            "user_id": admin_user['id'],
+            "location": new_location,
+            "show_location": True
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to update profile with new location")
+        return False
+    
+    print(f"✅ Successfully updated profile with new location: {new_location}")
+    
+    # Verify the new location
+    success, profile_response = tester.run_test(
+        "Get user profile with new location",
+        "GET",
+        f"users/profile/{admin_user['id']}",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to retrieve user profile with new location")
+        return False
+    
+    if profile_response.get('location') != new_location:
+        print(f"❌ New location not updated correctly. Expected: {new_location}, Got: {profile_response.get('location')}")
+        return False
+    
+    print(f"✅ New location correctly updated: {profile_response.get('location')}")
+    
+    print("✅ Optional Location Field test passed")
+    return True
+
+def test_follow_unfollow_system():
+    """Test the follow/unfollow system functionality"""
+    print("\n🔍 TESTING FEATURE: Follow/Unfollow System")
+    
+    tester = CashoutAITester()
+    
+    # Login as admin
+    admin_user = tester.test_login("admin", "admin123", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed, cannot test follow/unfollow system")
+        return False
+    
+    print("✅ Admin login successful")
+    
+    # Create test users for follow/unfollow testing
+    timestamp = datetime.now().strftime("%H%M%S")
+    
+    # Create first test user
+    user1_data = {
+        "username": f"follow_test1_{timestamp}",
+        "email": f"follow_test1_{timestamp}@example.com",
+        "real_name": f"Follow Test User 1 {timestamp}",
+        "membership_plan": "Monthly",
+        "password": "TestPass123!"
+    }
+    
+    test_user1 = tester.test_register_with_membership(**user1_data)
+    if not test_user1:
+        print("❌ Failed to create first test user")
+        return False
+    
+    # Approve first test user
+    approve_result1 = tester.test_user_approval(
+        tester.session1, test_user1['id'], admin_user['id'], approved=True
+    )
+    if not approve_result1:
+        print("❌ Failed to approve first test user")
+        return False
+    
+    # Create second test user
+    user2_data = {
+        "username": f"follow_test2_{timestamp}",
+        "email": f"follow_test2_{timestamp}@example.com",
+        "real_name": f"Follow Test User 2 {timestamp}",
+        "membership_plan": "Monthly",
+        "password": "TestPass123!"
+    }
+    
+    test_user2 = tester.test_register_with_membership(**user2_data)
+    if not test_user2:
+        print("❌ Failed to create second test user")
+        return False
+    
+    # Approve second test user
+    approve_result2 = tester.test_user_approval(
+        tester.session1, test_user2['id'], admin_user['id'], approved=True
+    )
+    if not approve_result2:
+        print("❌ Failed to approve second test user")
+        return False
+    
+    # Login as both test users
+    user1_login = tester.test_login(user1_data["username"], user1_data["password"], tester.session2)
+    if not user1_login:
+        print("❌ First test user login failed")
+        return False
+    
+    user2_login = tester.test_login(user2_data["username"], user2_data["password"], tester.session3)
+    if not user2_login:
+        print("❌ Second test user login failed")
+        return False
+    
+    print("✅ Both test users created and logged in successfully")
+    
+    # Test 1: User1 follows User2
+    success, response = tester.run_test(
+        "User1 follows User2",
+        "POST",
+        f"users/follow/{test_user2['id']}",
+        200,
+        session=tester.session2,
+        data={"user_id": test_user1['id']}
+    )
+    
+    if not success:
+        print("❌ Failed to follow user")
+        return False
+    
+    print("✅ User1 successfully followed User2")
+    
+    # Test 2: Verify follower/following lists are updated
+    # Check User1's profile (should have User2 in following list)
+    success, user1_profile = tester.run_test(
+        "Get User1 profile after following",
+        "GET",
+        f"users/profile/{test_user1['id']}",
+        200,
+        session=tester.session2
+    )
+    
+    if not success:
+        print("❌ Failed to get User1 profile")
+        return False
+    
+    # Check if User2 is in User1's following list
+    following_list = user1_profile.get('following', [])
+    if test_user2['id'] not in following_list:
+        print(f"❌ User2 not found in User1's following list: {following_list}")
+        return False
+    
+    print("✅ User2 correctly added to User1's following list")
+    
+    # Check User2's profile (should have User1 in followers list)
+    success, user2_profile = tester.run_test(
+        "Get User2 profile after being followed",
+        "GET",
+        f"users/profile/{test_user2['id']}",
+        200,
+        session=tester.session3
+    )
+    
+    if not success:
+        print("❌ Failed to get User2 profile")
+        return False
+    
+    # Check if User1 is in User2's followers list
+    followers_list = user2_profile.get('followers', [])
+    if test_user1['id'] not in followers_list:
+        print(f"❌ User1 not found in User2's followers list: {followers_list}")
+        return False
+    
+    print("✅ User1 correctly added to User2's followers list")
+    
+    # Test 3: User2 follows User1 back (mutual following)
+    success, response = tester.run_test(
+        "User2 follows User1 back",
+        "POST",
+        f"users/follow/{test_user1['id']}",
+        200,
+        session=tester.session3,
+        data={"user_id": test_user2['id']}
+    )
+    
+    if not success:
+        print("❌ Failed for User2 to follow User1 back")
+        return False
+    
+    print("✅ User2 successfully followed User1 back")
+    
+    # Test 4: Admin follows both users
+    success, response = tester.run_test(
+        "Admin follows User1",
+        "POST",
+        f"users/follow/{test_user1['id']}",
+        200,
+        session=tester.session1,
+        data={"user_id": admin_user['id']}
+    )
+    
+    if not success:
+        print("❌ Failed for Admin to follow User1")
+        return False
+    
+    success, response = tester.run_test(
+        "Admin follows User2",
+        "POST",
+        f"users/follow/{test_user2['id']}",
+        200,
+        session=tester.session1,
+        data={"user_id": admin_user['id']}
+    )
+    
+    if not success:
+        print("❌ Failed for Admin to follow User2")
+        return False
+    
+    print("✅ Admin successfully followed both users")
+    
+    # Test 5: Test unfollow functionality - User1 unfollows User2
+    success, response = tester.run_test(
+        "User1 unfollows User2",
+        "POST",
+        f"users/unfollow/{test_user2['id']}",
+        200,
+        session=tester.session2,
+        data={"user_id": test_user1['id']}
+    )
+    
+    if not success:
+        print("❌ Failed to unfollow user")
+        return False
+    
+    print("✅ User1 successfully unfollowed User2")
+    
+    # Test 6: Verify unfollow updated the lists correctly
+    # Check User1's profile (should NOT have User2 in following list)
+    success, user1_profile = tester.run_test(
+        "Get User1 profile after unfollowing",
+        "GET",
+        f"users/profile/{test_user1['id']}",
+        200,
+        session=tester.session2
+    )
+    
+    if not success:
+        print("❌ Failed to get User1 profile after unfollowing")
+        return False
+    
+    following_list = user1_profile.get('following', [])
+    if test_user2['id'] in following_list:
+        print(f"❌ User2 still found in User1's following list after unfollow: {following_list}")
+        return False
+    
+    print("✅ User2 correctly removed from User1's following list")
+    
+    # Check User2's profile (should NOT have User1 in followers list)
+    success, user2_profile = tester.run_test(
+        "Get User2 profile after being unfollowed",
+        "GET",
+        f"users/profile/{test_user2['id']}",
+        200,
+        session=tester.session3
+    )
+    
+    if not success:
+        print("❌ Failed to get User2 profile after being unfollowed")
+        return False
+    
+    followers_list = user2_profile.get('followers', [])
+    if test_user1['id'] in followers_list:
+        print(f"❌ User1 still found in User2's followers list after unfollow: {followers_list}")
+        return False
+    
+    print("✅ User1 correctly removed from User2's followers list")
+    
+    # Test 7: Test error handling - try to follow invalid user ID
+    invalid_user_id = "invalid_user_id_12345"
+    success, response = tester.run_test(
+        "Try to follow invalid user ID",
+        "POST",
+        f"users/follow/{invalid_user_id}",
+        404,  # Expecting 404 for invalid user
+        session=tester.session1,
+        data={"user_id": admin_user['id']}
+    )
+    
+    if not success:
+        print("❌ Invalid user ID should return 404 error")
+        return False
+    
+    print("✅ Invalid user ID correctly returns 404 error")
+    
+    # Test 8: Test preventing users from following themselves
+    success, response = tester.run_test(
+        "Try to follow self",
+        "POST",
+        f"users/follow/{admin_user['id']}",
+        400,  # Expecting 400 for self-follow attempt
+        session=tester.session1,
+        data={"user_id": admin_user['id']}
+    )
+    
+    if not success:
+        print("❌ Self-follow should return 400 error")
+        return False
+    
+    print("✅ Self-follow correctly returns 400 error")
+    
+    print("✅ Follow/Unfollow System test passed")
+    return True
+
+def test_follower_following_counts():
+    """Test the follower/following counts functionality"""
+    print("\n🔍 TESTING FEATURE: Follower/Following Counts")
+    
+    tester = CashoutAITester()
+    
+    # Login as admin
+    admin_user = tester.test_login("admin", "admin123", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed, cannot test follower/following counts")
+        return False
+    
+    print("✅ Admin login successful")
+    
+    # Get initial admin profile to check baseline counts
+    success, initial_profile = tester.run_test(
+        "Get initial admin profile",
+        "GET",
+        f"users/profile/{admin_user['id']}",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to get initial admin profile")
+        return False
+    
+    initial_following = len(initial_profile.get('following', []))
+    initial_followers = len(initial_profile.get('followers', []))
+    
+    print(f"✅ Initial counts - Following: {initial_following}, Followers: {initial_followers}")
+    
+    # Create multiple test users for comprehensive count testing
+    timestamp = datetime.now().strftime("%H%M%S")
+    test_users = []
+    
+    for i in range(3):
+        user_data = {
+            "username": f"count_test_{i}_{timestamp}",
+            "email": f"count_test_{i}_{timestamp}@example.com",
+            "real_name": f"Count Test User {i} {timestamp}",
+            "membership_plan": "Monthly",
+            "password": "TestPass123!"
+        }
+        
+        test_user = tester.test_register_with_membership(**user_data)
+        if not test_user:
+            print(f"❌ Failed to create test user {i}")
+            return False
+        
+        # Approve test user
+        approve_result = tester.test_user_approval(
+            tester.session1, test_user['id'], admin_user['id'], approved=True
+        )
+        if not approve_result:
+            print(f"❌ Failed to approve test user {i}")
+            return False
+        
+        test_users.append(test_user)
+    
+    print(f"✅ Created and approved {len(test_users)} test users")
+    
+    # Test 1: Admin follows all test users
+    for i, test_user in enumerate(test_users):
+        success, response = tester.run_test(
+            f"Admin follows test user {i}",
+            "POST",
+            f"users/follow/{test_user['id']}",
+            200,
+            session=tester.session1,
+            data={"user_id": admin_user['id']}
+        )
+        
+        if not success:
+            print(f"❌ Failed for admin to follow test user {i}")
+            return False
+    
+    print("✅ Admin successfully followed all test users")
+    
+    # Test 2: Check admin's following count increased
+    success, admin_profile = tester.run_test(
+        "Get admin profile after following users",
+        "GET",
+        f"users/profile/{admin_user['id']}",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to get admin profile after following")
+        return False
+    
+    current_following = len(admin_profile.get('following', []))
+    expected_following = initial_following + len(test_users)
+    
+    if current_following != expected_following:
+        print(f"❌ Following count mismatch. Expected: {expected_following}, Got: {current_following}")
+        return False
+    
+    print(f"✅ Admin following count correctly increased to {current_following}")
+    
+    # Test 3: Check each test user's followers count
+    for i, test_user in enumerate(test_users):
+        success, user_profile = tester.run_test(
+            f"Get test user {i} profile",
+            "GET",
+            f"users/profile/{test_user['id']}",
+            200,
+            session=tester.session1
+        )
+        
+        if not success:
+            print(f"❌ Failed to get test user {i} profile")
+            return False
+        
+        followers_count = len(user_profile.get('followers', []))
+        if followers_count != 1:  # Should have 1 follower (admin)
+            print(f"❌ Test user {i} followers count mismatch. Expected: 1, Got: {followers_count}")
+            return False
+        
+        # Verify admin is in the followers list
+        if admin_user['id'] not in user_profile.get('followers', []):
+            print(f"❌ Admin not found in test user {i} followers list")
+            return False
+    
+    print("✅ All test users have correct followers count and admin in followers list")
+    
+    # Test 4: Test users follow each other (create a network)
+    # User 0 follows User 1, User 1 follows User 2, User 2 follows User 0
+    follow_pairs = [(0, 1), (1, 2), (2, 0)]
+    
+    for follower_idx, followee_idx in follow_pairs:
+        # Login as follower user
+        follower_login = tester.test_login(
+            f"count_test_{follower_idx}_{timestamp}", 
+            "TestPass123!", 
+            tester.session2
+        )
+        if not follower_login:
+            print(f"❌ Failed to login as test user {follower_idx}")
+            return False
+        
+        # Follow the target user
+        success, response = tester.run_test(
+            f"User {follower_idx} follows User {followee_idx}",
+            "POST",
+            f"users/follow/{test_users[followee_idx]['id']}",
+            200,
+            session=tester.session2,
+            data={"user_id": test_users[follower_idx]['id']}
+        )
+        
+        if not success:
+            print(f"❌ Failed for user {follower_idx} to follow user {followee_idx}")
+            return False
+    
+    print("✅ Test users successfully created follow network")
+    
+    # Test 5: Verify final counts for all users
+    expected_counts = {
+        0: {"following": 1, "followers": 2},  # follows 1, followed by admin and 2
+        1: {"following": 1, "followers": 2},  # follows 2, followed by admin and 0
+        2: {"following": 1, "followers": 2},  # follows 0, followed by admin and 1
+    }
+    
+    for i, test_user in enumerate(test_users):
+        success, user_profile = tester.run_test(
+            f"Get final profile for test user {i}",
+            "GET",
+            f"users/profile/{test_user['id']}",
+            200,
+            session=tester.session1
+        )
+        
+        if not success:
+            print(f"❌ Failed to get final profile for test user {i}")
+            return False
+        
+        following_count = len(user_profile.get('following', []))
+        followers_count = len(user_profile.get('followers', []))
+        
+        expected_following = expected_counts[i]["following"]
+        expected_followers = expected_counts[i]["followers"]
+        
+        if following_count != expected_following:
+            print(f"❌ User {i} following count mismatch. Expected: {expected_following}, Got: {following_count}")
+            return False
+        
+        if followers_count != expected_followers:
+            print(f"❌ User {i} followers count mismatch. Expected: {expected_followers}, Got: {followers_count}")
+            return False
+        
+        print(f"✅ User {i} has correct counts - Following: {following_count}, Followers: {followers_count}")
+    
+    # Test 6: Test unfollow and verify counts decrease
+    # Admin unfollows first test user
+    success, response = tester.run_test(
+        "Admin unfollows test user 0",
+        "POST",
+        f"users/unfollow/{test_users[0]['id']}",
+        200,
+        session=tester.session1,
+        data={"user_id": admin_user['id']}
+    )
+    
+    if not success:
+        print("❌ Failed for admin to unfollow test user 0")
+        return False
+    
+    print("✅ Admin successfully unfollowed test user 0")
+    
+    # Verify admin's following count decreased
+    success, admin_profile = tester.run_test(
+        "Get admin profile after unfollowing",
+        "GET",
+        f"users/profile/{admin_user['id']}",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to get admin profile after unfollowing")
+        return False
+    
+    final_following = len(admin_profile.get('following', []))
+    expected_final_following = current_following - 1
+    
+    if final_following != expected_final_following:
+        print(f"❌ Admin following count after unfollow mismatch. Expected: {expected_final_following}, Got: {final_following}")
+        return False
+    
+    print(f"✅ Admin following count correctly decreased to {final_following}")
+    
+    # Verify test user 0's followers count decreased
+    success, user0_profile = tester.run_test(
+        "Get test user 0 profile after being unfollowed",
+        "GET",
+        f"users/profile/{test_users[0]['id']}",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to get test user 0 profile after being unfollowed")
+        return False
+    
+    user0_followers = len(user0_profile.get('followers', []))
+    expected_user0_followers = 1  # Should now have 1 follower (user 2)
+    
+    if user0_followers != expected_user0_followers:
+        print(f"❌ Test user 0 followers count after unfollow mismatch. Expected: {expected_user0_followers}, Got: {user0_followers}")
+        return False
+    
+    print(f"✅ Test user 0 followers count correctly decreased to {user0_followers}")
+    
+    print("✅ Follower/Following Counts test passed")
+    return True
+
 def main():
     """Run all tests and report results"""
     print("\n🔍 RUNNING ALL TESTS FOR ARGUSAI CASHOUT BACKEND")
