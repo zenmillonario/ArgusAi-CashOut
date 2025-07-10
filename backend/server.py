@@ -1857,6 +1857,185 @@ async def remove_user(user_id: str, admin_id: str):
     
     return {"message": "User removed successfully"}
 
+# NEW: XP and Achievement Endpoints
+@api_router.post("/users/{user_id}/award-xp")
+async def award_user_xp(user_id: str, xp_action: XPAction):
+    """Award XP to user for various actions"""
+    await award_xp(user_id, xp_action.action, xp_action.points, xp_action.metadata or {})
+    
+    # Get updated user data
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "message": "XP awarded successfully",
+        "total_xp": user.get("experience_points", 0),
+        "level": user.get("level", 1),
+        "xp_for_next_level": get_xp_for_next_level(user.get("experience_points", 0))
+    }
+
+@api_router.get("/users/{user_id}/achievements")
+async def get_user_achievements(user_id: str):
+    """Get user's achievements and progress"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_achievements = user.get("achievements", [])
+    progress = user.get("achievement_progress", {})
+    
+    # Format achievement data
+    earned_achievements = []
+    available_achievements = []
+    
+    for achievement_id, achievement in ACHIEVEMENTS.items():
+        if achievement_id in user_achievements:
+            earned_achievements.append(achievement)
+        else:
+            # Add progress information
+            achievement_copy = achievement.copy()
+            if achievement_id == "chatterbox":
+                achievement_copy["current_progress"] = progress.get("chatterbox_count", 0)
+            elif achievement_id == "heart_giver":
+                achievement_copy["current_progress"] = progress.get("heart_giver_count", 0)
+            elif achievement_id == "dedication":
+                achievement_copy["current_progress"] = progress.get("login_streak", 0)
+            elif achievement_id == "first_blood":
+                achievement_copy["current_progress"] = progress.get("profitable_trades", 0)
+            else:
+                achievement_copy["current_progress"] = 0
+                
+            available_achievements.append(achievement_copy)
+    
+    return {
+        "earned": earned_achievements,
+        "available": available_achievements,
+        "total_earned": len(earned_achievements),
+        "total_available": len(ACHIEVEMENTS)
+    }
+
+@api_router.get("/achievements")
+async def get_all_achievements():
+    """Get all available achievements"""
+    return {"achievements": list(ACHIEVEMENTS.values())}
+
+# NEW: Profile Customization Endpoints  
+@api_router.post("/users/{user_id}/profile")
+async def update_user_profile(user_id: str, profile_update: ProfileUpdate):
+    """Update user profile customization"""
+    update_data = {}
+    
+    if profile_update.bio is not None:
+        update_data["bio"] = profile_update.bio
+    if profile_update.trading_style_tags is not None:
+        update_data["trading_style_tags"] = profile_update.trading_style_tags
+    if profile_update.profile_banner is not None:
+        update_data["profile_banner"] = profile_update.profile_banner
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No update data provided")
+    
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "Profile updated successfully"}
+
+@api_router.get("/users/{user_id}/profile")
+async def get_user_profile(user_id: str):
+    """Get user profile for display"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "screen_name": user.get("screen_name"),
+        "bio": user.get("bio"),
+        "trading_style_tags": user.get("trading_style_tags", []),
+        "profile_banner": user.get("profile_banner"),
+        "level": user.get("level", 1),
+        "experience_points": user.get("experience_points", 0),
+        "achievements": user.get("achievements", []),
+        "total_profit": user.get("total_profit", 0),
+        "win_percentage": user.get("win_percentage", 0),
+        "trades_count": user.get("trades_count", 0),
+        "is_admin": user.get("is_admin", False),
+        "role": user.get("role", "member")
+    }
+
+# NEW: Theme Customization Endpoints
+@api_router.post("/users/{user_id}/theme")
+async def update_user_theme(user_id: str, theme_update: ThemeUpdate):
+    """Update user's active theme"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if user has unlocked this theme based on level
+    user_level = user.get("level", 1)
+    locked_themes = {
+        "sunrise": 2,
+        "ocean": 3, 
+        "midnight": 4,
+        "golden": 5
+    }
+    
+    if theme_update.theme_name in locked_themes:
+        required_level = locked_themes[theme_update.theme_name]
+        if user_level < required_level:
+            raise HTTPException(
+                status_code=403, 
+                detail=f"Theme '{theme_update.theme_name}' requires level {required_level}"
+            )
+    
+    update_data = {
+        "active_theme_name": theme_update.theme_name
+    }
+    
+    if theme_update.custom_colors:
+        update_data["custom_theme"] = theme_update.custom_colors
+    
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": update_data}
+    )
+    
+    return {"message": "Theme updated successfully"}
+
+@api_router.get("/users/{user_id}/theme")
+async def get_user_theme(user_id: str):
+    """Get user's current theme"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_level = user.get("level", 1)
+    
+    # Available themes based on level
+    available_themes = ["dark", "light"]
+    if user_level >= 2:
+        available_themes.append("sunrise")
+    if user_level >= 3:
+        available_themes.append("ocean")
+    if user_level >= 4:
+        available_themes.append("midnight")
+    if user_level >= 5:
+        available_themes.append("golden")
+    
+    return {
+        "active_theme": user.get("active_theme_name", "dark"),
+        "custom_theme": user.get("custom_theme"),
+        "available_themes": available_themes,
+        "user_level": user_level
+    }
+
 @api_router.post("/messages", response_model=Message)
 async def create_message(message_data: MessageCreate):
     # Get user info
