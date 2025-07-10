@@ -732,14 +732,15 @@ function App() {
           } else if (data.type === 'online_users') {
             // Initial list of online users
             setOnlineUsers(data.users || []);
-            // Visual notification in app
-            if (document.hidden) {
-              document.title = `🔔 ${data.admin_real_name || data.admin_username} - CashoutAI`;
-            }
           } else if (data.type === 'admin_message') {
             // Legacy admin message handling
             console.log('🔔 Legacy admin message notification');
             playSimpleAdminSound();
+            
+            // Visual notification in app
+            if (document.hidden) {
+              document.title = `🔔 ${data.admin_real_name || data.admin_username} - CashoutAI`;
+            }
           }
         } catch (e) {
           console.error('Error parsing WebSocket message:', e);
