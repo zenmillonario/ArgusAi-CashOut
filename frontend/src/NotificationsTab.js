@@ -1,6 +1,17 @@
 import React from 'react';
 
-const NotificationsTab = ({ notifications, isDarkTheme, currentUser }) => {
+const NotificationsTab = ({ notifications, isDarkTheme, currentUser, onMarkAsRead, onDeleteNotification }) => {
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
   if (!notifications || notifications.length === 0) {
     return (
       <div className={`flex-1 flex flex-col items-center justify-center p-8 ${
