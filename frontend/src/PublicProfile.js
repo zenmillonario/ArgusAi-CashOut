@@ -17,12 +17,45 @@ const PublicProfile = ({ userId, onClose, isDarkTheme, currentUser }) => {
 
   const fetchPublicProfile = async () => {
     try {
-      const response = await axios.get(`${API}/api/users/${userId}/profile/public`);
+      const response = await axios.get(`${API}/api/users/${userId}/profile`);
       setProfile(response.data);
+      setFollowerCount(response.data.follower_count || 0);
+      setFollowingCount(response.data.following_count || 0);
+      
+      // Check if current user is following this user
+      if (currentUser && response.data.followers) {
+        setIsFollowing(response.data.followers.includes(currentUser.id));
+      }
     } catch (error) {
       console.error('Error fetching public profile:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFollow = async () => {
+    if (!currentUser || followLoading) return;
+    
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        await axios.post(`${API}/api/users/${currentUser.id}/unfollow`, {
+          target_user_id: userId
+        });
+        setIsFollowing(false);
+        setFollowerCount(prev => prev - 1);
+      } else {
+        await axios.post(`${API}/api/users/${currentUser.id}/follow`, {
+          target_user_id: userId
+        });
+        setIsFollowing(true);
+        setFollowerCount(prev => prev + 1);
+      }
+    } catch (error) {
+      console.error('Error following/unfollowing user:', error);
+      alert('Error updating follow status');
+    } finally {
+      setFollowLoading(false);
     }
   };
 
