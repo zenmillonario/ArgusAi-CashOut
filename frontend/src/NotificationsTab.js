@@ -78,6 +78,16 @@ const NotificationsTab = ({ notifications, isDarkTheme, currentUser }) => {
                           <span className="font-bold">{notification.from}</span> reacted to your message
                         </>
                       )}
+                      {notification.type === 'follow' && (
+                        <>
+                          <span className="font-bold">{notification.data?.follower_name || notification.from}</span> started following you
+                        </>
+                      )}
+                      {notification.type === 'achievement' && (
+                        <>
+                          🏆 <span className="font-bold">{notification.title}</span>
+                        </>
+                      )}
                     </p>
                     <span className={`text-xs ${
                       isDarkTheme ? 'text-gray-400' : 'text-gray-500'
