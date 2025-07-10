@@ -2163,41 +2163,174 @@ function App() {
         {/* Profile Tab */}
         {activeTab === 'profile' && (
           <div className="space-y-6">
+            {/* XP Progress - Mobile/Tablet */}
+            <div className="lg:hidden">
+              <XPProgressBar 
+                currentXP={userXP.experience_points} 
+                level={userXP.level} 
+                isDarkTheme={isDarkTheme} 
+              />
+            </div>
+
+            {/* Profile Header */}
             <div className={`backdrop-blur-lg rounded-xl border p-6 ${
               isDarkTheme 
                 ? 'bg-white/5 border-white/10' 
                 : 'bg-white/80 border-gray-200'
             }`}>
-              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                👤 My Profile
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Username
-                    </label>
-                    <div className={`p-3 rounded-lg border ${
-                      isDarkTheme 
-                        ? 'bg-white/5 border-white/10 text-white' 
-                        : 'bg-white/70 border-gray-200 text-gray-900'
-                    }`}>
-                      {currentUser?.username}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                  👤 My Profile
+                </h2>
+                <button
+                  onClick={() => setShowProfileCustomization(!showProfileCustomization)}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  {showProfileCustomization ? 'View Profile' : 'Customize Profile'}
+                </button>
+              </div>
+
+              {!showProfileCustomization ? (
+                <>
+                  {/* User Stats Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div className={`p-4 rounded-lg ${isDarkTheme ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <div className="text-2xl mb-1">⭐</div>
+                      <div className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        Level {userXP.level}
+                      </div>
+                      <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {userXP.experience_points.toLocaleString()} XP
+                      </div>
+                    </div>
+
+                    <div className={`p-4 rounded-lg ${isDarkTheme ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <div className="text-2xl mb-1">💰</div>
+                      <div className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        ${formatCurrency(currentUser?.total_profit || 0)}
+                      </div>
+                      <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Total Profit
+                      </div>
+                    </div>
+
+                    <div className={`p-4 rounded-lg ${isDarkTheme ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <div className="text-2xl mb-1">📈</div>
+                      <div className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        {currentUser?.win_percentage?.toFixed(1) || 0}%
+                      </div>
+                      <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Win Rate
+                      </div>
+                    </div>
+
+                    <div className={`p-4 rounded-lg ${isDarkTheme ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <div className="text-2xl mb-1">🎯</div>
+                      <div className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        {currentUser?.trades_count || 0}
+                      </div>
+                      <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Total Trades
+                      </div>
                     </div>
                   </div>
-                  
-                  <div>
-                    <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Real Name
-                    </label>
-                    <div className={`p-3 rounded-lg border ${
-                      isDarkTheme 
-                        ? 'bg-white/5 border-white/10 text-white' 
-                        : 'bg-white/70 border-gray-200 text-gray-900'
-                    }`}>
-                      {currentUser?.real_name || 'Not set'}
+
+                  {/* Basic Profile Info */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Username
+                        </label>
+                        <div className={`p-3 rounded-lg border ${
+                          isDarkTheme 
+                            ? 'bg-white/5 border-white/10 text-white' 
+                            : 'bg-white/70 border-gray-200 text-gray-900'
+                        }`}>
+                          {currentUser?.username}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Real Name
+                        </label>
+                        <div className={`p-3 rounded-lg border ${
+                          isDarkTheme 
+                            ? 'bg-white/5 border-white/10 text-white' 
+                            : 'bg-white/70 border-gray-200 text-gray-900'
+                        }`}>
+                          {currentUser?.real_name || 'Not set'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Screen Name
+                        </label>
+                        <div className={`p-3 rounded-lg border ${
+                          isDarkTheme 
+                            ? 'bg-white/5 border-white/10 text-white' 
+                            : 'bg-white/70 border-gray-200 text-gray-900'
+                        }`}>
+                          {currentUser?.screen_name || 'Not set'}
+                        </div>
+                      </div>
                     </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Email
+                        </label>
+                        <div className={`p-3 rounded-lg border ${
+                          isDarkTheme 
+                            ? 'bg-white/5 border-white/10 text-white' 
+                            : 'bg-white/70 border-gray-200 text-gray-900'
+                        }`}>
+                          {currentUser?.email}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Role
+                        </label>
+                        <div className={`p-3 rounded-lg border ${
+                          isDarkTheme 
+                            ? 'bg-white/5 border-white/10 text-white' 
+                            : 'bg-white/70 border-gray-200 text-gray-900'
+                        }`}>
+                          {currentUser?.is_admin ? '👑 Admin' : currentUser?.role || 'Member'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Member Since
+                        </label>
+                        <div className={`p-3 rounded-lg border ${
+                          isDarkTheme 
+                            ? 'bg-white/5 border-white/10 text-white' 
+                            : 'bg-white/70 border-gray-200 text-gray-900'
+                        }`}>
+                          {currentUser?.created_at ? new Date(currentUser.created_at).toLocaleDateString() : 'Unknown'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <ProfileCustomization 
+                  currentUser={currentUser}
+                  isDarkTheme={isDarkTheme}
+                  onUpdate={() => {
+                    // Refresh user data after profile update
+                    setShowProfileCustomization(false);
+                  }}
+                />
+              )}
+            </div>
                   </div>
                   
                   <div>
