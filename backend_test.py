@@ -3568,7 +3568,10 @@ def main():
         "Admin Demotion Functionality": test_admin_demotion(),
         "FCM Graceful Handling": test_fcm_graceful_handling(),
         "Password Reset Flow": test_password_reset_flow(),
-        "Case-Insensitive Login": test_case_insensitive_login()
+        "Case-Insensitive Login": test_case_insensitive_login(),
+        "Optional Location Field": test_optional_location_field(),
+        "Follow/Unfollow System": test_follow_unfollow_system(),
+        "Follower/Following Counts": test_follower_following_counts()
     }
     
     print("\n📊 TEST RESULTS SUMMARY:")
