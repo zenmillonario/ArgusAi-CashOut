@@ -904,6 +904,7 @@ function App() {
       loadUserData();
       loadPendingUsers();
       loadAllUsers();
+      fetchUserXPData(); // Fetch XP data when user loads
     }
   }, [currentUser]);
 
