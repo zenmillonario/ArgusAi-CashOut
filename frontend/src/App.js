@@ -71,6 +71,10 @@ function App() {
   const [currentStockPrice, setCurrentStockPrice] = useState(null);
   const [priceLoading, setPriceLoading] = useState(false);
   const [replyToMessage, setReplyToMessage] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [messageReactions, setMessageReactions] = useState({});
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [showUserList, setShowUserList] = useState(true);
   const wsRef = useRef(null);
   const messagesEndRef = useRef(null);
 
