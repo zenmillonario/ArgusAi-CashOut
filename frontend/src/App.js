@@ -2017,12 +2017,14 @@ function App() {
 
         {/* Favorites Tab */}
         {activeTab === 'favorites' && (
-          <FavoritesTab 
-            favorites={favorites}
-            addToFavorites={addToFavorites}
-            removeFromFavorites={removeFromFavorites}
-            isDarkTheme={isDarkTheme}
-          />
+          <div className="flex-1 overflow-y-auto max-h-screen">
+            <FavoritesTab 
+              favorites={favorites}
+              addToFavorites={addToFavorites}
+              removeFromFavorites={removeFromFavorites}
+              isDarkTheme={isDarkTheme}
+            />
+          </div>
         )}
 
         {/* Practice Tab with Recent Trades (Smaller/Log-like) */}
