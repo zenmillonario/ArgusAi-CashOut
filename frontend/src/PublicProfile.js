@@ -53,7 +53,8 @@ const PublicProfile = ({ userId, onClose, isDarkTheme, currentUser }) => {
       }
     } catch (error) {
       console.error('Error following/unfollowing user:', error);
-      alert('Error updating follow status');
+      const errorMessage = error.response?.data?.detail || error.message || 'Error updating follow status';
+      alert(`Follow Error: ${errorMessage}`);
     } finally {
       setFollowLoading(false);
     }
