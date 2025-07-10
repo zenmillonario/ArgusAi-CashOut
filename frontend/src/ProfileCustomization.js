@@ -39,7 +39,7 @@ const ProfileCustomization = ({ currentUser, isDarkTheme, onUpdate }) => {
 
   const fetchProfile = async () => {
     try {
-      const response = await axios.get(`${API}/api/users/${currentUser.id}/profile`);
+      const response = await axios.get(`${API}/users/${currentUser.id}/profile`);
       setProfile({
         bio: response.data.bio || '',
         trading_style_tags: response.data.trading_style_tags || [],
