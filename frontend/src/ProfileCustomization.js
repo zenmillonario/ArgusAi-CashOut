@@ -127,6 +127,82 @@ const ProfileCustomization = ({ currentUser, isDarkTheme, onUpdate }) => {
 
   return (
     <div className="space-y-6">
+      {/* Profile Picture */}
+      <div className={`p-6 rounded-lg border ${
+        isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+      }`}>
+        <h3 className={`text-lg font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+          📷 Profile Picture
+        </h3>
+        
+        <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">
+          {/* Avatar Display */}
+          <div className="relative">
+            {avatarPreview ? (
+              <div className="relative">
+                <img
+                  src={avatarPreview}
+                  alt="Profile"
+                  className="w-32 h-32 rounded-full object-cover border-4 border-blue-500 shadow-lg"
+                />
+                <button
+                  onClick={removeAvatar}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600 transition-colors text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className={`w-32 h-32 rounded-full border-4 border-dashed flex items-center justify-center ${
+                isDarkTheme ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-gray-100'
+              }`}>
+                <div className="text-center">
+                  <div className="text-4xl mb-2">👤</div>
+                  <p className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                    No Photo
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Upload Controls */}
+          <div className="flex-1 text-center md:text-left">
+            <h4 className={`font-semibold mb-2 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+              Upload Profile Picture
+            </h4>
+            <p className={`text-sm mb-4 ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+              Choose a photo that represents you. Make it as big and clear as possible for the best impact!
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarSelect}
+                className="hidden"
+                id="avatar-upload"
+              />
+              <label
+                htmlFor="avatar-upload"
+                className="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors"
+              >
+                📷 Choose Photo
+              </label>
+              
+              {avatarPreview && (
+                <button
+                  onClick={removeAvatar}
+                  className="inline-flex items-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                >
+                  🗑️ Remove
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Profile Banner */}
       <div className={`p-6 rounded-lg border ${
         isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
