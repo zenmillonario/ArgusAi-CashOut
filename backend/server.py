@@ -2276,6 +2276,59 @@ async def unfollow_user(user_id: str, follow_request: FollowRequest):
     
     return {"message": "Successfully unfollowed user"}
 
+@api_router.get("/users/{user_id}/notifications")
+async def get_user_notifications(user_id: str, limit: int = 50, offset: int = 0):
+    """Get notifications for a user"""
+    notifications = await db.notifications.find(
+        {"user_id": user_id}
+    ).sort("created_at", -1).skip(offset).limit(limit).to_list(limit)
+    
+    return notifications
+
+@api_router.post("/users/{user_id}/notifications/{notification_id}/read")
+async def mark_notification_as_read(user_id: str, notification_id: str):
+    """Mark a notification as read"""
+    result = await db.notifications.update_one(
+        {"id": notification_id, "user_id": user_id},
+        {"$set": {"read": True}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    return {"message": "Notification marked as read"}
+
+@api_router.post("/users/{user_id}/notifications/read-all")
+async def mark_all_notifications_as_read(user_id: str):
+    """Mark all notifications as read for a user"""
+    result = await db.notifications.update_many(
+        {"user_id": user_id, "read": False},
+        {"$set": {"read": True}}
+    )
+    
+    return {"message": f"Marked {result.modified_count} notifications as read"}
+
+@api_router.delete("/users/{user_id}/notifications/{notification_id}")
+async def delete_notification(user_id: str, notification_id: str):
+    """Delete a notification"""
+    result = await db.notifications.delete_one(
+        {"id": notification_id, "user_id": user_id}
+    )
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    return {"message": "Notification deleted"}
+
+@api_router.get("/users/{user_id}/notifications/unread-count")
+async def get_unread_notification_count(user_id: str):
+    """Get count of unread notifications for a user"""
+    count = await db.notifications.count_documents(
+        {"user_id": user_id, "read": False}
+    )
+    
+    return {"unread_count": count}
+
 @api_router.get("/users/{user_id}/followers")
 async def get_user_followers(user_id: str):
     """Get list of users following this user"""
