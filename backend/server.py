@@ -2130,6 +2130,157 @@ async def get_user_theme(user_id: str):
         "user_level": user_level
     }
 
+# NEW: Follow System Endpoints
+@api_router.post("/users/{user_id}/follow")
+async def follow_user(user_id: str, follow_request: FollowRequest):
+    """Follow another user"""
+    follower_id = user_id
+    target_id = follow_request.target_user_id
+    
+    # Can't follow yourself
+    if follower_id == target_id:
+        raise HTTPException(status_code=400, detail="Cannot follow yourself")
+    
+    # Check if both users exist
+    follower = await db.users.find_one({"id": follower_id})
+    target = await db.users.find_one({"id": target_id})
+    
+    if not follower or not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if already following
+    if target_id in follower.get("following", []):
+        raise HTTPException(status_code=400, detail="Already following this user")
+    
+    # Add to follower's following list
+    await db.users.update_one(
+        {"id": follower_id},
+        {
+            "$push": {"following": target_id},
+            "$inc": {"following_count": 1}
+        }
+    )
+    
+    # Add to target's followers list
+    await db.users.update_one(
+        {"id": target_id},
+        {
+            "$push": {"followers": follower_id},
+            "$inc": {"follower_count": 1}
+        }
+    )
+    
+    # Award XP for social interaction
+    await award_xp(follower_id, "follow_user", 10)
+    
+    # Create notification for the followed user
+    # You could extend this to create a notification record
+    
+    return {"message": "Successfully followed user"}
+
+@api_router.post("/users/{user_id}/unfollow")
+async def unfollow_user(user_id: str, follow_request: FollowRequest):
+    """Unfollow another user"""
+    follower_id = user_id
+    target_id = follow_request.target_user_id
+    
+    # Check if both users exist
+    follower = await db.users.find_one({"id": follower_id})
+    target = await db.users.find_one({"id": target_id})
+    
+    if not follower or not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if actually following
+    if target_id not in follower.get("following", []):
+        raise HTTPException(status_code=400, detail="Not following this user")
+    
+    # Remove from follower's following list
+    await db.users.update_one(
+        {"id": follower_id},
+        {
+            "$pull": {"following": target_id},
+            "$inc": {"following_count": -1}
+        }
+    )
+    
+    # Remove from target's followers list
+    await db.users.update_one(
+        {"id": target_id},
+        {
+            "$pull": {"followers": follower_id},
+            "$inc": {"follower_count": -1}
+        }
+    )
+    
+    return {"message": "Successfully unfollowed user"}
+
+@api_router.get("/users/{user_id}/followers")
+async def get_user_followers(user_id: str):
+    """Get list of users following this user"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    follower_ids = user.get("followers", [])
+    if not follower_ids:
+        return {"followers": [], "count": 0}
+    
+    # Get follower details
+    followers_cursor = db.users.find({"id": {"$in": follower_ids}})
+    followers = []
+    
+    async for follower in followers_cursor:
+        followers.append({
+            "id": follower["id"],
+            "username": follower["username"],
+            "screen_name": follower.get("screen_name"),
+            "avatar_url": follower.get("avatar_url"),
+            "level": follower.get("level", 1),
+            "is_admin": follower.get("is_admin", False),
+            "is_online": follower.get("is_online", False)
+        })
+    
+    return {"followers": followers, "count": len(followers)}
+
+@api_router.get("/users/{user_id}/following")
+async def get_user_following(user_id: str):
+    """Get list of users this user is following"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    following_ids = user.get("following", [])
+    if not following_ids:
+        return {"following": [], "count": 0}
+    
+    # Get following details
+    following_cursor = db.users.find({"id": {"$in": following_ids}})
+    following = []
+    
+    async for followed_user in following_cursor:
+        following.append({
+            "id": followed_user["id"],
+            "username": followed_user["username"],
+            "screen_name": followed_user.get("screen_name"),
+            "avatar_url": followed_user.get("avatar_url"),
+            "level": followed_user.get("level", 1),
+            "is_admin": followed_user.get("is_admin", False),
+            "is_online": followed_user.get("is_online", False)
+        })
+    
+    return {"following": following, "count": len(following)}
+
+@api_router.get("/users/{user_id}/follow-status/{target_user_id}")
+async def get_follow_status(user_id: str, target_user_id: str):
+    """Check if user is following target user"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    is_following = target_user_id in user.get("following", [])
+    return {"is_following": is_following}
+
 @api_router.post("/messages", response_model=Message)
 async def create_message(message_data: MessageCreate):
     # Get user info
