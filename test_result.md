@@ -254,6 +254,41 @@ backend:
         agent: "testing"
         comment: "Email notification functions for password changes and resets are properly defined in the server code. The send_password_change_notification, send_password_reset_email, and send_password_reset_confirmation functions are implemented correctly. While we couldn't directly verify email delivery in the test environment, the code is structured to send appropriate notifications when password changes or resets occur."
 
+  - task: "Optional Location Field"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added optional location field to User model and ProfileUpdate model. Updated update_user_profile endpoint to process and save location field. Modified get_user_profile endpoint to return location field."
+        
+  - task: "Follow/Unfollow System"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added followers and following lists to User model. Implemented /api/users/follow/{user_id} endpoint to allow users to follow others. Implemented /api/users/unfollow/{user_id} endpoint to allow users to unfollow others. Updated get_user_profile endpoint to return followers and following lists."
+        
+  - task: "Follower/Following Counts"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "The follower/following counts are implicitly provided through the followers and following lists returned by get_user_profile endpoint. Frontend can calculate counts from these lists."
   - task: "Admin-Only FCM Notifications"
     implemented: true
     working: true
