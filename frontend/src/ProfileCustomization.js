@@ -106,7 +106,8 @@ const ProfileCustomization = ({ currentUser, isDarkTheme, onUpdate }) => {
       const updateData = {
         bio: profile.bio,
         trading_style_tags: profile.trading_style_tags,
-        profile_banner: bannerPreview || profile.profile_banner
+        profile_banner: bannerPreview || profile.profile_banner,
+        avatar_url: avatarPreview || profile.avatar_url
       };
 
       await axios.post(`${API}/api/users/${currentUser.id}/profile`, updateData);
