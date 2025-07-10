@@ -39,7 +39,7 @@ const PublicProfile = ({ userId, onClose, isDarkTheme, currentUser }) => {
     setFollowLoading(true);
     try {
       if (isFollowing) {
-        await axios.post(`${API}/api/users/${currentUser.id}/unfollow`, {
+        await axios.post(`${API}/users/${currentUser.id}/unfollow`, {
           target_user_id: userId
         });
         setIsFollowing(false);
