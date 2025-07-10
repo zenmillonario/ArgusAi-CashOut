@@ -1975,19 +1975,23 @@ function App() {
 
         {/* Notifications Tab */}
         {activeTab === 'notifications' && (
-          <NotificationsTab 
-            notifications={notifications}
-            isDarkTheme={isDarkTheme}
-            currentUser={currentUser}
-          />
+          <div className="flex-1 overflow-y-auto max-h-screen">
+            <NotificationsTab 
+              notifications={notifications}
+              isDarkTheme={isDarkTheme}
+              currentUser={currentUser}
+            />
+          </div>
         )}
 
         {/* Achievements Tab */}
         {activeTab === 'achievements' && (
-          <AchievementsTab 
-            currentUser={currentUser}
-            isDarkTheme={isDarkTheme}
-          />
+          <div className="flex-1 overflow-y-auto max-h-screen">
+            <AchievementsTab 
+              currentUser={currentUser}
+              isDarkTheme={isDarkTheme}
+            />
+          </div>
         )}
 
         {/* Portfolio Tab */}
