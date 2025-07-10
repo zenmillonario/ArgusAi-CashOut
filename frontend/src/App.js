@@ -80,6 +80,8 @@ function App() {
   const [messageReactions, setMessageReactions] = useState({});
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [showUserList, setShowUserList] = useState(true);
+  const [userXP, setUserXP] = useState({ experience_points: 0, level: 1 });
+  const [showProfileCustomization, setShowProfileCustomization] = useState(false);
   const wsRef = useRef(null);
   const messagesEndRef = useRef(null);
 
