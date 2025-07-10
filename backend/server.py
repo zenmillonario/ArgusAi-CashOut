@@ -499,6 +499,228 @@ def format_price_display(price):
         # For regular prices, show 2 decimal places
         return f"{price:.2f}"
 
+# NEW: Achievement System Definitions
+ACHIEVEMENTS = {
+    "first_blood": {
+        "id": "first_blood",
+        "name": "First Blood",
+        "description": "Make your first profitable trade",
+        "icon": "🎯",
+        "points_reward": 100,
+        "requirement_type": "milestone",
+        "requirement_value": 1,
+        "category": "trading"
+    },
+    "diamond_hands": {
+        "id": "diamond_hands", 
+        "name": "Diamond Hands",
+        "description": "Hold a position for 30+ days",
+        "icon": "💎",
+        "points_reward": 200,
+        "requirement_type": "milestone",
+        "requirement_value": 30,
+        "category": "trading"
+    },
+    "hot_streak": {
+        "id": "hot_streak",
+        "name": "Hot Streak", 
+        "description": "5 profitable trades in a row",
+        "icon": "🔥",
+        "points_reward": 150,
+        "requirement_type": "streak",
+        "requirement_value": 5,
+        "category": "trading"
+    },
+    "chatterbox": {
+        "id": "chatterbox",
+        "name": "Chatterbox",
+        "description": "Send 100 chat messages", 
+        "icon": "💬",
+        "points_reward": 75,
+        "requirement_type": "count",
+        "requirement_value": 100,
+        "category": "social"
+    },
+    "heart_giver": {
+        "id": "heart_giver",
+        "name": "Heart Giver",
+        "description": "Give 50 heart reactions",
+        "icon": "❤️", 
+        "points_reward": 50,
+        "requirement_type": "count",
+        "requirement_value": 50,
+        "category": "social"
+    },
+    "dedication": {
+        "id": "dedication",
+        "name": "Dedication",
+        "description": "30-day login streak",
+        "icon": "🗓️",
+        "points_reward": 300,
+        "requirement_type": "streak", 
+        "requirement_value": 30,
+        "category": "platform"
+    },
+    "profit_1k": {
+        "id": "profit_1k",
+        "name": "Profit Milestone - $1K",
+        "description": "Reach $1,000 in total profit",
+        "icon": "💰",
+        "points_reward": 250,
+        "requirement_type": "value",
+        "requirement_value": 1000,
+        "category": "trading"
+    },
+    "diversification_master": {
+        "id": "diversification_master",
+        "name": "Diversification Master", 
+        "description": "Own 10+ different stocks",
+        "icon": "🎪",
+        "points_reward": 100,
+        "requirement_type": "count",
+        "requirement_value": 10,
+        "category": "trading"
+    }
+}
+
+# NEW: XP Level System
+def get_level_from_xp(xp: int) -> int:
+    """Calculate user level based on XP"""
+    if xp < 500:
+        return 1
+    elif xp < 1500:
+        return 2
+    elif xp < 5000:
+        return 3
+    elif xp < 15000:
+        return 4
+    else:
+        return 5
+
+def get_xp_for_next_level(current_xp: int) -> int:
+    """Get XP needed for next level"""
+    level = get_level_from_xp(current_xp)
+    level_thresholds = [0, 500, 1500, 5000, 15000, 50000]  # Level 6+ for future
+    
+    if level >= len(level_thresholds) - 1:
+        return 0  # Max level reached
+    
+    return level_thresholds[level] - current_xp
+
+# NEW: XP System Functions
+async def award_xp(user_id: str, action: str, points: int, metadata: dict = None):
+    """Award XP to user and check for level ups and achievements"""
+    try:
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            return
+        
+        old_level = get_level_from_xp(user.get("experience_points", 0))
+        new_xp = user.get("experience_points", 0) + points
+        new_level = get_level_from_xp(new_xp)
+        
+        # Update user XP and level
+        await db.users.update_one(
+            {"id": user_id},
+            {
+                "$set": {
+                    "experience_points": new_xp,
+                    "level": new_level
+                }
+            }
+        )
+        
+        # Check for level up
+        if new_level > old_level:
+            await handle_level_up(user_id, new_level, old_level)
+        
+        # Check for achievements
+        await check_achievements(user_id, action, metadata or {})
+        
+        logger.info(f"Awarded {points} XP to user {user_id} for action: {action}")
+        
+    except Exception as e:
+        logger.error(f"Error awarding XP: {e}")
+
+async def handle_level_up(user_id: str, new_level: int, old_level: int):
+    """Handle level up rewards and notifications"""
+    try:
+        level_rewards = {
+            2: "Unlocked custom themes!",
+            3: "Unlocked profile banners!",
+            4: "Unlocked trading style tags!",
+            5: "Unlocked exclusive themes & badges!"
+        }
+        
+        if new_level in level_rewards:
+            # You could send a notification or update user permissions here
+            logger.info(f"User {user_id} leveled up to {new_level}: {level_rewards[new_level]}")
+            
+    except Exception as e:
+        logger.error(f"Error handling level up: {e}")
+
+async def check_achievements(user_id: str, action: str, metadata: dict):
+    """Check and award achievements based on user actions"""
+    try:
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            return
+            
+        user_achievements = user.get("achievements", [])
+        progress = user.get("achievement_progress", {})
+        
+        # Update progress based on action
+        if action == "chat_message":
+            progress["chatterbox_count"] = progress.get("chatterbox_count", 0) + 1
+        elif action == "heart_reaction":
+            progress["heart_giver_count"] = progress.get("heart_giver_count", 0) + 1
+        elif action == "profitable_trade":
+            progress["profitable_trades"] = progress.get("profitable_trades", 0) + 1
+        elif action == "daily_login":
+            progress["login_streak"] = metadata.get("streak", 0)
+        
+        # Check for new achievements
+        new_achievements = []
+        
+        for achievement_id, achievement in ACHIEVEMENTS.items():
+            if achievement_id in user_achievements:
+                continue  # Already earned
+                
+            earned = False
+            
+            if achievement_id == "chatterbox" and progress.get("chatterbox_count", 0) >= 100:
+                earned = True
+            elif achievement_id == "heart_giver" and progress.get("heart_giver_count", 0) >= 50:
+                earned = True
+            elif achievement_id == "dedication" and progress.get("login_streak", 0) >= 30:
+                earned = True
+            elif achievement_id == "first_blood" and progress.get("profitable_trades", 0) >= 1:
+                earned = True
+            elif achievement_id == "profit_1k" and user.get("total_profit", 0) >= 1000:
+                earned = True
+                
+            if earned:
+                new_achievements.append(achievement_id)
+                await award_xp(user_id, "achievement_unlocked", achievement["points_reward"])
+        
+        # Update user progress and achievements
+        if new_achievements or progress != user.get("achievement_progress", {}):
+            await db.users.update_one(
+                {"id": user_id},
+                {
+                    "$set": {
+                        "achievement_progress": progress,
+                        "achievements": user_achievements + new_achievements
+                    }
+                }
+            )
+            
+        if new_achievements:
+            logger.info(f"User {user_id} earned achievements: {new_achievements}")
+            
+    except Exception as e:
+        logger.error(f"Error checking achievements: {e}")
+
 def format_pnl_display(pnl):
     """Format P&L display with appropriate precision"""
     if pnl is None:
