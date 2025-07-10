@@ -1,6 +1,49 @@
 import React from 'react';
 
 const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserList, setShowUserList, onViewProfile }) => {
+  const [followingUsers, setFollowingUsers] = React.useState([]);
+  const [followerCounts, setFollowerCounts] = React.useState({});
+
+  const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+
+  React.useEffect(() => {
+    // Fetch current user's following list
+    const fetchFollowingList = async () => {
+      if (!currentUser) return;
+      
+      try {
+        const response = await axios.get(`${API}/api/users/${currentUser.id}/profile`);
+        setFollowingUsers(response.data.following || []);
+      } catch (error) {
+        console.error('Error fetching following list:', error);
+      }
+    };
+
+    fetchFollowingList();
+  }, [currentUser, API]);
+
+  React.useEffect(() => {
+    // Fetch follower counts for all users
+    const fetchFollowerCounts = async () => {
+      const counts = {};
+      
+      for (const user of allUsers) {
+        try {
+          const response = await axios.get(`${API}/api/users/${user.id}/profile`);
+          counts[user.id] = response.data.follower_count || 0;
+        } catch (error) {
+          console.error(`Error fetching follower count for user ${user.id}:`, error);
+          counts[user.id] = 0;
+        }
+      }
+      
+      setFollowerCounts(counts);
+    };
+
+    if (allUsers.length > 0) {
+      fetchFollowerCounts();
+    }
+  }, [allUsers, API]);
   // Combine online users with all users and show online status
   const getUserStatus = (user) => {
     const isOnline = onlineUsers.some(onlineUser => onlineUser.id === user.id);
