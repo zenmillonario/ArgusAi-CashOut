@@ -397,6 +397,11 @@ class ProfileUpdate(BaseModel):
     trading_style_tags: Optional[List[str]] = None
     profile_banner: Optional[str] = None
     avatar_url: Optional[str] = None  # Add profile picture support
+    location: Optional[str] = None  # Add location support
+    show_location: Optional[bool] = None  # Privacy setting for location
+
+class FollowRequest(BaseModel):
+    target_user_id: str
 
 class PublicProfileRequest(BaseModel):
     user_id: str
