@@ -2081,6 +2081,13 @@ async def create_message(message_data: MessageCreate):
     
     await db.messages.insert_one(message.dict())
     
+    # Award XP for sending message
+    await award_xp(message_data.user_id, "chat_message", 5)
+    
+    # Award extra XP for reply
+    if message_data.reply_to_id:
+        await award_xp(message_data.user_id, "reply_message", 8)
+    
     # Broadcast message to all connected users
     await manager.broadcast(json.dumps({
         "type": "message",
