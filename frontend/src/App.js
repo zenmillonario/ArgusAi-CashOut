@@ -1673,6 +1673,15 @@ function App() {
                   {currentUser?.is_admin ? 'Admin' : currentUser?.role || 'Member'}
                 </div>
               </div>
+
+              {/* XP Progress Bar - Desktop */}
+              <div className="hidden lg:block w-48">
+                <XPProgressBar 
+                  currentXP={userXP.experience_points} 
+                  level={userXP.level} 
+                  isDarkTheme={isDarkTheme} 
+                />
+              </div>
               
               {/* Logout - Only on desktop */}
               <button
