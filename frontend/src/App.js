@@ -999,6 +999,22 @@ function App() {
           reply_to_id: replyToMessage?.id || null
         });
         
+        // Create notification for reply
+        if (replyToMessage && replyToMessage.user_id !== currentUser?.id) {
+          const newNotification = {
+            type: 'reply',
+            from: currentUser?.screen_name || currentUser?.username,
+            to: replyToMessage.user_id,
+            originalMessage: replyToMessage.content_type === 'image' ? '📷 Image' : replyToMessage.content.substring(0, 50),
+            replyMessage: '📷 Image',
+            replyImage: imagePreview,
+            timestamp: new Date().toLocaleTimeString(),
+            messageId: replyToMessage.id
+          };
+          
+          setNotifications(prev => [newNotification, ...prev.slice(0, 49)]);
+        }
+        
         // Clear image and reply after sending
         setImageFile(null);
         setImagePreview(null);
@@ -1022,6 +1038,21 @@ function App() {
         user_id: currentUser.id,
         reply_to_id: replyToMessage?.id || null
       });
+      
+      // Create notification for reply
+      if (replyToMessage && replyToMessage.user_id !== currentUser?.id) {
+        const newNotification = {
+          type: 'reply',
+          from: currentUser?.screen_name || currentUser?.username,
+          to: replyToMessage.user_id,
+          originalMessage: replyToMessage.content_type === 'image' ? '📷 Image' : replyToMessage.content.substring(0, 50),
+          replyMessage: newMessage.substring(0, 100),
+          timestamp: new Date().toLocaleTimeString(),
+          messageId: replyToMessage.id
+        };
+        
+        setNotifications(prev => [newNotification, ...prev.slice(0, 49)]);
+      }
       
       setNewMessage('');
       setReplyToMessage(null); // Clear reply after sending
