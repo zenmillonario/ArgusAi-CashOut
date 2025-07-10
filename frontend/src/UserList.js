@@ -1,6 +1,6 @@
 import React from 'react';
 
-const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserList, setShowUserList }) => {
+const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserList, setShowUserList, onViewProfile }) => {
   // Combine online users with all users and show online status
   const getUserStatus = (user) => {
     const isOnline = onlineUsers.some(onlineUser => onlineUser.id === user.id);
