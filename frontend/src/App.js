@@ -1817,29 +1817,39 @@ function App() {
         
         {/* Chat Tab */}
         {activeTab === 'chat' && (
-          <ChatTab 
-            messages={messages}
-            filteredMessages={filteredMessages}
-            showSearch={showSearch}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            formatMessageContent={formatMessageContent}
-            addReaction={addReaction}
-            messageReactions={messageReactions}
-            addToFavorites={addToFavorites}
-            favorites={favorites}
-            messagesEndRef={messagesEndRef}
-            sendMessage={sendMessage}
-            newMessage={newMessage}
-            setNewMessage={setNewMessage}
-            imageFile={imageFile}
-            setImageFile={setImageFile}
-            imagePreview={imagePreview}
-            setImagePreview={setImagePreview}
-            isDarkTheme={isDarkTheme}
-            replyToMessage={replyToMessage}
-            setReplyToMessage={setReplyToMessage}
-          />
+          <div className="flex h-full">
+            <ChatTab 
+              messages={messages}
+              filteredMessages={filteredMessages}
+              showSearch={showSearch}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              formatMessageContent={formatMessageContent}
+              addReaction={addReaction}
+              messageReactions={messageReactions}
+              addToFavorites={addToFavorites}
+              favorites={favorites}
+              messagesEndRef={messagesEndRef}
+              sendMessage={sendMessage}
+              newMessage={newMessage}
+              setNewMessage={setNewMessage}
+              imageFile={imageFile}
+              setImageFile={setImageFile}
+              imagePreview={imagePreview}
+              setImagePreview={setImagePreview}
+              isDarkTheme={isDarkTheme}
+              replyToMessage={replyToMessage}
+              setReplyToMessage={setReplyToMessage}
+            />
+            <UserList 
+              onlineUsers={onlineUsers}
+              allUsers={allUsers}
+              currentUser={currentUser}
+              isDarkTheme={isDarkTheme}
+              showUserList={showUserList}
+              setShowUserList={setShowUserList}
+            />
+          </div>
         )}
 
         {/* Notifications Tab */}
