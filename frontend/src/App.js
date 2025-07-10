@@ -1174,6 +1174,14 @@ function App() {
     }
   };
 
+  const handleViewProfile = (userId) => {
+    setViewingUserId(userId);
+  };
+
+  const closeProfileView = () => {
+    setViewingUserId(null);
+  };
+
   const formatMessageContent = (content, tickers) => {
     let formattedContent = content;
     
