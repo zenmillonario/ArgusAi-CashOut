@@ -1641,7 +1641,7 @@ function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="grid grid-cols-3 gap-3 mb-4">
                 {/* Chat Tab */}
                 <button
                   onClick={() => {
@@ -1660,6 +1660,31 @@ function App() {
                 >
                   <span className="text-2xl mb-1">💬</span>
                   <span className="text-sm font-medium">Chat</span>
+                </button>
+
+                {/* Notifications Tab */}
+                <button
+                  onClick={() => {
+                    setActiveTab('notifications');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
+                    activeTab === 'notifications'
+                      ? isDarkTheme 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-blue-600 text-white'
+                      : isDarkTheme 
+                        ? 'text-gray-300 hover:bg-white/10' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="text-2xl mb-1">🔔</span>
+                  <span className="text-sm font-medium">Alerts</span>
+                  {notifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                      {notifications.length}
+                    </span>
+                  )}
                 </button>
 
                 {/* Portfolio Tab */}
