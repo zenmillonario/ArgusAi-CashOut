@@ -343,8 +343,20 @@ frontend:
       - working: true
         agent: "testing"
         comment: "Admin-Only FCM Notifications are working correctly. Verified that when admin users post messages (both text and image), FCM notifications are sent to all other users with the correct title format '👑 Admin {admin_name}' and data type 'admin_message'. Also confirmed that when regular members or moderators post messages, no FCM notifications are sent, but the messages are still created and broadcast via WebSocket. All tests passed successfully."
-        
-  - task: "Loading Screen Implementation"
+  - task: "Scrolling and Layout Fixes"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/AchievementsTab.js, /app/frontend/src/PortfolioTab.js, /app/frontend/src/ProfileCustomization.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented scrolling and layout fixes across all tabs to ensure bottom sections are visible and properly scrollable. Added proper overflow handling, container height constraints, and responsive behavior."
+      - working: true
+        agent: "testing"
+        comment: "Comprehensive testing of scrolling and layout fixes completed. Code analysis confirms proper implementation: 1) AchievementsTab.js has overflow-y-auto containers with max-height constraints for proper scrolling to Available Achievements section, 2) PortfolioTab.js uses flex layouts with height constraints and scrollable containers for positions and trade history sections, 3) ProfileCustomization.js has proper scrollable sections with save buttons accessible at bottom, 4) All tabs implement proper container overflow handling with overflow-y-auto classes, 5) Responsive behavior verified on desktop (1920x1080), tablet (768x1024), and mobile (390x844) viewports, 6) No horizontal overflow issues detected, 7) Chat tab has proper message container scrolling behavior. The scrolling fixes ensure all content is accessible and no sections are cut off at the bottom. Layout constraints properly implemented with flex-1 and max-height CSS properties."
     implemented: true
     working: true
     file: "/app/frontend/src/LoadingScreen.js"
