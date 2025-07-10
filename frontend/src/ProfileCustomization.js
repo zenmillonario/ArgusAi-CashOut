@@ -279,6 +279,57 @@ const ProfileCustomization = ({ currentUser, isDarkTheme, onUpdate }) => {
         </div>
       </div>
 
+      {/* Location Section */}
+      <div className={`p-6 rounded-lg border ${
+        isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+      }`}>
+        <h3 className={`text-lg font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+          📍 Location
+        </h3>
+        
+        <div className="space-y-4">
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${
+              isDarkTheme ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              Your Location (Optional)
+            </label>
+            <input
+              type="text"
+              value={profile.location}
+              onChange={(e) => setProfile(prev => ({ ...prev, location: e.target.value }))}
+              placeholder="e.g., San Francisco, CA or New York, NY"
+              className={`w-full p-3 rounded-lg border ${
+                isDarkTheme 
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+              }`}
+              maxLength={100}
+            />
+            <p className={`text-sm mt-1 ${
+              isDarkTheme ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              Share your location to connect with traders nearby
+            </p>
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="show_location"
+              checked={profile.show_location}
+              onChange={(e) => setProfile(prev => ({ ...prev, show_location: e.target.checked }))}
+              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="show_location" className={`text-sm ${
+              isDarkTheme ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              Show my location on my public profile
+            </label>
+          </div>
+        </div>
+      </div>
+
       {/* Trading Style Tags */}
       <div className={`p-6 rounded-lg border ${
         isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
