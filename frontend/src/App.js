@@ -2931,6 +2931,16 @@ function App() {
 
         </div> {/* End of content area */}
       </div> {/* End of main container */}
+
+      {/* Public Profile Modal */}
+      {viewingUserId && (
+        <PublicProfile 
+          userId={viewingUserId}
+          onClose={closeProfileView}
+          isDarkTheme={isDarkTheme}
+          currentUser={currentUser}
+        />
+      )}
     </div>
   );
 }
