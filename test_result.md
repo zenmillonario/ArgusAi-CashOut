@@ -256,39 +256,48 @@ backend:
 
   - task: "Optional Location Field"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added optional location field to User model and ProfileUpdate model. Updated update_user_profile endpoint to process and save location field. Modified get_user_profile endpoint to return location field."
+      - working: true
+        agent: "testing"
+        comment: "Optional Location Field is working correctly. Successfully tested updating user profile with location field via POST /api/users/{user_id}/profile endpoint and retrieving user profile with location field via GET /api/users/{user_id}/profile endpoint. Verified location field is optional and can be set to empty string (null values are not processed by the backend due to the conditional check 'if profile_update.location is not None'). The location field properly updates and retrieves values including 'San Francisco, CA', 'New York, NY', and empty string. The show_location privacy setting also works correctly. All tests passed successfully."
         
   - task: "Follow/Unfollow System"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added followers and following lists to User model. Implemented /api/users/follow/{user_id} endpoint to allow users to follow others. Implemented /api/users/unfollow/{user_id} endpoint to allow users to unfollow others. Updated get_user_profile endpoint to return followers and following lists."
+      - working: true
+        agent: "testing"
+        comment: "Follow/Unfollow System is working correctly. Successfully tested POST /api/users/{user_id}/follow endpoint for following another user and POST /api/users/{user_id}/unfollow endpoint for unfollowing a user. Verified proper handling of invalid user IDs (returns 404 error) and prevention of users from following themselves (returns 400 error). Tested following/unfollowing multiple users and verified that when user A follows user B, A is added to B's followers list and B is added to A's following list. Unfollow properly removes entries from both lists. All error handling scenarios work correctly. All tests passed successfully."
         
   - task: "Follower/Following Counts"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "The follower/following counts are implicitly provided through the followers and following lists returned by get_user_profile endpoint. Frontend can calculate counts from these lists."
+      - working: true
+        agent: "testing"
+        comment: "Follower/Following Counts are working correctly. Verified that follower/following lists are properly maintained and the GET /api/users/{user_id}/profile endpoint returns correct follower_count and following_count fields. When user A follows user B, A is added to B's followers list and B is added to A's following list, with counts properly incremented. When unfollowing, entries are properly removed from both lists and counts are decremented. Tested comprehensive scenarios including admin following multiple users, users following each other in a network pattern, and unfollow operations. All count calculations are accurate and persistent. All tests passed successfully."
   - task: "Admin-Only FCM Notifications"
     implemented: true
     working: true
