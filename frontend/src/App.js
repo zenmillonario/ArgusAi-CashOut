@@ -1992,14 +1992,23 @@ function App() {
 
         {/* Portfolio Tab */}
         {activeTab === 'portfolio' && (
-          <PortfolioTab 
-            openPositions={openPositions}
-            userPerformance={userPerformance}
-            closePosition={closePosition}
-            handlePositionAction={handlePositionAction}
-            isDarkTheme={isDarkTheme}
-            currentUser={currentUser}
-          />
+          <div className="space-y-6">
+            {/* Asset Allocation Wheel */}
+            <AssetAllocationWheel 
+              positions={openPositions}
+              isDarkTheme={isDarkTheme}
+            />
+            
+            {/* Regular Portfolio Content */}
+            <PortfolioTab 
+              openPositions={openPositions}
+              userPerformance={userPerformance}
+              closePosition={closePosition}
+              handlePositionAction={handlePositionAction}
+              isDarkTheme={isDarkTheme}
+              currentUser={currentUser}
+            />
+          </div>
         )}
 
         {/* Favorites Tab */}
