@@ -208,9 +208,35 @@ const PublicProfile = ({ userId, onClose, isDarkTheme, currentUser }) => {
               </span>
             </div>
             
-            <p className={`text-lg ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-              @{profile.username} • {profile.role || 'Member'}
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-lg ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
+                  @{profile.username} • {profile.role || 'Member'}
+                </p>
+                
+                {/* Location Display */}
+                {profile.location && profile.show_location && (
+                  <p className={`text-sm mt-1 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                    📍 {profile.location}
+                  </p>
+                )}
+              </div>
+              
+              {/* Follow/Unfollow Button */}
+              {currentUser && currentUser.id !== userId && (
+                <button
+                  onClick={handleFollow}
+                  disabled={followLoading}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    isFollowing
+                      ? 'bg-gray-500 text-white hover:bg-gray-600'
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {followLoading ? '...' : isFollowing ? 'Following' : 'Follow'}
+                </button>
+              )}
+            </div>
             
             {profile.bio && (
               <p className={`mt-4 text-base leading-relaxed ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -232,6 +258,26 @@ const PublicProfile = ({ userId, onClose, isDarkTheme, currentUser }) => {
             </div>
 
             <div className={`p-4 rounded-lg text-center ${isDarkTheme ? 'bg-gray-700' : 'bg-gray-100'}`}>
+              <div className="text-2xl mb-1">👥</div>
+              <div className={`text-xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                {followerCount}
+              </div>
+              <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                Followers
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-lg text-center ${isDarkTheme ? 'bg-gray-700' : 'bg-gray-100'}`}>
+              <div className="text-2xl mb-1">🔗</div>
+              <div className={`text-xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                {followingCount}
+              </div>
+              <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+                Following
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-lg text-center ${isDarkTheme ? 'bg-gray-700' : 'bg-gray-100'}`}>
               <div className="text-2xl mb-1">🏆</div>
               <div className={`text-xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
                 {profile.achievements.length}
@@ -240,7 +286,10 @@ const PublicProfile = ({ userId, onClose, isDarkTheme, currentUser }) => {
                 Achievements
               </div>
             </div>
+          </div>
 
+          {/* Additional Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-4 mb-6">
             <div className={`p-4 rounded-lg text-center ${isDarkTheme ? 'bg-gray-700' : 'bg-gray-100'}`}>
               <div className="text-2xl mb-1">📈</div>
               <div className={`text-xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
