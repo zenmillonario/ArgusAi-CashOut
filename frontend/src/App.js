@@ -554,9 +554,28 @@ function App() {
   const addReaction = (messageId, reaction) => {
     console.log(`Adding reaction ${reaction} to message ${messageId}`);
     
+    // Find the message to get its author
+    const message = messages.find(msg => msg.id === messageId);
+    if (!message) return;
+    
     setMessageReactions(prev => {
       const messageReacts = prev[messageId] || {};
       const currentCount = messageReacts[reaction] || 0;
+      
+      // Create notification if it's someone else's message
+      if (message.user_id !== currentUser?.id) {
+        const newNotification = {
+          type: 'reaction',
+          from: currentUser?.screen_name || currentUser?.username,
+          to: message.user_id,
+          originalMessage: message.content_type === 'image' ? '📷 Image' : message.content.substring(0, 50),
+          reaction: reaction,
+          timestamp: new Date().toLocaleTimeString(),
+          messageId: messageId
+        };
+        
+        setNotifications(prev => [newNotification, ...prev.slice(0, 49)]); // Keep last 50 notifications
+      }
       
       return {
         ...prev,
@@ -566,9 +585,6 @@ function App() {
         }
       };
     });
-    
-    // In a full implementation, you'd also send this to the backend
-    // For now, we'll just store it locally
   };
 
   const scrollToBottom = () => {
