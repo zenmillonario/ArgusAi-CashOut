@@ -243,10 +243,14 @@ async def create_user_notification(user_id: str, notification_type: str, title: 
     websocket_notification["created_at"] = notification["created_at"].isoformat()
     
     # Send real-time notification via WebSocket if user is online
-    await manager.send_personal_message(user_id, json.dumps({
-        "type": "notification",
-        "notification": websocket_notification
-    }))
+    if user_id in manager.user_connections:
+        try:
+            await manager.user_connections[user_id].send_text(json.dumps({
+                "type": "notification",
+                "notification": websocket_notification
+            }))
+        except:
+            pass  # Ignore WebSocket errors
     
     # Send FCM notification
     await send_notification_to_user(user_id, title, message, data)
