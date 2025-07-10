@@ -1529,7 +1529,7 @@ function App() {
             
             {/* Desktop Navigation Tabs - Hidden on Mobile */}
             <div className="hidden md:flex space-x-1">
-              {['chat', 'portfolio', 'practice', 'favorites', 'profile'].map((tab) => (
+              {['chat', 'notifications', 'portfolio', 'practice', 'favorites', 'profile'].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
