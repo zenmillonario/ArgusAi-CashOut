@@ -17,7 +17,7 @@ const PublicProfile = ({ userId, onClose, isDarkTheme, currentUser }) => {
 
   const fetchPublicProfile = async () => {
     try {
-      const response = await axios.get(`${API}/api/users/${userId}/profile`);
+      const response = await axios.get(`${API}/users/${userId}/profile`);
       setProfile(response.data);
       setFollowerCount(response.data.follower_count || 0);
       setFollowingCount(response.data.following_count || 0);
