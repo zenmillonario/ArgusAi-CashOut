@@ -116,7 +116,7 @@ const ProfileCustomization = ({ currentUser, isDarkTheme, onUpdate }) => {
         show_location: profile.show_location
       };
 
-      await axios.post(`${API}/api/users/${currentUser.id}/profile`, updateData);
+      await axios.post(`${API}/users/${currentUser.id}/profile`, updateData);
       
       if (onUpdate) {
         onUpdate();
