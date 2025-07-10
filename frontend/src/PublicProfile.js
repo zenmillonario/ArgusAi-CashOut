@@ -4,6 +4,10 @@ import axios from 'axios';
 const PublicProfile = ({ userId, onClose, isDarkTheme, currentUser }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
   const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
