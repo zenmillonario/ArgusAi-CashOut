@@ -718,6 +718,20 @@ function App() {
             
             playSimpleAdminSound();
             
+          } else if (data.type === 'user_joined') {
+            // User joined chat
+            setOnlineUsers(prev => {
+              if (!prev.find(user => user.id === data.user.id)) {
+                return [...prev, data.user];
+              }
+              return prev;
+            });
+          } else if (data.type === 'user_left') {
+            // User left chat
+            setOnlineUsers(prev => prev.filter(user => user.id !== data.user_id));
+          } else if (data.type === 'online_users') {
+            // Initial list of online users
+            setOnlineUsers(data.users || []);
             // Visual notification in app
             if (document.hidden) {
               document.title = `🔔 ${data.admin_real_name || data.admin_username} - CashoutAI`;
