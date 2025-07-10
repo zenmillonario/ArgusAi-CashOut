@@ -2223,7 +2223,19 @@ async def follow_user(user_id: str, follow_request: FollowRequest):
     await award_xp(follower_id, "follow_user", 10)
     
     # Create notification for the followed user
-    # You could extend this to create a notification record
+    follower_name = follower.get("screen_name") or follower.get("username")
+    await create_user_notification(
+        user_id=target_id,
+        notification_type="follow",
+        title=f"New Follower",
+        message=f"{follower_name} started following you",
+        data={
+            "follower_id": follower_id,
+            "follower_name": follower_name,
+            "follower_avatar": follower.get("avatar_url"),
+            "action": "follow"
+        }
+    )
     
     return {"message": "Successfully followed user"}
 
