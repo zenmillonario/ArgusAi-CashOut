@@ -8,6 +8,7 @@ import FavoritesTab from './FavoritesTab';
 import AchievementsTab from './AchievementsTab';
 import ProfileCustomization from './ProfileCustomization';
 import XPProgressBar from './XPProgressBar';
+import AssetAllocationWheel from './AssetAllocationWheel';
 import LoadingScreen from './LoadingScreen';
 import { formatPrice, formatPnL, formatCurrency } from './utils';
 import notificationService from './firebase-config';
