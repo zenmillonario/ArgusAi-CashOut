@@ -65,7 +65,7 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
     return (
       <button
         onClick={() => setShowUserList(true)}
-        className={`fixed right-4 top-1/2 transform -translate-y-1/2 z-10 p-2 rounded-l-lg ${
+        className={`fixed right-4 top-1/2 transform -translate-y-1/2 z-10 p-2 rounded-l-lg md:hidden ${
           isDarkTheme ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
         } shadow-lg border-l border-t border-b ${
           isDarkTheme ? 'border-gray-700' : 'border-gray-200'
