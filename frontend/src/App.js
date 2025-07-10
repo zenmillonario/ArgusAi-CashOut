@@ -170,8 +170,46 @@ function App() {
       if (savedFavorites) {
         setFavorites(JSON.parse(savedFavorites));
       }
+      
+      // Load notifications for the user
+      loadNotifications();
     }
   }, [currentUser]);
+
+  const loadNotifications = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const response = await axios.get(`${API}/users/${currentUser.id}/notifications`);
+      setNotifications(response.data);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+      await axios.post(`${API}/users/${currentUser.id}/notifications/${notificationId}/read`);
+      setNotifications(prev => 
+        prev.map(notification => 
+          notification.id === notificationId 
+            ? { ...notification, read: true }
+            : notification
+        )
+      );
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const deleteNotification = async (notificationId) => {
+    try {
+      await axios.delete(`${API}/users/${currentUser.id}/notifications/${notificationId}`);
+      setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
+  };
 
   const toggleTheme = () => {
     const newTheme = !isDarkTheme;
