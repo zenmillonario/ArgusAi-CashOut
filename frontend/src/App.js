@@ -2048,6 +2048,8 @@ function App() {
               notifications={notifications}
               isDarkTheme={isDarkTheme}
               currentUser={currentUser}
+              onMarkAsRead={markNotificationAsRead}
+              onDeleteNotification={deleteNotification}
             />
           </div>
         )}
