@@ -413,8 +413,29 @@ frontend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Added follower/following counts display to PublicProfile component. Updated UserList component to show follow indicators and follower counts for each user."
-      - working: true
+  - task: "Follow Notifications Backend"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added notification system for follow events. Created notification model, added create_user_notification function, and integrated follow notifications into the follow endpoint. Added notification API endpoints for getting, marking as read, and deleting notifications."
+        
+  - task: "Follow Notifications Frontend"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js, /app/frontend/src/NotificationsTab.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added notification loading, marking as read, and deleting functionality to App.js. Updated NotificationsTab to handle follow notifications with proper icons and actions. Added WebSocket handling for real-time follow notifications."
         agent: "testing"
         comment: "Follower/Following Display Frontend is working correctly. Successfully tested both components: 1) PublicProfile.js displays follower and following counts in a stats grid with proper formatting and real-time updates, 2) Location display with '📍' icon when user has location set and privacy enabled, 3) UserList.js shows follow indicators with 'Following' badges for users that the current user is following, 4) Follower count indicators with '👥' emoji displaying the number of followers each user has, 5) Proper API integration to fetch follower counts for all users, 6) Visual indicators for online/offline status and user roles. The implementation provides comprehensive social features display with proper state management and user-friendly visual cues throughout the interface."
     implemented: true
