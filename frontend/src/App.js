@@ -549,8 +549,6 @@ function App() {
     }
   }, [serviceWorker, currentUser]);
 
-  const [messageReactions, setMessageReactions] = useState({});
-
   const addReaction = (messageId, reaction) => {
     console.log(`Adding reaction ${reaction} to message ${messageId}`);
     
