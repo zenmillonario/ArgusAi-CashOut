@@ -103,53 +103,32 @@ const NotificationsTab = ({ notifications, isDarkTheme, currentUser, onMarkAsRea
                     <span className={`text-xs ${
                       isDarkTheme ? 'text-gray-400' : 'text-gray-500'
                     }`}>
-                      {notification.timestamp}
+                      {formatDate(notification.created_at)}
                     </span>
                   </div>
 
-                  {/* Original Message Preview */}
-                  <div className={`p-3 rounded-lg mb-2 ${
-                    isDarkTheme ? 'bg-gray-700' : 'bg-gray-100'
-                  }`}>
-                    <p className={`text-sm ${
-                      isDarkTheme ? 'text-gray-300' : 'text-gray-600'
-                    }`}>
-                      Your message: "{notification.originalMessage}"
-                    </p>
+                  {/* Notification Message */}
+                  <p className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {notification.message}
+                  </p>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center space-x-2 mt-3">
+                    {!notification.read && (
+                      <button
+                        onClick={() => onMarkAsRead && onMarkAsRead(notification.id)}
+                        className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors"
+                      >
+                        Mark as Read
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onDeleteNotification && onDeleteNotification(notification.id)}
+                      className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition-colors"
+                    >
+                      Delete
+                    </button>
                   </div>
-
-                  {/* Reply/Reaction Content */}
-                  {notification.type === 'reply' && (
-                    <div className={`p-3 rounded-lg ${
-                      isDarkTheme ? 'bg-blue-900/30' : 'bg-blue-50'
-                    }`}>
-                      <p className={`text-sm ${
-                        isDarkTheme ? 'text-blue-200' : 'text-blue-800'
-                      }`}>
-                        "{notification.replyMessage}"
-                      </p>
-                      {notification.replyImage && (
-                        <img
-                          src={notification.replyImage}
-                          alt="Reply"
-                          className="mt-2 max-w-xs rounded-lg"
-                        />
-                      )}
-                    </div>
-                  )}
-
-                  {notification.type === 'reaction' && (
-                    <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full ${
-                      isDarkTheme ? 'bg-red-900/30' : 'bg-red-50'
-                    }`}>
-                      <span className="text-lg">❤️</span>
-                      <span className={`text-sm ${
-                        isDarkTheme ? 'text-red-200' : 'text-red-800'
-                      }`}>
-                        Loved your message
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
