@@ -190,44 +190,65 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
               Offline ({allUsers.filter(user => !getUserStatus(user)).length})
             </div>
             
-            {allUsers.filter(user => !getUserStatus(user)).map((user) => (
-              <div
-                key={user.id}
-                onClick={() => onViewProfile && onViewProfile(user.id)}
-                className={`flex items-center space-x-3 p-2 rounded-lg mb-1 opacity-60 cursor-pointer ${
-                  isDarkTheme ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
-                } transition-colors`}
-              >
-                {user.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    alt={`${user.username}'s avatar`}
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    user.is_admin 
-                      ? 'bg-yellow-500 text-white' 
-                      : isDarkTheme ? 'bg-gray-600 text-white' : 'bg-gray-300 text-gray-700'
-                  }`}>
-                    {user.is_admin ? '👑' : (user.screen_name || user.username).charAt(0).toUpperCase()}
-                  </div>
-                )}
+            {allUsers.filter(user => !getUserStatus(user)).map((user) => {
+              const isFollowing = followingUsers.includes(user.id);
+              const followerCount = followerCounts[user.id] || 0;
+              
+              return (
+                <div
+                  key={user.id}
+                  onClick={() => onViewProfile && onViewProfile(user.id)}
+                  className={`flex items-center space-x-3 p-2 rounded-lg mb-1 opacity-60 cursor-pointer ${
+                    isDarkTheme ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                  } transition-colors`}
+                >
+                  {user.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt={`${user.username}'s avatar`}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                      user.is_admin 
+                        ? 'bg-yellow-500 text-white' 
+                        : isDarkTheme ? 'bg-gray-600 text-white' : 'bg-gray-300 text-gray-700'
+                    }`}>
+                      {user.is_admin ? '👑' : (user.screen_name || user.username).charAt(0).toUpperCase()}
+                    </div>
+                  )}
 
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium truncate ${
-                    isDarkTheme ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                    {user.screen_name || user.username} 👁️
-                  </p>
-                  <p className={`text-xs truncate ${
-                    isDarkTheme ? 'text-gray-500' : 'text-gray-400'
-                  }`}>
-                    {user.role || 'Member'}
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-1">
+                      <p className={`text-sm font-medium truncate ${
+                        isDarkTheme ? 'text-gray-300' : 'text-gray-600'
+                      }`}>
+                        {user.screen_name || user.username} 👁️
+                      </p>
+                      {user.is_admin && (
+                        <span className="text-xs">👑</span>
+                      )}
+                      {isFollowing && (
+                        <span className="text-xs bg-blue-500 text-white px-1 rounded">Following</span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <p className={`text-xs truncate ${
+                        isDarkTheme ? 'text-gray-500' : 'text-gray-400'
+                      }`}>
+                        {user.role || 'Member'}
+                      </p>
+                      {followerCount > 0 && (
+                        <span className={`text-xs ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'}`}>
+                          👥 {followerCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </>
         )}
       </div>
