@@ -390,9 +390,8 @@ class ProfileUpdate(BaseModel):
 class ThemeUpdate(BaseModel):
     theme_name: str
     custom_colors: Optional[Dict[str, str]] = None
-    admin_id: str
 
-class ProfileUpdate(BaseModel):
+class ExistingProfileUpdate(BaseModel):
     real_name: Optional[str] = None
     screen_name: Optional[str] = None
     username: Optional[str] = None
