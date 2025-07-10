@@ -230,7 +230,7 @@ const ChatTab = ({
                         >
                           ↩️
                         </button>
-                        {['👍', '💰', '🚀'].map(reaction => (
+                        {['👍', '❤️', '💰', '🚀'].map(reaction => (
                           <button
                             key={reaction}
                             onClick={() => addReaction(message.id, reaction)}
