@@ -106,6 +106,8 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
         {sortedUsers.map((user) => {
           const isOnline = getUserStatus(user);
           const isCurrentUser = user.id === currentUser?.id;
+          const isFollowing = followingUsers.includes(user.id);
+          const followerCount = followerCounts[user.id] || 0;
           
           return (
             <div
@@ -154,16 +156,26 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
                   {user.is_admin && (
                     <span className="text-xs">👑</span>
                   )}
+                  {!isCurrentUser && isFollowing && (
+                    <span className="text-xs bg-blue-500 text-white px-1 rounded">Following</span>
+                  )}
                 </div>
                 
-                <p className={`text-xs truncate ${
-                  isDarkTheme ? 'text-gray-400' : 'text-gray-500'
-                }`}>
-                  {user.role || 'Member'}
-                  {isOnline && (
-                    <span className="ml-1 text-green-400">• Online</span>
+                <div className="flex items-center space-x-2">
+                  <p className={`text-xs truncate ${
+                    isDarkTheme ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    {user.role || 'Member'}
+                    {isOnline && (
+                      <span className="ml-1 text-green-400">• Online</span>
+                    )}
+                  </p>
+                  {followerCount > 0 && (
+                    <span className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                      👥 {followerCount}
+                    </span>
                   )}
-                </p>
+                </div>
               </div>
             </div>
           );
