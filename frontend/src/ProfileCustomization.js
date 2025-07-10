@@ -41,9 +41,11 @@ const ProfileCustomization = ({ currentUser, isDarkTheme, onUpdate }) => {
       setProfile({
         bio: response.data.bio || '',
         trading_style_tags: response.data.trading_style_tags || [],
-        profile_banner: response.data.profile_banner || ''
+        profile_banner: response.data.profile_banner || '',
+        avatar_url: response.data.avatar_url || ''
       });
       setBannerPreview(response.data.profile_banner);
+      setAvatarPreview(response.data.avatar_url);
     } catch (error) {
       console.error('Error fetching profile:', error);
     }
