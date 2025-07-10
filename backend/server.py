@@ -731,6 +731,37 @@ async def handle_level_up(user_id: str, new_level: int, old_level: int):
     except Exception as e:
         logger.error(f"Error handling level up: {e}")
 
+async def share_achievement_in_chat(user_id: str, achievement: dict):
+    """Share achievement in chat when unlocked"""
+    try:
+        # Get user info
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            return
+            
+        # Create achievement message
+        message = Message(
+            user_id=user_id,
+            username=user.get("username", ""),
+            content=f"🏆 Achievement Unlocked: {achievement['name']} - {achievement['description']} {achievement['icon']}",
+            is_admin=False,
+            avatar_url=user.get("avatar_url"),
+            real_name=user.get("real_name"),
+            screen_name=user.get("screen_name")
+        )
+        
+        # Save message to database
+        await db.messages.insert_one(message.dict())
+        
+        # Broadcast to all connected users
+        await manager.broadcast(json.dumps({
+            "type": "chat_message",
+            "message": message.dict()
+        }, default=str))
+        
+    except Exception as e:
+        logger.error(f"Error sharing achievement in chat: {e}")
+
 async def check_achievements(user_id: str, action: str, metadata: dict):
     """Check and award achievements based on user actions"""
     try:
