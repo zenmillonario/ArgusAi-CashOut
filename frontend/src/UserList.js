@@ -13,7 +13,7 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
       if (!currentUser) return;
       
       try {
-        const response = await axios.get(`${API}/api/users/${currentUser.id}/profile`);
+        const response = await axios.get(`${API}/users/${currentUser.id}/profile`);
         setFollowingUsers(response.data.following || []);
       } catch (error) {
         console.error('Error fetching following list:', error);
