@@ -746,8 +746,9 @@ async def award_xp(user_id: str, action: str, points: int, metadata: dict = None
         if new_level > old_level:
             await handle_level_up(user_id, new_level, old_level)
         
-        # Check for achievements
-        await check_achievements(user_id, action, metadata or {})
+        # Check for achievements (but not for achievement_unlocked to prevent recursion)
+        if action != "achievement_unlocked":
+            await check_achievements(user_id, action, metadata or {})
         
         logger.info(f"Awarded {points} XP to user {user_id} for action: {action}")
         
