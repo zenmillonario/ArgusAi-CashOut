@@ -1194,6 +1194,37 @@ async def login_user(login_data: UserLogin):
         # Notify the old session to logout (but don't close connection yet)
         await manager.send_session_invalidation(user_obj.id, new_session_id)
     
+    # Calculate daily login streak and award XP
+    today = datetime.utcnow().strftime('%Y-%m-%d')
+    last_login = user.get("last_login_date")
+    current_streak = user.get("daily_login_streak", 0)
+    
+    if last_login != today:
+        # Award daily login XP
+        await award_xp(user_obj.id, "daily_login", 10)
+        
+        # Calculate streak
+        if last_login:
+            yesterday = (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d')
+            if last_login == yesterday:
+                current_streak += 1
+            else:
+                current_streak = 1
+        else:
+            current_streak = 1
+        
+        # Update login data
+        await db.users.update_one(
+            {"id": user_obj.id},
+            {"$set": {
+                "last_login_date": today,
+                "daily_login_streak": current_streak
+            }}
+        )
+        
+        # Award streak XP if applicable
+        await award_xp(user_obj.id, "daily_login", 0, {"streak": current_streak})
+    
     # Update user with new session and online status FIRST
     await db.users.update_one(
         {"id": user_obj.id},
