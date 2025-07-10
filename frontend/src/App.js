@@ -7,6 +7,7 @@ import PortfolioTab from './PortfolioTab';
 import FavoritesTab from './FavoritesTab';
 import AchievementsTab from './AchievementsTab';
 import ProfileCustomization from './ProfileCustomization';
+import PublicProfile from './PublicProfile';
 import XPProgressBar from './XPProgressBar';
 import AssetAllocationWheel from './AssetAllocationWheel';
 import LoadingScreen from './LoadingScreen';
