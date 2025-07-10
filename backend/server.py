@@ -222,6 +222,33 @@ async def send_notification_to_user(user_id: str, title: str, body: str, data: O
         logger.error(f"Error sending notification to user {user_id}: {str(e)}")
         return False
 
+async def create_user_notification(user_id: str, notification_type: str, title: str, message: str, data: Dict[str, Any] = None):
+    """Create a notification for a user"""
+    notification = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "type": notification_type,
+        "title": title,
+        "message": message,
+        "data": data or {},
+        "read": False,
+        "created_at": datetime.utcnow(),
+        "expires_at": None
+    }
+    
+    await db.notifications.insert_one(notification)
+    
+    # Send real-time notification via WebSocket if user is online
+    await manager.send_personal_message(user_id, json.dumps({
+        "type": "notification",
+        "notification": notification
+    }))
+    
+    # Send FCM notification
+    await send_notification_to_user(user_id, title, message, data)
+    
+    return notification
+
 # WebSocket connection manager
 class ConnectionManager:
     def __init__(self):
