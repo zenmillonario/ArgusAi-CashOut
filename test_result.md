@@ -101,7 +101,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Test the new loading screen functionality in the ArgusAI CashOut application. I need to verify: 1) Initial Load: When visiting the application, does the loading screen appear first? 2) Video Playback: Does the intro video (intro-video.mp4) play automatically with sound? 3) Duration: Does the video play for approximately 5 seconds? 4) Transition: Does it smoothly fade to the login screen after the video ends? 5) Visual Design: Is the loading screen properly styled with theme support?"
+user_problem_statement: "Test the newly implemented backend for optional location, follow/unfollow functionality, and follower/following counts. Then implement frontend integration for the optional location field and follow/unfollow system, displaying counts on user profiles and lists."
 
 backend:
   - task: "FCM Service Integration"
