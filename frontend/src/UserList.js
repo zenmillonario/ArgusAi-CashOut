@@ -75,13 +75,21 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
             >
               {/* Avatar */}
               <div className="relative">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  user.is_admin 
-                    ? 'bg-yellow-500 text-white' 
-                    : isDarkTheme ? 'bg-gray-600 text-white' : 'bg-gray-300 text-gray-700'
-                }`}>
-                  {user.is_admin ? '👑' : (user.screen_name || user.username).charAt(0).toUpperCase()}
-                </div>
+                {user.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={`${user.username}'s avatar`}
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                    user.is_admin 
+                      ? 'bg-yellow-500 text-white' 
+                      : isDarkTheme ? 'bg-gray-600 text-white' : 'bg-gray-300 text-gray-700'
+                  }`}>
+                    {user.is_admin ? '👑' : (user.screen_name || user.username).charAt(0).toUpperCase()}
+                  </div>
+                )}
                 
                 {/* Online status indicator */}
                 <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 ${
