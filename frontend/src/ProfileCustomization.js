@@ -6,7 +6,9 @@ const ProfileCustomization = ({ currentUser, isDarkTheme, onUpdate }) => {
     bio: '',
     trading_style_tags: [],
     profile_banner: '',
-    avatar_url: ''
+    avatar_url: '',
+    location: '',
+    show_location: false
   });
   const [bannerFile, setBannerFile] = useState(null);
   const [bannerPreview, setBannerPreview] = useState(null);
