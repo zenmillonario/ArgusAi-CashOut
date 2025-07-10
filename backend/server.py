@@ -238,10 +238,14 @@ async def create_user_notification(user_id: str, notification_type: str, title: 
     
     await db.notifications.insert_one(notification)
     
+    # Prepare notification for WebSocket (convert datetime to string)
+    websocket_notification = notification.copy()
+    websocket_notification["created_at"] = notification["created_at"].isoformat()
+    
     # Send real-time notification via WebSocket if user is online
     await manager.send_personal_message(user_id, json.dumps({
         "type": "notification",
-        "notification": notification
+        "notification": websocket_notification
     }))
     
     # Send FCM notification
