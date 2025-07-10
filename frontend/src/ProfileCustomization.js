@@ -51,6 +51,26 @@ const ProfileCustomization = ({ currentUser, isDarkTheme, onUpdate }) => {
     }
   };
 
+  const handleAvatarSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setAvatarFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setAvatarPreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeAvatar = () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setProfile(prev => ({ ...prev, avatar_url: '' }));
+  };
+
   const handleBannerSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
