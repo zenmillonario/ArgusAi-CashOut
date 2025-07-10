@@ -821,6 +821,11 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
         if new_achievements:
             logger.info(f"User {user_id} earned achievements: {new_achievements}")
             
+            # Auto-share achievements in chat
+            for achievement_id in new_achievements:
+                achievement = ACHIEVEMENTS[achievement_id]
+                await share_achievement_in_chat(user_id, achievement)
+            
     except Exception as e:
         logger.error(f"Error checking achievements: {e}")
 
