@@ -2001,6 +2001,7 @@ async def get_user_profile(user_id: str):
         "bio": user.get("bio"),
         "trading_style_tags": user.get("trading_style_tags", []),
         "profile_banner": user.get("profile_banner"),
+        "avatar_url": user.get("avatar_url"),
         "level": user.get("level", 1),
         "experience_points": user.get("experience_points", 0),
         "achievements": user.get("achievements", []),
@@ -2008,7 +2009,40 @@ async def get_user_profile(user_id: str):
         "win_percentage": user.get("win_percentage", 0),
         "trades_count": user.get("trades_count", 0),
         "is_admin": user.get("is_admin", False),
-        "role": user.get("role", "member")
+        "role": user.get("role", "member"),
+        "created_at": user.get("created_at"),
+        "is_online": user.get("is_online", False),
+        "last_seen": user.get("last_seen")
+    }
+
+@api_router.get("/users/{user_id}/profile/public")
+async def get_public_user_profile(user_id: str):
+    """Get public user profile for other users to view"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Return only public information
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "screen_name": user.get("screen_name"),
+        "bio": user.get("bio"),
+        "trading_style_tags": user.get("trading_style_tags", []),
+        "profile_banner": user.get("profile_banner"),
+        "avatar_url": user.get("avatar_url"),
+        "level": user.get("level", 1),
+        "experience_points": user.get("experience_points", 0),
+        "achievements": user.get("achievements", []),
+        "is_admin": user.get("is_admin", False),
+        "role": user.get("role", "member"),
+        "created_at": user.get("created_at"),
+        "is_online": user.get("is_online", False),
+        "last_seen": user.get("last_seen"),
+        # Public trading stats (optional - you can remove if too private)
+        "total_profit": user.get("total_profit", 0),
+        "win_percentage": user.get("win_percentage", 0),
+        "trades_count": user.get("trades_count", 0)
     }
 
 # NEW: Theme Customization Endpoints
