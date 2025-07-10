@@ -2021,6 +2021,8 @@ async def get_user_profile(user_id: str):
         "trading_style_tags": user.get("trading_style_tags", []),
         "profile_banner": user.get("profile_banner"),
         "avatar_url": user.get("avatar_url"),
+        "location": user.get("location"),
+        "show_location": user.get("show_location", True),
         "level": user.get("level", 1),
         "experience_points": user.get("experience_points", 0),
         "achievements": user.get("achievements", []),
@@ -2031,7 +2033,9 @@ async def get_user_profile(user_id: str):
         "role": user.get("role", "member"),
         "created_at": user.get("created_at"),
         "is_online": user.get("is_online", False),
-        "last_seen": user.get("last_seen")
+        "last_seen": user.get("last_seen"),
+        "follower_count": user.get("follower_count", 0),
+        "following_count": user.get("following_count", 0)
     }
 
 @api_router.get("/users/{user_id}/profile/public")
