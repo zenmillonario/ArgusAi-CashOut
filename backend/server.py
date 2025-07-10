@@ -386,6 +386,10 @@ class ProfileUpdate(BaseModel):
     bio: Optional[str] = None
     trading_style_tags: Optional[List[str]] = None
     profile_banner: Optional[str] = None
+    avatar_url: Optional[str] = None  # Add profile picture support
+
+class PublicProfileRequest(BaseModel):
+    user_id: str
 
 class ThemeUpdate(BaseModel):
     theme_name: str
