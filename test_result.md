@@ -413,15 +413,6 @@ frontend:
     status_history:
       - working: "NA"
         agent: "main"
-  - task: "Follow Notifications Backend"
-    implemented: true
-    working: "NA"
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: true
-    status_history:
-      - working: "NA"
         agent: "main"
         comment: "Added notification system for follow events. Created notification model, added create_user_notification function, and integrated follow notifications into the follow endpoint. Added notification API endpoints for getting, marking as read, and deleting notifications."
         
