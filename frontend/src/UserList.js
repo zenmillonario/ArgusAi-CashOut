@@ -77,9 +77,203 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
   }
 
   return (
-    <div className={`w-64 flex-shrink-0 flex flex-col h-full ${
-      isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-    } border-l hidden md:flex ${showUserList ? 'md:flex' : 'md:hidden'}`}>
+    <>
+      {/* Mobile Modal Overlay */}
+      {showUserList && (
+        <div className="fixed inset-0 bg-black/50 z-50 md:hidden">
+          <div className={`fixed right-0 top-0 bottom-0 w-80 ${
+            isDarkTheme ? 'bg-gray-800' : 'bg-white'
+          } transform transition-transform duration-300`}>
+            {/* Header */}
+            <div className={`p-4 border-b ${
+              isDarkTheme ? 'border-gray-700' : 'border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <h3 className={`font-semibold ${
+                  isDarkTheme ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Online Users ({onlineUsers.length})
+                </h3>
+                <button
+                  onClick={() => setShowUserList(false)}
+                  className={`p-2 rounded ${
+                    isDarkTheme ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* User List - Mobile */}
+            <div className="flex-1 overflow-y-auto p-2 h-full">
+              {sortedUsers.map((user) => {
+                const isOnline = getUserStatus(user);
+                const isCurrentUser = user.id === currentUser?.id;
+                const isFollowing = followingUsers.includes(user.id);
+                const followerCount = followerCounts[user.id] || 0;
+                
+                return (
+                  <div
+                    key={`mobile-${user.id}`}
+                    onClick={() => {
+                      if (!isCurrentUser && onViewProfile) {
+                        onViewProfile(user.id);
+                        setShowUserList(false);
+                      }
+                    }}
+                    className={`flex items-center space-x-3 p-3 rounded-lg mb-2 ${
+                      isCurrentUser 
+                        ? isDarkTheme ? 'bg-blue-900/50' : 'bg-blue-100'
+                        : isDarkTheme ? 'hover:bg-gray-700 cursor-pointer' : 'hover:bg-gray-50 cursor-pointer'
+                    } transition-colors`}
+                  >
+                    {/* Avatar */}
+                    <div className="relative">
+                      {user.avatar_url ? (
+                        <img
+                          src={user.avatar_url}
+                          alt={`${user.username}'s avatar`}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
+                          user.is_admin 
+                            ? 'bg-yellow-500 text-white' 
+                            : isDarkTheme ? 'bg-gray-600 text-white' : 'bg-gray-300 text-gray-700'
+                        }`}>
+                          {user.is_admin ? '👑' : (user.screen_name || user.username).charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      
+                      {/* Online status indicator */}
+                      <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 ${
+                        isDarkTheme ? 'border-gray-800' : 'border-white'
+                      } ${isOnline ? 'bg-green-400' : 'bg-gray-400'}`}></div>
+                    </div>
+
+                    {/* User Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-1">
+                        <p className={`text-sm font-medium truncate ${
+                          isDarkTheme ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {user.screen_name || user.username}
+                          {isCurrentUser && ' (You)'}
+                          {!isCurrentUser && ' 👁️'}
+                        </p>
+                        {user.is_admin && (
+                          <span className="text-xs">👑</span>
+                        )}
+                        {!isCurrentUser && isFollowing && (
+                          <span className="text-xs bg-blue-500 text-white px-1 rounded">Following</span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <p className={`text-xs truncate ${
+                          isDarkTheme ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
+                          {user.role || 'Member'}
+                          {isOnline && (
+                            <span className="ml-1 text-green-400">• Online</span>
+                          )}
+                        </p>
+                        {followerCount > 0 && (
+                          <span className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                            👥 {followerCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Offline Users Section - Mobile */}
+              {allUsers.filter(user => !getUserStatus(user)).length > 0 && (
+                <>
+                  <div className={`px-2 py-1 mt-4 mb-2 text-xs font-semibold uppercase tracking-wide ${
+                    isDarkTheme ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    Offline ({allUsers.filter(user => !getUserStatus(user)).length})
+                  </div>
+                  
+                  {allUsers.filter(user => !getUserStatus(user)).map((user) => {
+                    const isFollowing = followingUsers.includes(user.id);
+                    const followerCount = followerCounts[user.id] || 0;
+                    
+                    return (
+                      <div
+                        key={`mobile-offline-${user.id}`}
+                        onClick={() => {
+                          if (onViewProfile) {
+                            onViewProfile(user.id);
+                            setShowUserList(false);
+                          }
+                        }}
+                        className={`flex items-center space-x-3 p-3 rounded-lg mb-2 opacity-60 cursor-pointer ${
+                          isDarkTheme ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                        } transition-colors`}
+                      >
+                        {user.avatar_url ? (
+                          <img
+                            src={user.avatar_url}
+                            alt={`${user.username}'s avatar`}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
+                            user.is_admin 
+                              ? 'bg-yellow-500 text-white' 
+                              : isDarkTheme ? 'bg-gray-600 text-white' : 'bg-gray-300 text-gray-700'
+                          }`}>
+                            {user.is_admin ? '👑' : (user.screen_name || user.username).charAt(0).toUpperCase()}
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-1">
+                            <p className={`text-sm font-medium truncate ${
+                              isDarkTheme ? 'text-gray-300' : 'text-gray-600'
+                            }`}>
+                              {user.screen_name || user.username} 👁️
+                            </p>
+                            {user.is_admin && (
+                              <span className="text-xs">👑</span>
+                            )}
+                            {isFollowing && (
+                              <span className="text-xs bg-blue-500 text-white px-1 rounded">Following</span>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center space-x-2">
+                            <p className={`text-xs truncate ${
+                              isDarkTheme ? 'text-gray-500' : 'text-gray-400'
+                            }`}>
+                              {user.role || 'Member'}
+                            </p>
+                            {followerCount > 0 && (
+                              <span className={`text-xs ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'}`}>
+                                👥 {followerCount}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop User List */}
+      <div className={`w-64 flex-shrink-0 flex flex-col h-full ${
+        isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+      } border-l hidden md:flex`}>
       {/* Header */}
       <div className={`p-4 border-b ${
         isDarkTheme ? 'border-gray-700' : 'border-gray-200'
