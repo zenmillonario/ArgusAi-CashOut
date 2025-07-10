@@ -332,6 +332,16 @@ class User(BaseModel):
     # NEW: Achievements
     achievements: List[str] = Field(default_factory=list)  # Achievement IDs
     achievement_progress: Dict[str, int] = Field(default_factory=dict)  # Progress tracking
+    
+    # NEW: Location and Social Features
+    location: Optional[str] = None  # City, Country or custom location
+    show_location: bool = True  # Privacy setting for location display
+    
+    # NEW: Follow System
+    followers: List[str] = Field(default_factory=list)  # List of user IDs following this user
+    following: List[str] = Field(default_factory=list)  # List of user IDs this user follows
+    follower_count: int = 0  # Cached count for performance
+    following_count: int = 0  # Cached count for performance
 
 class UserCreate(BaseModel):
     username: str
