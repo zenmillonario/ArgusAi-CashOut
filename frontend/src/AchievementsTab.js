@@ -13,7 +13,7 @@ const AchievementsTab = ({ currentUser, isDarkTheme }) => {
 
   const fetchAchievements = async () => {
     try {
-      const response = await axios.get(`${API}/api/users/${currentUser.id}/achievements`);
+      const response = await axios.get(`${API}/users/${currentUser.id}/achievements`);
       setAchievements(response.data);
     } catch (error) {
       console.error('Error fetching achievements:', error);
