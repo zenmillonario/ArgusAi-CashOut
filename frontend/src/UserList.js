@@ -105,6 +105,7 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
                   }`}>
                     {user.screen_name || user.username}
                     {isCurrentUser && ' (You)'}
+                    {!isCurrentUser && ' 👁️'}
                   </p>
                   {user.is_admin && (
                     <span className="text-xs">👑</span>
