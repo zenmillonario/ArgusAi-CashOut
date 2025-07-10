@@ -5,10 +5,13 @@ const ProfileCustomization = ({ currentUser, isDarkTheme, onUpdate }) => {
   const [profile, setProfile] = useState({
     bio: '',
     trading_style_tags: [],
-    profile_banner: ''
+    profile_banner: '',
+    avatar_url: ''
   });
   const [bannerFile, setBannerFile] = useState(null);
   const [bannerPreview, setBannerPreview] = useState(null);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
