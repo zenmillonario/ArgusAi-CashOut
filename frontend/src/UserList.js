@@ -77,9 +77,9 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
   }
 
   return (
-    <div className={`w-64 flex-shrink-0 ${
+    <div className={`w-64 flex-shrink-0 flex flex-col h-full ${
       isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-    } border-l overflow-y-auto`}>
+    } border-l hidden md:flex ${showUserList ? 'md:flex' : 'md:hidden'}`}>
       {/* Header */}
       <div className={`p-4 border-b ${
         isDarkTheme ? 'border-gray-700' : 'border-gray-200'
