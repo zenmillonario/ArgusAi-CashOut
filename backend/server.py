@@ -1984,6 +1984,10 @@ async def update_user_profile(user_id: str, profile_update: ProfileUpdate):
         update_data["profile_banner"] = profile_update.profile_banner
     if profile_update.avatar_url is not None:
         update_data["avatar_url"] = profile_update.avatar_url
+    if profile_update.location is not None:
+        update_data["location"] = profile_update.location
+    if profile_update.show_location is not None:
+        update_data["show_location"] = profile_update.show_location
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided")
