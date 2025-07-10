@@ -1721,7 +1721,7 @@ function App() {
       </div>
 
       {/* Main Content - Fixed height with proper scrolling accounting for header */}
-      <div className="max-w-6xl mx-auto flex flex-col" style={{ height: 'calc(100vh - 80px)' }}>
+      <div className="max-w-6xl mx-auto flex flex-col min-h-0 pb-6">{/* Allow natural height with bottom padding */}
         {/* Content area that takes remaining height */}
         <div className="flex-1 p-4 pb-20 overflow-hidden">{/* This constrains the content */}
 
