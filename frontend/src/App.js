@@ -1979,6 +1979,7 @@ function App() {
               isDarkTheme={isDarkTheme}
               showUserList={showUserList}
               setShowUserList={setShowUserList}
+              onViewProfile={handleViewProfile}
             />
           </div>
         )}
