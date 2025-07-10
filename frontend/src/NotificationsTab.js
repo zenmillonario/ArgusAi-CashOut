@@ -50,6 +50,16 @@ const NotificationsTab = ({ notifications, isDarkTheme, currentUser }) => {
                       <span className="text-white text-lg">❤️</span>
                     </div>
                   )}
+                  {notification.type === 'follow' && (
+                    <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-lg">👥</span>
+                    </div>
+                  )}
+                  {notification.type === 'achievement' && (
+                    <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-lg">🏆</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Notification Content */}
