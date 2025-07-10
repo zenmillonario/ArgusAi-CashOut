@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import ChatTab from './ChatTab';
+import NotificationsTab from './NotificationsTab';
+import UserList from './UserList';
 import PortfolioTab from './PortfolioTab';
 import FavoritesTab from './FavoritesTab';
 import LoadingScreen from './LoadingScreen';
