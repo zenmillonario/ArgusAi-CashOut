@@ -643,6 +643,46 @@ ACHIEVEMENTS = {
         "requirement_value": 1000,
         "category": "trading"
     },
+    "profit_2k": {
+        "id": "profit_2k",
+        "name": "Profit Milestone - $2K",
+        "description": "Reach $2,000 in total profit",
+        "icon": "💎",
+        "points_reward": 400,
+        "requirement_type": "value",
+        "requirement_value": 2000,
+        "category": "trading"
+    },
+    "profit_3k": {
+        "id": "profit_3k",
+        "name": "Profit Milestone - $3K",
+        "description": "Reach $3,000 in total profit",
+        "icon": "🏆",
+        "points_reward": 600,
+        "requirement_type": "value",
+        "requirement_value": 3000,
+        "category": "trading"
+    },
+    "profit_4k": {
+        "id": "profit_4k",
+        "name": "Profit Milestone - $4K",
+        "description": "Reach $4,000 in total profit",
+        "icon": "👑",
+        "points_reward": 800,
+        "requirement_type": "value",
+        "requirement_value": 4000,
+        "category": "trading"
+    },
+    "profit_5k": {
+        "id": "profit_5k",
+        "name": "Profit Milestone - $5K",
+        "description": "Reach $5,000 in total profit",
+        "icon": "🚀",
+        "points_reward": 1000,
+        "requirement_type": "value",
+        "requirement_value": 5000,
+        "category": "trading"
+    },
     "diversification_master": {
         "id": "diversification_master",
         "name": "Diversification Master", 
