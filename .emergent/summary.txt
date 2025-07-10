@@ -1,113 +1,86 @@
 <analysis>
-The AI engineer successfully built the ArgusAI CashOut trading platform from an initial template, implementing critical features such as enhanced financial calculations, improved UI/UX for chat and portfolio, password management, and a comprehensive notification system including email and Firebase Cloud Messaging (FCM). The core work in the provided trajectory focused on perfecting the FCM integration, ensuring admin-only chat notifications with WhatsApp-style sounds. Following the successful deployment and testing of notifications, a significant challenge arose with Git push protection due to sensitive credentials () present in the repository's history. The engineer attempted various Git history cleaning methods, including WARNING: git-filter-branch has a glut of gotchas generating mangled history
-	 rewrites.  Hit Ctrl-C before proceeding to abort, then use an
-	 alternative filtering tool such as 'git filter-repo'
-	 (https://github.com/newren/git-filter-repo/) instead.  See the
-	 filter-branch manual page for more details; to squelch this warning,
-	 set FILTER_BRANCH_SQUELCH_WARNING=1.
-Proceeding with filter-branch... and re-initializing the repository, demonstrating a commitment to secure development practices. The current state reflects the successful FCM implementation, but an ongoing effort to sanitize the Git history for a clean push.
+The AI engineer has transformed the ArgusAI CashOut application from an MVP to a feature-rich trading platform. Initially, critical focus was on perfecting FCM notifications, especially admin-only chat alerts, and resolving a sensitive credential () exposure in Git history. This involved extensive Git manipulation and security awareness. Post-FCM, the work pivoted to significant gamification and social features, including an XP system, achievements, profile customization with banners and pictures, asset allocation visualization, and currently, a follow/unfollow system with optional location. The engineer demonstrated strong debugging skills, particularly with complex frontend JSX errors and browser-specific video autoplay challenges, ensuring a polished user experience while continuously integrating new, complex functionalities.
 </analysis>
 
 <product_requirements>
-The ArgusAI CashOut application is envisioned as an AI-powered financial trading platform for real users. The core problem involved building out a full-featured application from an MVP state to support comprehensive trading functionalities and user interactions. Key requirements included:
-- **Core Platform**: User authentication (registration, login, admin approval), real-time WebSocket chat, paper trading, portfolio management (positions, P&L), admin panel for user management, real-time stock price integration, and a multi-tab interface.
-- **Specific Feature Enhancements & Fixes**:
-    - Accurate P&L calculations and correct handling of low-priced stocks (0.0001-0.01) across all tabs.
-    - Resolution of chat scrolling issues on various devices.
-    - Implementation of chat functionalities like message replies and image pasting.
-    - Email notifications for admin approval (new user registrations) and user-specific approval/rejection emails.
-    - Display of the last 50 trades history within the Portfolio tab.
-    - Password change/retrieval functionality for members and case-insensitive login.
-    - Admin ability to demote other admins.
-    - WhatsApp-style push notifications with sound, even when the app is closed/background, using Firebase Cloud Messaging (FCM). This was later refined to be specifically for *admin* chat messages only.
+The ArgusAI CashOut application is an AI-powered financial trading platform. The core objective was to build a full-featured application from an MVP, supporting user authentication, real-time WebSocket chat, paper trading, portfolio management (positions, P&L), an admin panel, real-time stock prices, and a multi-tab interface. Specific enhancements included: accurate P&L and low-priced stock handling, chat scrolling fixes, message replies and image pasting, email notifications, last 50 trades history, password management, admin demotion, and WhatsApp-style FCM notifications (admin-only). Recent additions encompass: a 5-second intro video loading screen, a notifications tab (for replies/reactions), heart reactions, a user list sidebar, and enhanced reply previews. The latest requested features are: an Experience Points (XP) system, Achievements, Profile Customization (banners, bios, trading style tags, large profile pictures), an Asset Allocation Wheel, and the ongoing implementation of user following with optional location.
 </product_requirements>
 
 <key_technical_concepts>
-- **Backend**: FastAPI, MongoDB (Motor), Python, WebSockets, SMTP via , Firebase Admin SDK.
-- **Frontend**: React.js, Tailwind CSS, JavaScript, Firebase JavaScript SDK.
-- **APIs**: Financial Modeling Prep (FMP) API for stock data.
-- **Development**: Git, Supervisor for process management, Yarn for frontend, Pip for backend.
+- **Backend**: FastAPI, MongoDB (Motor), Python, WebSockets, SMTP (), Firebase Admin SDK.
+- **Frontend**: React.js, Tailwind CSS, JavaScript, Firebase JavaScript SDK, Recharts, Victory Chart.
+- **APIs**: Financial Modeling Prep (FMP) API.
+- **Development**: Git, Supervisor, Yarn, Pip.
 </key_technical_concepts>
 
 <code_architecture>
 The application utilizes a full-stack architecture with a React frontend, FastAPI backend, and MongoDB for data persistence.
 
 
-
--   : Core FastAPI application for API endpoints (user, trading, performance, chat).
-    -   **Importance**: Handles all backend logic and API interactions.
-    -   **Changes**: Modified P&L calculations, added price formatting utilities, new endpoints (, ), case-insensitive login, password management endpoints. Integrated  and . Updated message model for replies and integrated push notification logic for chat messages. Specifically, notification logic was updated to send FCM notifications only when an admin posts a message (lines 1648-1651).
--   : Handles sending email notifications.
-    -   **Importance**: Provides asynchronous email capabilities for user registration/approval.
-    -   **Changes**: Created with functions for sending registration, approval, rejection, password reset, and password change notification emails.
+-   : Core FastAPI application for API endpoints.
+    -   **Importance**: Handles all backend logic, user management, trading, chat, and now gamification/social features.
+    -   **Changes**: Modified P&L, integrated email/FCM. Updated chat message model for replies and admin-only push notifications. Extensively modified for XP, achievement, profile (banners, bios, tags, avatar, location, followers/following), and theme management. Added API endpoints for these new features and integrated XP awarding into message, login, and trade functions.
 -   : Manages Firebase Cloud Messaging interactions.
     -   **Importance**: Enables sending push notifications via Firebase.
-    -   **Changes**: Created with ,  functions, integrating Firebase Admin SDK. Used for sending admin chat notifications.
--   : (Initial file, now **removed from git tracking and history**).
-    -   **Importance**: Previously stored Firebase service account key for backend FCM authentication.
-    -   **Changes**: Initially user-provided. **Crucially, this file was removed from git tracking and history, and added to  to resolve security concerns.**
--   : (New file) A template for the  file.
-    -   **Importance**: Provides a guide for users to set up their Firebase credentials without committing them to the repository.
-    -   **Changes**: Created as part of the security remediation.
--   : Main React component for state, routing, auth, and tabs.
-    -   **Importance**: Central control for frontend application.
-    -   **Changes**: Updated for P&L display, new price formatting. Added password reset modals. Enhanced admin panel UI. Fixed main layout height for chat. Integrated Firebase notification permission requests and token registration with the backend. **Fixed the service worker registration path from  to  (line 455). FCM initialization was added after successful login and when user data is loaded from local storage.**
--   : Displays user's positions and trade history.
-    -   **Importance**: Key component for portfolio tracking.
-    -   **Changes**: Used  and  for precision. Restructured layout for compactness and independent trade history scrolling.
--   : Displays favorite stocks.
-    -   **Importance**: Allows users to track preferred stocks.
-    -   **Changes**: Updated to use  for consistent low-priced stock display.
--   : Handles the real-time chat interface.
-    -   **Importance**: Core communication feature.
-    -   **Changes**: Implemented reply functionality and image paste. Adjusted CSS for proper scrolling.
--   : Utility functions for price/P&L formatting.
-    -   **Importance**: Centralizes formatting logic.
-    -   **Changes**: Created with  (2, 4, or 8 decimals) and  (6 decimals) functions.
--   : Firebase service worker.
-    -   **Importance**: Handles background push notifications, including sound.
-    -   **Changes**: Implemented Firebase messaging setup for foreground/background notifications with WhatsApp-style sound (lines 125-127).
--   : Stores Firebase web app configuration.
-    -   **Importance**: Initializes Firebase SDK in the frontend.
-    -   **Changes**: Created with user-provided Firebase config.
--   , : CSS files.
-    -   **Importance**: Styling for the application.
-    -   **Changes**: Added CSS for body/chat container height constraints.
--   : Project documentation.
-    -   **Importance**: Provides setup and usage instructions.
-    -   **Changes**: Updated with instructions for setting up Firebase credentials using .
--   : Specifies files/directories to be ignored by Git.
-    -   **Importance**: Prevents unintended files from being committed, especially sensitive ones.
-    -   **Changes**: Updated to include  and  to prevent the sensitive file from being committed. Corrected to not ignore .
+    -   **Changes**: Created to send admin chat notifications using Firebase Admin SDK.
+-   : Previously stored Firebase service account key.
+    -   **Importance**: Authenticates backend for FCM.
+    -   **Changes**: Initially provided by the user, then removed from git tracking and history for security. Later, re-added locally by the AI engineer with user-provided credentials, and an auto-commit unintentionally pushed it to the repository, enabling real FCM. **This file should typically NOT be committed.**
+-   : Main React component.
+    -   **Importance**: Central control for frontend, managing state, routing, and overall layout.
+    -   **Changes**: Integrated Firebase notification permissions and token registration, including a critical service worker path fix. Added and iterated on a loading screen with intro video, addressing autoplay and skipping challenges. Integrated new tabs (Notifications, Achievements) and components (XPProgressBar, ProfileCustomization, PublicProfile, AssetAllocationWheel). Managed global state for XP, achievements, and public profile modals. Fixed numerous JSX and scrolling layout issues.
+-   : Intro video file.
+    -   **Importance**: Provides the visual and audio content for the loading screen.
+    -   **Changes**: Downloaded from a user-provided URL and placed in the public directory for web access.
+-   : Displays intro video on app load.
+    -   **Importance**: Enhances initial user experience with branded content.
+    -   **Changes**: Created to play a 5-second video, featuring smooth fade transitions. Implemented intricate logic for browser autoplay compatibility (muted-first, then unmute attempt) and emergency skip mechanisms, which were later removed for mandatory playback.
+-   : New React component for user notifications.
+    -   **Importance**: Provides a dedicated feed for in-app alerts on message replies and reactions.
+    -   **Changes**: Created to display professional notification cards, enhancing user engagement in chat.
+-   : New React component for displaying users.
+    -   **Importance**: Offers a real-time view of online/offline users in the chat sidebar.
+    -   **Changes**: Created to show user statuses, admin indicators, avatars, and enabled clicking on users to view their public profiles.
+-   : New React component for Experience Points visualization.
+    -   **Importance**: Provides visual feedback on user progression and engagement.
+    -   **Changes**: Created to display current XP and level in an animated progress bar in the main header.
+-   : New React component for achievements.
+    -   **Importance**: Showcases user accomplishments within the trading platform.
+    -   **Changes**: Created to display earned and available achievements with progress tracking, integrated into the navigation.
+-   : New React component for profile editing.
+    -   **Importance**: Enables users to personalize their in-app identity.
+    -   **Changes**: Created to allow editing of bio, setting trading style tags, uploading banner images, and managing profile pictures, integrated into the existing profile tab.
+-   : New React component for portfolio visualization.
+    -   **Importance**: Provides an interactive visual breakdown of a user's portfolio by sector.
+    -   **Changes**: Created using  to display asset allocation, integrated into the Portfolio tab.
+-   : New React component for viewing other users' profiles.
+    -   **Importance**: Fosters social interaction by allowing users to explore each other's profiles and trading stats.
+    -   **Changes**: Created as a modal to display comprehensive public user data, including banners, large profile pictures, stats, and achievements, accessible by clicking users in the .
+
 </code_architecture>
 
 <pending_tasks>
-- Test the newly implemented Firebase push notification system end-to-end. (Completed in trajectory for admin-only messages)
-- Fine-tune notification triggers (when to send, what content) based on user feedback. (Partially addressed by making it admin-only)
-- Add notification settings for users (enable/disable notifications).
+- Test the newly implemented backend for optional location, follow/unfollow functionality, and follower/following counts.
+- Implement the frontend integration for the optional location field and the follow/unfollow system, displaying counts on user profiles and lists.
+- Develop follow notifications to alert users when they are followed.
+- Implement the visual polish and unlock mechanisms for custom themes (based on XP levels).
 </pending_tasks>
 
 <current_work>
-Immediately prior to this summary, the AI engineer successfully implemented and thoroughly tested the **WhatsApp-style push notification system** using Firebase Cloud Messaging (FCM) for the ArgusAI CashOut application. This system now ensures that only **admin messages** trigger push notifications to all other approved members, even when the app is in the background or closed, complete with a double-beep sound.
+Immediately before this summary request, the AI engineer was implementing social features: **optional location and a follow/unfollow system**. This work is currently at the **backend completion stage**.
 
-On the **backend**,  was created and integrated into  to handle sending notifications, specifically checking if the sender is an admin before dispatching. The Firebase Admin SDK was properly configured.
+On the backend, within , the following modifications were made:
+-   The  model was enhanced to include  (an optional string),  (a list of user IDs who follow this user), and  (a list of user IDs this user follows).
+-   The  model was also updated to accept the  field for user profile updates.
+-   The  endpoint was modified to process and save the user's provided .
+-   New API endpoints were introduced:
+    -   : Allows a user to follow another user, adding their ID to the target user's  list and the current user's  list.
+    -   : Allows a user to unfollow another user, removing their IDs from the respective lists.
+-   The  endpoint (used for both public and private profile views) was updated to return the  field, as well as the  and  lists, which implicitly provide the follower/following counts.
 
-On the **frontend**,  and  were set up. Crucially,  was updated to correctly request notification permissions, register the FCM token with the backend upon successful login and user data load, and **a critical fix was applied to correct the service worker registration path** ( instead of ). All these components now work seamlessly, ensuring notifications are delivered as requested.
-
-Following the successful implementation and testing of FCM, the immediate challenge became resolving a **Git push protection issue**. GitHub blocked pushes because the  file, containing sensitive Firebase service account credentials, was present in the repository's commit history. The engineer undertook steps to mitigate this security risk:
-1.  The  file was removed from Git tracking ().
-2.  The  file was updated to prevent future accidental commits of this file.
-3.  A template file () was created.
-4.  The  was updated with instructions for users to set up their Firebase credentials locally.
-5.  Attempts were made to clean the Git history (e.g., using WARNING: git-filter-branch has a glut of gotchas generating mangled history
-	 rewrites.  Hit Ctrl-C before proceeding to abort, then use an
-	 alternative filtering tool such as 'git filter-repo'
-	 (https://github.com/newren/git-filter-repo/) instead.  See the
-	 filter-branch manual page for more details; to squelch this warning,
-	 set FILTER_BRANCH_SQUELCH_WARNING=1.
-Proceeding with filter-branch...) and even to perform a fresh repository re-initialization to permanently remove the sensitive data from the history, which is still an ongoing process.
+The backend changes are committed, and the next logical step would be the frontend implementation of these features, specifically displaying the location, implementing the follow/unfollow buttons, and showing the follower/following counts on the profile pages and user lists.
 </current_work>
 
 <optional_next_step>
-The next step is to successfully clean the Git history and push the changes to the remote repository.
+Integrate the optional location and follow/unfollow system into the frontend, including displaying follower/following counts.
 </optional_next_step>
