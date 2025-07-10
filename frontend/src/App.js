@@ -1842,6 +1842,15 @@ function App() {
           />
         )}
 
+        {/* Notifications Tab */}
+        {activeTab === 'notifications' && (
+          <NotificationsTab 
+            notifications={notifications}
+            isDarkTheme={isDarkTheme}
+            currentUser={currentUser}
+          />
+        )}
+
         {/* Portfolio Tab */}
         {activeTab === 'portfolio' && (
           <PortfolioTab 
