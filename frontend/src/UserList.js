@@ -30,7 +30,7 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
       
       for (const user of allUsers) {
         try {
-          const response = await axios.get(`${API}/api/users/${user.id}/profile`);
+          const response = await axios.get(`${API}/users/${user.id}/profile`);
           counts[user.id] = response.data.follower_count || 0;
         } catch (error) {
           console.error(`Error fetching follower count for user ${user.id}:`, error);
