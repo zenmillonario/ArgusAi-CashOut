@@ -2243,6 +2243,57 @@ function App() {
 
               {!showProfileCustomization ? (
                 <>
+                  {/* Large Profile Picture Section */}
+                  <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-8 mb-8">
+                    <div className="relative">
+                      {currentUser?.avatar_url ? (
+                        <img
+                          src={currentUser.avatar_url}
+                          alt="Profile"
+                          className="w-40 h-40 rounded-full object-cover border-4 border-blue-500 shadow-2xl"
+                        />
+                      ) : (
+                        <div className={`w-40 h-40 rounded-full border-4 border-blue-500 shadow-2xl flex items-center justify-center text-6xl font-bold ${
+                          currentUser?.is_admin 
+                            ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white' 
+                            : 'bg-gradient-to-br from-blue-500 to-purple-500 text-white'
+                        }`}>
+                          {currentUser?.is_admin ? '👑' : currentUser?.username?.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      
+                      {/* Level Badge */}
+                      <div className="absolute -bottom-2 -right-2 bg-yellow-500 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold shadow-lg">
+                        L{userXP.level}
+                      </div>
+                    </div>
+                    
+                    <div className="text-center md:text-left">
+                      <h1 className={`text-4xl font-bold mb-2 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        {currentUser?.screen_name || currentUser?.username}
+                      </h1>
+                      <p className={`text-xl mb-4 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
+                        @{currentUser?.username} • {currentUser?.is_admin ? '👑 Admin' : currentUser?.role || 'Member'}
+                      </p>
+                      
+                      {/* Quick Action Buttons */}
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          onClick={() => setShowProfileCustomization(true)}
+                          className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
+                        >
+                          📷 Update Photo
+                        </button>
+                        <button
+                          onClick={() => setShowChangePassword(true)}
+                          className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
+                        >
+                          🔒 Change Password
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* User Stats Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     <div className={`p-4 rounded-lg ${isDarkTheme ? 'bg-gray-800' : 'bg-gray-100'}`}>
