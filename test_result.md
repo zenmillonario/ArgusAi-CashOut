@@ -418,7 +418,9 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "Loading Screen Implementation"
+    - "Optional Location Field"
+    - "Follow/Unfollow System"
+    - "Follower/Following Counts"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
