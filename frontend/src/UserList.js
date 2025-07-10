@@ -92,7 +92,7 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
           </h3>
           <button
             onClick={() => setShowUserList(false)}
-            className={`p-1 rounded ${
+            className={`p-1 rounded md:hidden ${
               isDarkTheme ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
             }`}
           >
@@ -101,8 +101,8 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
         </div>
       </div>
 
-      {/* User List */}
-      <div className="p-2">
+      {/* User List - Scrollable */}
+      <div className="flex-1 overflow-y-auto p-2">
         {sortedUsers.map((user) => {
           const isOnline = getUserStatus(user);
           const isCurrentUser = user.id === currentUser?.id;
