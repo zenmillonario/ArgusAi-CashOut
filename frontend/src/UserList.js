@@ -66,11 +66,12 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
           return (
             <div
               key={user.id}
+              onClick={() => !isCurrentUser && onViewProfile && onViewProfile(user.id)}
               className={`flex items-center space-x-3 p-2 rounded-lg mb-1 ${
                 isCurrentUser 
                   ? isDarkTheme ? 'bg-blue-900/50' : 'bg-blue-100'
-                  : isDarkTheme ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
-              }`}
+                  : isDarkTheme ? 'hover:bg-gray-700 cursor-pointer' : 'hover:bg-gray-50 cursor-pointer'
+              } transition-colors`}
             >
               {/* Avatar */}
               <div className="relative">
