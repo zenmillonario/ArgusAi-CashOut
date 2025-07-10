@@ -903,6 +903,14 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
                 earned = True
             elif achievement_id == "profit_1k" and user.get("total_profit", 0) >= 1000:
                 earned = True
+            elif achievement_id == "profit_2k" and user.get("total_profit", 0) >= 2000:
+                earned = True
+            elif achievement_id == "profit_3k" and user.get("total_profit", 0) >= 3000:
+                earned = True
+            elif achievement_id == "profit_4k" and user.get("total_profit", 0) >= 4000:
+                earned = True
+            elif achievement_id == "profit_5k" and user.get("total_profit", 0) >= 5000:
+                earned = True
                 
             if earned:
                 new_achievements.append(achievement_id)
