@@ -2022,7 +2022,7 @@ function App() {
         
         {/* Chat Tab */}
         {activeTab === 'chat' && (
-          <div className="flex flex-col h-full" style={{ maxHeight: 'calc(100vh - 140px)' }}>
+          <div className="flex flex-col h-full" style={{ maxHeight: 'calc(100vh - 160px)' }}>
             {/* Mobile Chat Header with User List Toggle */}
             <div className="md:hidden flex items-center justify-between p-3 border-b border-white/20 flex-shrink-0 bg-opacity-90 backdrop-blur-sm" style={{
               background: isDarkTheme ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'
