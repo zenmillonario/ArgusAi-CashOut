@@ -2005,44 +2005,70 @@ function App() {
         
         {/* Chat Tab */}
         {activeTab === 'chat' && (
-          <div className="flex h-full">
-            <ChatTab 
-              messages={messages}
-              filteredMessages={filteredMessages}
-              showSearch={showSearch}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              formatMessageContent={formatMessageContent}
-              addReaction={addReaction}
-              messageReactions={messageReactions}
-              addToFavorites={addToFavorites}
-              favorites={favorites}
-              messagesEndRef={messagesEndRef}
-              sendMessage={sendMessage}
-              newMessage={newMessage}
-              setNewMessage={setNewMessage}
-              imageFile={imageFile}
-              setImageFile={setImageFile}
-              imagePreview={imagePreview}
-              setImagePreview={setImagePreview}
-              isDarkTheme={isDarkTheme}
-              replyToMessage={replyToMessage}
-              setReplyToMessage={setReplyToMessage}
-              onlineUsers={onlineUsers}
-              allUsers={allUsers}
-              currentUser={currentUser}
-              onViewProfile={handleViewProfile}
-            />
-            {/* Desktop UserList - hidden on mobile, ChatTab handles mobile user list */}
-            <div className="hidden md:block">
-              <UserList 
-                onlineUsers={onlineUsers}
-                allUsers={allUsers}
-                currentUser={currentUser}
+          <div className="flex flex-col h-full">
+            {/* Chat Content Area - 2 columns */}
+            <div className="flex flex-1 overflow-hidden">
+              {/* Chat Messages Column */}
+              <div className="flex-1 flex flex-col">
+                <ChatTab 
+                  messages={messages}
+                  filteredMessages={filteredMessages}
+                  showSearch={showSearch}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  formatMessageContent={formatMessageContent}
+                  addReaction={addReaction}
+                  messageReactions={messageReactions}
+                  addToFavorites={addToFavorites}
+                  favorites={favorites}
+                  messagesEndRef={messagesEndRef}
+                  sendMessage={sendMessage}
+                  newMessage={newMessage}
+                  setNewMessage={setNewMessage}
+                  imageFile={imageFile}
+                  setImageFile={setImageFile}
+                  imagePreview={imagePreview}
+                  setImagePreview={setImagePreview}
+                  isDarkTheme={isDarkTheme}
+                  replyToMessage={replyToMessage}
+                  setReplyToMessage={setReplyToMessage}
+                  onlineUsers={onlineUsers}
+                  allUsers={allUsers}
+                  currentUser={currentUser}
+                  onViewProfile={handleViewProfile}
+                  hideMessageInput={true}
+                />
+              </div>
+              
+              {/* Desktop UserList Column - fixed height with scroll */}
+              <div className="hidden md:block">
+                <UserList 
+                  onlineUsers={onlineUsers}
+                  allUsers={allUsers}
+                  currentUser={currentUser}
+                  isDarkTheme={isDarkTheme}
+                  showUserList={showUserList}
+                  setShowUserList={setShowUserList}
+                  onViewProfile={handleViewProfile}
+                />
+              </div>
+            </div>
+            
+            {/* Message Input Area - Always at bottom */}
+            <div className={`flex-shrink-0 p-4 border-t ${
+              isDarkTheme ? 'border-white/10 bg-gray-900/50' : 'border-gray-200 bg-white/50'
+            } backdrop-blur-lg`}>
+              <ChatInput 
+                sendMessage={sendMessage}
+                newMessage={newMessage}
+                setNewMessage={setNewMessage}
+                imageFile={imageFile}
+                setImageFile={setImageFile}
+                imagePreview={imagePreview}
+                setImagePreview={setImagePreview}
                 isDarkTheme={isDarkTheme}
-                showUserList={showUserList}
-                setShowUserList={setShowUserList}
-                onViewProfile={handleViewProfile}
+                replyToMessage={replyToMessage}
+                setReplyToMessage={setReplyToMessage}
               />
             </div>
           </div>
