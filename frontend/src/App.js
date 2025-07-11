@@ -635,15 +635,30 @@ function App() {
 
   const scrollToBottom = () => {
     try {
-      // Add a small delay and check if element exists to prevent mobile scroll issues
-      setTimeout(() => {
-        if (messagesEndRef.current && !document.hidden) {
-          messagesEndRef.current.scrollIntoView({ 
-            behavior: "smooth",
-            block: "nearest" // Less aggressive scrolling
-          });
-        }
-      }, 100);
+      // Don't auto-scroll if mobile user list is open or if we're on mobile
+      const isMobile = window.innerWidth < 768;
+      if (isMobile) {
+        // On mobile, be much less aggressive with auto-scroll
+        setTimeout(() => {
+          if (messagesEndRef.current && !document.hidden) {
+            // Use a gentler scroll approach on mobile
+            messagesEndRef.current.scrollIntoView({ 
+              behavior: "auto", // No smooth animation on mobile
+              block: "end" // Less intrusive positioning
+            });
+          }
+        }, 300); // Longer delay on mobile
+      } else {
+        // Desktop behavior
+        setTimeout(() => {
+          if (messagesEndRef.current && !document.hidden) {
+            messagesEndRef.current.scrollIntoView({ 
+              behavior: "smooth",
+              block: "nearest"
+            });
+          }
+        }, 100);
+      }
     } catch (error) {
       console.log('Scroll error (non-critical):', error);
     }
