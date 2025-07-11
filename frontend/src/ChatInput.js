@@ -84,36 +84,11 @@ const ChatInput = ({
           </div>
           <div className={`text-sm p-2 rounded border-l-2 ${
             isDarkTheme 
-              ? 'bg-white/5 border-blue-400 text-gray-300' 
-              : 'bg-white border-blue-500 text-gray-700'
+              ? 'bg-gray-700 border-blue-400 text-gray-300' 
+              : 'bg-gray-50 border-blue-400 text-gray-700'
           }`}>
-            {/* Show image preview if replying to image */}
-            {replyToMessage.content_type === 'image' && replyToMessage.content && (
-              <div className="flex items-center space-x-2 mb-2">
-                <img 
-                  src={replyToMessage.content} 
-                  alt="Replied message" 
-                  className="w-12 h-12 object-cover rounded"
-                />
-                <span>📷 Image</span>
-              </div>
-            )}
-            
-            {/* Show text content */}
-            {replyToMessage.content_type === 'text' && (
-              <div>
-                {replyToMessage.content.substring(0, 100)}
-                {replyToMessage.content.length > 100 && '...'}
-              </div>
-            )}
-            
-            {/* Show both image and text if both exist */}
-            {replyToMessage.content_type === 'image' && replyToMessage.text_content && (
-              <div className="mt-2 text-xs opacity-75">
-                "{replyToMessage.text_content.substring(0, 50)}"
-                {replyToMessage.text_content.length > 50 && '...'}
-              </div>
-            )}
+            {replyToMessage.content.substring(0, 100)}
+            {replyToMessage.content.length > 100 && '...'}
           </div>
         </div>
       )}
