@@ -1707,12 +1707,20 @@ function App() {
             
             {/* Desktop Navigation Tabs - Hidden on Mobile */}
             <div className="hidden md:flex space-x-1">
-              {['chat', 'notifications', 'achievements', 'portfolio', 'practice', 'favorites', 'profile'].map((tab) => (
+              {[
+                { key: 'chat', emoji: '💬', label: 'Chat' },
+                { key: 'notifications', emoji: '🔔', label: 'Notifications' },
+                { key: 'achievements', emoji: '🏆', label: 'Achievements' },
+                { key: 'portfolio', emoji: '📊', label: 'Portfolio' },
+                { key: 'practice', emoji: '🎯', label: 'Practice' },
+                { key: 'favorites', emoji: '⭐', label: 'Favorites' },
+                { key: 'profile', emoji: '👤', label: 'Profile' }
+              ].map((tab) => (
                 <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-2 rounded-lg font-medium capitalize transition-colors ${
-                    activeTab === tab
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+                    activeTab === tab.key
                       ? isDarkTheme 
                         ? 'bg-blue-600 text-white' 
                         : 'bg-blue-600 text-white'
@@ -1720,14 +1728,15 @@ function App() {
                         ? 'text-gray-300 hover:bg-white/10' 
                         : 'text-gray-700 hover:bg-gray-100 border border-gray-200'
                   }`}
+                  title={tab.label}
                 >
-                  {tab}
+                  <span className="text-lg">{tab.emoji}</span>
                 </button>
               ))}
               {currentUser?.is_admin && (
                 <button
                   onClick={() => setActiveTab('admin')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  className={`px-3 py-2 rounded-lg font-medium transition-colors ${
                     activeTab === 'admin'
                       ? isDarkTheme 
                         ? 'bg-yellow-600 text-white' 
@@ -1736,8 +1745,9 @@ function App() {
                         ? 'text-yellow-400 hover:bg-white/10' 
                         : 'text-yellow-600 hover:bg-yellow-50 border border-yellow-200'
                   }`}
+                  title="Admin"
                 >
-                  Admin
+                  <span className="text-lg">👑</span>
                 </button>
               )}
             </div>
