@@ -59,7 +59,6 @@ const ChatTab = ({
       if (!allUsers || allUsers.length === 0) return;
       
       const counts = {};
-      const axios = require('axios');
       
       for (const user of allUsers) {
         try {
