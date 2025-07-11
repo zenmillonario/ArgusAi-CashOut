@@ -3,6 +3,52 @@ import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
 import uuid
+import secrets
+
+# Generate referral code for new users
+def generate_referral_code(username: str) -> str:
+    """Generate a unique referral code for a user"""
+    # Use first 4 chars of username + 4 random chars
+    username_part = username[:4].upper()
+    random_part = secrets.token_hex(2).upper()
+    return f"{username_part}{random_part}"
+
+async def handle_referral_signup(new_user_id: str, referral_code: str):
+    """Handle referral when a new user signs up with a referral code"""
+    try:
+        # Find the referring user
+        referring_user = await db.users.find_one({"referral_code": referral_code})
+        if not referring_user:
+            logger.warning(f"Invalid referral code used: {referral_code}")
+            return False
+        
+        referring_user_id = referring_user["id"]
+        
+        # Update the new user's referred_by field
+        await db.users.update_one(
+            {"id": new_user_id},
+            {"$set": {"referred_by": referring_user_id}}
+        )
+        
+        # Add new user to referring user's referrals list
+        await db.users.update_one(
+            {"id": referring_user_id},
+            {
+                "$push": {"referrals": new_user_id},
+                "$inc": {"successful_referrals": 1}
+            }
+        )
+        
+        logger.info(f"User {new_user_id} was referred by {referring_user_id} using code {referral_code}")
+        
+        # Check for referral achievements for the referring user
+        await check_achievements(referring_user_id, "referral_success", {"referred_user": new_user_id})
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error handling referral signup: {e}")
+        return False
 import hashlib
 import json
 from enum import Enum
