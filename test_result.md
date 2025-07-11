@@ -516,9 +516,21 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+  - task: "Auto-Mark Notifications as Read When Viewed"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/NotificationsTab.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented auto-mark as read functionality in NotificationsTab.js. Added useEffect hook to automatically mark unread notifications as read when they are displayed. Removed manual Mark as Read button and added visual indicator for read notifications. Fixed API call method from POST to PUT in App.js."
+
 agent_communication:
   - agent: "main"
-    message: "I've implemented the complete Firebase Cloud Messaging (FCM) push notification system for the ArgusAI CashOut application. Backend includes fcm_service.py with notification functions, FCM token registration API, and integration into chat and user registration flows. Frontend includes Firebase configuration, service worker for background notifications with WhatsApp-style sounds, and token registration logic. Please test this comprehensive FCM implementation focusing on: 1) FCM token registration and storage, 2) Chat message notifications (foreground/background), 3) User registration admin notifications, 4) Notification sound functionality, 5) Background notification delivery when app is closed."
+    message: "I've implemented the auto-mark as read functionality for notifications. The changes include: 1) Modified NotificationsTab.js to use useEffect for automatically marking notifications as read when they're viewed, 2) Removed the manual 'Mark as Read' button since notifications are now automatically marked as read, 3) Added a visual '✓ Read' indicator for read notifications, 4) Fixed the API call method from POST to PUT in App.js to match backend expectations. The implementation uses a ref to track processed notifications to prevent duplicate API calls. Please test this implementation to verify that notifications are automatically marked as read when the notifications tab is viewed."
   - agent: "testing"
     message: "I've completed testing of the backend FCM implementation. All backend components are working correctly: FCM Service Integration, FCM Token Registration API, Chat Message Notifications, and User Registration Admin Notifications. The FCM service properly initializes with Firebase Admin SDK credentials and gracefully handles errors in the test environment. The token registration API correctly registers and updates tokens, with proper validation. Chat notifications are sent to all users except the sender, with proper message previews. Admin notifications are sent when new users register. All backend tests passed successfully. Note that I was unable to test the frontend components due to the application preview being unavailable."
 
