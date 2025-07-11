@@ -2397,12 +2397,10 @@ async def get_pending_cash_prizes(admin_id: str):
     return {"pending_cash_prizes": pending_prizes}
 
 @api_router.post("/admin/cash-prizes/review")
-async def review_cash_prize(review: CashPrizeReview):
+async def review_cash_prize(review: CashPrizeReview, admin_id: str):
     """Admin review and approve/reject cash prize"""
     # Verify admin status
-    admin = await db.users.find_one({"id": review.user_id})
-    if review.user_id:
-        admin = await db.users.find_one({"id": review.user_id})
+    admin = await db.users.find_one({"id": admin_id})
     if not admin or not admin.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
     
