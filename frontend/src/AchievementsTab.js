@@ -5,7 +5,8 @@ const AchievementsTab = ({ currentUser, isDarkTheme }) => {
   const [achievements, setAchievements] = useState({ earned: [], available: [] });
   const [loading, setLoading] = useState(true);
 
-  const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+  const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
   useEffect(() => {
     fetchAchievements();
