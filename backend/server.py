@@ -395,6 +395,17 @@ class User(BaseModel):
     following: List[str] = Field(default_factory=list)  # List of user IDs this user follows
     follower_count: int = 0  # Cached count for performance
     following_count: int = 0  # Cached count for performance
+    
+    # NEW: Referral System
+    referral_code: Optional[str] = None  # Unique referral code for this user
+    referred_by: Optional[str] = None  # User ID who referred this user
+    referrals: List[str] = Field(default_factory=list)  # List of user IDs referred by this user
+    successful_referrals: int = 0  # Count of successful referrals
+    
+    # NEW: Cash Prize System
+    cash_prizes: List[Dict[str, Any]] = Field(default_factory=list)  # Cash prizes earned
+    total_cash_earned: float = 0.0  # Total cash prizes earned
+    pending_cash_review: List[Dict[str, Any]] = Field(default_factory=list)  # Pending admin review
 
 class UserCreate(BaseModel):
     username: str
