@@ -163,7 +163,7 @@ const ChatTab = ({
         } backdrop-blur-xl shadow-2xl`} style={{ top: '120px' }}>
           <div className="h-full flex flex-col">
             {/* User List Header */}
-            <div className={`p-3 border-b flex items-center justify-between ${
+            <div className={`p-3 border-b border-t flex items-center justify-between ${
               isDarkTheme ? 'border-white/10' : 'border-gray-200'
             }`}>
               <h3 className={`font-semibold ${
