@@ -2022,6 +2022,31 @@ function App() {
         {/* Chat Tab */}
         {activeTab === 'chat' && (
           <div className="flex flex-col h-full" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+            {/* Mobile Chat Header with User List Toggle */}
+            <div className="md:hidden flex items-center justify-between p-3 border-b border-white/20 flex-shrink-0 bg-opacity-90 backdrop-blur-sm" style={{
+              background: isDarkTheme ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'
+            }}>
+              <h2 className={`text-lg font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                Chat
+              </h2>
+              <button
+                onClick={() => setMobileUserListOpen(!mobileUserListOpen)}
+                className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium border-2 ${
+                  mobileUserListOpen 
+                    ? 'bg-blue-500 text-white border-blue-500 shadow-lg' 
+                    : isDarkTheme 
+                      ? 'bg-white/20 text-white border-white/30 hover:bg-white/30' 
+                      : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                }`}
+                title={mobileUserListOpen ? 'Hide user list' : 'Show user list'}
+              >
+                <span className="flex items-center space-x-2">
+                  <span className="text-lg">👥</span>
+                  <span className="text-sm font-semibold">({onlineUsers?.length || 0})</span>
+                </span>
+              </button>
+            </div>
+            
             {/* Chat Content Area - 2 columns */}
             <div className="flex flex-1 overflow-hidden min-h-0">
               {/* Chat Messages Column */}
