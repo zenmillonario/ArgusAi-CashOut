@@ -3999,8 +3999,8 @@ def test_comprehensive_notification_system():
     success, duplicate_follow = tester.run_test(
         "Admin follows demo2 again (duplicate test)",
         "POST",
-        f"users/{demo2_user['id']}/follow",
-        200,
+        f"users/{admin_user['id']}/follow",
+        400,  # Should return 400 for "Already following this user"
         session=tester.session1,
         data={"target_user_id": demo2_user['id']}
     )
