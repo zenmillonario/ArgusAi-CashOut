@@ -2,6 +2,21 @@ import React, { useEffect, useRef } from 'react';
 
 const NotificationsTab = ({ notifications, isDarkTheme, currentUser, onMarkAsRead, onDeleteNotification }) => {
   const processedNotifications = useRef(new Set());
+  // Auto-mark notifications as read when they're viewed
+  useEffect(() => {
+    if (!notifications || !onMarkAsRead) return;
+    
+    // Mark unread notifications as read when they're displayed
+    notifications.forEach(notification => {
+      if (!notification.read && !processedNotifications.current.has(notification.id)) {
+        // Mark this notification as processed to prevent duplicate API calls
+        processedNotifications.current.add(notification.id);
+        // Auto-mark as read
+        onMarkAsRead(notification.id);
+      }
+    });
+  }, [notifications, onMarkAsRead]);
+
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
