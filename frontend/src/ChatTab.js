@@ -157,9 +157,7 @@ const ChatTab = ({
       )}
 
       {/* Messages - STREAMLINED SAME LINE FORMAT - Isolated scroll container */}
-      <div className={`backdrop-blur-lg rounded-2xl border p-4 ${
-        hideMessageInput ? 'flex-1' : 'flex-1 mb-4'
-      } ${
+      <div className={`backdrop-blur-lg rounded-2xl border p-4 flex-1 ${
         isDarkTheme 
           ? 'bg-white/5 border-white/10' 
           : 'bg-white/80 border-gray-200'
