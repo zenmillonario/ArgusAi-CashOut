@@ -702,11 +702,11 @@ function App() {
 
   // Auto-scroll when messages change AND on initial load - with mobile optimization
   useEffect(() => {
-    // Only auto-scroll if user is actively viewing chat tab and app is visible
-    if (activeTab === 'chat' && !document.hidden && filteredMessages.length > 0) {
+    // Only auto-scroll if user is actively viewing chat tab, app is visible, and mobile user list is closed
+    if (activeTab === 'chat' && !document.hidden && filteredMessages.length > 0 && !mobileUserListOpen) {
       scrollToBottom();
     }
-  }, [filteredMessages, activeTab]);
+  }, [filteredMessages, activeTab, mobileUserListOpen]);
 
   // WebSocket connection
   useEffect(() => {
