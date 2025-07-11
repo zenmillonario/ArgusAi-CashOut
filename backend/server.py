@@ -14,6 +14,7 @@ import base64
 import httpx
 import asyncio
 import sys
+from cash_prize import create_pending_cash_prize
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
