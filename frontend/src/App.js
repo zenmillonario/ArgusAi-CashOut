@@ -2099,21 +2099,23 @@ function App() {
             </div>
             
             {/* Message Input Area - Always at bottom */}
-            <div className={`flex-shrink-0 p-1 border-t ${
+            <div className={`flex-shrink-0 border-t ${
               isDarkTheme ? 'border-white/10 bg-gray-900/50' : 'border-gray-200 bg-white/50'
             } backdrop-blur-lg`}>
-              <ChatInput 
-                sendMessage={sendMessage}
-                newMessage={newMessage}
-                setNewMessage={setNewMessage}
-                imageFile={imageFile}
-                setImageFile={setImageFile}
-                imagePreview={imagePreview}
-                setImagePreview={setImagePreview}
-                isDarkTheme={isDarkTheme}
-                replyToMessage={replyToMessage}
-                setReplyToMessage={setReplyToMessage}
-              />
+              <div className="p-2">
+                <ChatInput 
+                  sendMessage={sendMessage}
+                  newMessage={newMessage}
+                  setNewMessage={setNewMessage}
+                  imageFile={imageFile}
+                  setImageFile={setImageFile}
+                  imagePreview={imagePreview}
+                  setImagePreview={setImagePreview}
+                  isDarkTheme={isDarkTheme}
+                  replyToMessage={replyToMessage}
+                  setReplyToMessage={setReplyToMessage}
+                />
+              </div>
             </div>
             
             {/* Mobile User List Overlay - Fixed positioning */}
