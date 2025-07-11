@@ -2007,9 +2007,9 @@ function App() {
         {activeTab === 'chat' && (
           <div className="flex flex-col h-full" style={{ maxHeight: 'calc(100vh - 120px)' }}>
             {/* Chat Content Area - 2 columns */}
-            <div className="flex flex-1 overflow-hidden" style={{ minHeight: 0 }}>
+            <div className="flex flex-1 overflow-hidden min-h-0">
               {/* Chat Messages Column */}
-              <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 flex flex-col min-h-0 h-full">
                 <ChatTab 
                   messages={messages}
                   filteredMessages={filteredMessages}
