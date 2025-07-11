@@ -2455,6 +2455,21 @@ async def review_cash_prize(review: CashPrizeReview, admin_id: str):
                 # Send notification to chat about cash prize
                 await share_cash_prize_in_chat(review.user_id, approved_prize)
                 
+                # Create cash prize notification for the user
+                await create_user_notification(
+                    user_id=review.user_id,
+                    notification_type="cash_prize",
+                    title="Cash Prize Approved! 💰",
+                    message=f"Congratulations! Your cash prize of ${review.amount:.2f} has been approved for {review.achievement_id} achievement!",
+                    data={
+                        "amount": review.amount,
+                        "achievement_id": review.achievement_id,
+                        "admin_notes": review.admin_notes,
+                        "approved_at": datetime.utcnow(),
+                        "action": "cash_prize_approved"
+                    }
+                )
+                
             elif review.status == "rejected":
                 # Just remove from pending
                 pass
