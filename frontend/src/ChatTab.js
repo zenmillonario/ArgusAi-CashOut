@@ -185,7 +185,7 @@ const ChatTab = ({
                 Online Users ({onlineUsers?.length || 0})
               </h3>
               <button
-                onClick={() => setShowMobileUserList(false)}
+                onClick={() => setMobileUserListOpen(false)}
                 className={`p-1.5 rounded-lg ${
                   isDarkTheme ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
                 }`}
