@@ -3758,6 +3758,7 @@ def main():
     print("\n🔍 RUNNING ALL TESTS FOR ARGUSAI CASHOUT BACKEND")
     
     test_results = {
+        "Achievement System": test_achievement_system(),
         "Admin Demotion Functionality": test_admin_demotion(),
         "FCM Graceful Handling": test_fcm_graceful_handling(),
         "Password Reset Flow": test_password_reset_flow(),
