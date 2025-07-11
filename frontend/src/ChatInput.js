@@ -179,7 +179,7 @@ const ChatInput = ({
         </div>
         
         <div className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'} text-center`}>
-          💡 Tip: Use $SYMBOL to highlight stock tickers • Upload/paste images/GIFs to share • Click ↩️ to reply
+          Press Enter to send, Shift+Enter for new line
         </div>
       </form>
     </div>
