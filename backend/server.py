@@ -1413,10 +1413,16 @@ async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks
     # Create new user with pending status (in production, hash the password!)
     user_dict = user_data.dict()
     
+    # Store referral code for processing after user creation
+    referral_code = user_dict.pop('referral_code', None)
+    
     # Store the password for testing purposes (in a real app, you'd hash it)
     password = user_dict.pop('password')
     hashed_password = hash_password(password)
     user_dict['password_hash'] = hashed_password
+    
+    # Generate unique referral code for this user
+    user_dict['referral_code'] = generate_referral_code(user_data.username)
     
     # For testing: Make the first user an admin and auto-approve
     users_count = await db.users.count_documents({})
