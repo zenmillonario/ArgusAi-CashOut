@@ -68,14 +68,18 @@ const ChatInput = ({
             : 'bg-blue-50 border-blue-200'
         }`}>
           <div className="flex items-center justify-between mb-2">
-            <span className={`text-sm font-medium ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}`}>
-              ↩️ Replying to {replyToMessage.screen_name || replyToMessage.username}:
-            </span>
+            <div className={`text-sm font-medium ${
+              isDarkTheme ? 'text-blue-300' : 'text-blue-700'
+            }`}>
+              Replying to {replyToMessage.username}
+            </div>
             <button
               onClick={() => setReplyToMessage(null)}
-              className="text-red-400 hover:text-red-300 text-sm"
+              className={`text-sm px-2 py-1 rounded ${
+                isDarkTheme ? 'hover:bg-blue-500/20' : 'hover:bg-blue-100'
+              }`}
             >
-              ✕ Cancel
+              ✕
             </button>
           </div>
           <div className={`text-sm p-2 rounded border-l-2 ${
