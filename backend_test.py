@@ -1750,6 +1750,262 @@ def test_email_notification_registration():
         print("❌ Registration endpoint did not create user properly")
         return False
 
+def test_achievement_system():
+    """Test the achievement system for duplicate prevention and auto-posting to chat"""
+    print("\n🔍 TESTING FEATURE: Achievement System - Chatterbox Achievement")
+    
+    tester = CashoutAITester()
+    
+    # Login as admin user (e4d1fef8-dd8c-48d3-a2e6-d0fd8def2396)
+    admin_user = tester.test_login("admin", "admin123", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed, cannot test achievement system")
+        return False
+    
+    admin_user_id = admin_user['id']
+    print(f"✅ Admin login successful with user ID: {admin_user_id}")
+    
+    # Step 1: Check current messages in chat to establish baseline
+    print("\n📋 Step 1: Establishing baseline - checking current messages")
+    initial_messages = tester.test_get_messages(tester.session1, limit=100)
+    if initial_messages is None:
+        print("❌ Failed to get initial messages")
+        return False
+    
+    initial_message_count = len(initial_messages)
+    print(f"✅ Current message count: {initial_message_count}")
+    
+    # Count existing achievement messages
+    initial_achievement_messages = [msg for msg in initial_messages if "Achievement Unlocked" in msg.get('content', '')]
+    initial_achievement_count = len(initial_achievement_messages)
+    print(f"✅ Current achievement messages: {initial_achievement_count}")
+    
+    # Step 2: Check user's current achievements and message count
+    print("\n📋 Step 2: Checking user's current achievements and progress")
+    success, user_profile = tester.run_test(
+        "Get user profile to check achievements",
+        "GET",
+        f"users/{admin_user_id}/profile",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to get user profile")
+        return False
+    
+    current_achievements = user_profile.get('achievements', [])
+    achievement_progress = user_profile.get('achievement_progress', {})
+    current_message_count = achievement_progress.get('chatterbox_count', 0)
+    
+    print(f"✅ Current achievements: {current_achievements}")
+    print(f"✅ Current message count progress: {current_message_count}")
+    
+    # Check if Chatterbox achievement is already earned
+    if 'chatterbox' in current_achievements:
+        print("⚠️ Chatterbox achievement already earned. Testing duplicate prevention...")
+        chatterbox_already_earned = True
+    else:
+        print("✅ Chatterbox achievement not yet earned. Will test earning process...")
+        chatterbox_already_earned = False
+    
+    # Step 3: Send messages to reach exactly 100 total messages
+    messages_needed = 100 - current_message_count
+    print(f"\n📋 Step 3: Sending {messages_needed} messages to reach 100 total")
+    
+    if messages_needed > 0:
+        # Send messages in batches to avoid overwhelming the system
+        batch_size = 10
+        batches = (messages_needed + batch_size - 1) // batch_size
+        
+        for batch in range(batches):
+            start_msg = batch * batch_size + 1
+            end_msg = min((batch + 1) * batch_size, messages_needed)
+            
+            print(f"Sending batch {batch + 1}/{batches} (messages {start_msg}-{end_msg})")
+            
+            for i in range(start_msg, end_msg + 1):
+                message_content = f"Test message {current_message_count + i} for Chatterbox achievement"
+                
+                success, response = tester.run_test(
+                    f"Send message {current_message_count + i}",
+                    "POST",
+                    "messages",
+                    200,
+                    session=tester.session1,
+                    data={
+                        "user_id": admin_user_id,
+                        "content": message_content,
+                        "content_type": "text"
+                    }
+                )
+                
+                if not success:
+                    print(f"❌ Failed to send message {current_message_count + i}")
+                    return False
+                
+                # Small delay to avoid overwhelming the system
+                import time
+                time.sleep(0.1)
+            
+            print(f"✅ Completed batch {batch + 1}/{batches}")
+    else:
+        print("✅ Already at or above 100 messages")
+    
+    # Step 4: Check if achievement message appeared in chat
+    print("\n📋 Step 4: Checking for achievement message in chat")
+    
+    # Wait a moment for achievement processing
+    import time
+    time.sleep(2)
+    
+    # Get updated messages
+    updated_messages = tester.test_get_messages(tester.session1, limit=150)
+    if updated_messages is None:
+        print("❌ Failed to get updated messages")
+        return False
+    
+    # Find new achievement messages
+    new_achievement_messages = [msg for msg in updated_messages if "Achievement Unlocked" in msg.get('content', '') and "Chatterbox" in msg.get('content', '')]
+    new_achievement_count = len(new_achievement_messages)
+    
+    print(f"✅ Found {new_achievement_count} Chatterbox achievement messages in chat")
+    
+    # Step 5: Verify achievement behavior
+    if not chatterbox_already_earned:
+        # Should have exactly ONE new achievement message
+        if new_achievement_count == 1:
+            print("✅ Exactly ONE Chatterbox achievement message posted to chat")
+            achievement_message = new_achievement_messages[0]
+            print(f"✅ Achievement message content: {achievement_message.get('content')}")
+            
+            # Verify message contains expected content
+            expected_content_parts = ["Achievement Unlocked", "Chatterbox", "Send 100 chat messages", "💬"]
+            for part in expected_content_parts:
+                if part not in achievement_message.get('content', ''):
+                    print(f"❌ Achievement message missing expected content: {part}")
+                    return False
+            
+            print("✅ Achievement message contains all expected content")
+            
+        elif new_achievement_count == 0:
+            print("❌ No Chatterbox achievement message posted to chat")
+            return False
+        else:
+            print(f"❌ Multiple Chatterbox achievement messages posted ({new_achievement_count})")
+            return False
+    else:
+        # Should have NO new achievement messages (duplicate prevention)
+        if new_achievement_count == 0:
+            print("✅ No duplicate achievement messages posted (duplicate prevention working)")
+        else:
+            print(f"❌ Duplicate achievement messages posted ({new_achievement_count})")
+            return False
+    
+    # Step 6: Send additional messages to test duplicate prevention
+    print("\n📋 Step 6: Sending additional messages to test duplicate prevention")
+    
+    additional_messages = 5
+    for i in range(additional_messages):
+        message_content = f"Additional test message {i + 1} after achievement"
+        
+        success, response = tester.run_test(
+            f"Send additional message {i + 1}",
+            "POST",
+            "messages",
+            200,
+            session=tester.session1,
+            data={
+                "user_id": admin_user_id,
+                "content": message_content,
+                "content_type": "text"
+            }
+        )
+        
+        if not success:
+            print(f"❌ Failed to send additional message {i + 1}")
+            return False
+        
+        time.sleep(0.1)
+    
+    print(f"✅ Sent {additional_messages} additional messages")
+    
+    # Step 7: Verify no duplicate achievement messages
+    print("\n📋 Step 7: Verifying no duplicate achievement messages")
+    
+    # Wait a moment
+    time.sleep(2)
+    
+    # Get final messages
+    final_messages = tester.test_get_messages(tester.session1, limit=200)
+    if final_messages is None:
+        print("❌ Failed to get final messages")
+        return False
+    
+    # Count final achievement messages
+    final_achievement_messages = [msg for msg in final_messages if "Achievement Unlocked" in msg.get('content', '') and "Chatterbox" in msg.get('content', '')]
+    final_achievement_count = len(final_achievement_messages)
+    
+    print(f"✅ Final Chatterbox achievement message count: {final_achievement_count}")
+    
+    # Verify no duplicates were created
+    if not chatterbox_already_earned:
+        if final_achievement_count == 1:
+            print("✅ No duplicate achievement messages created")
+        else:
+            print(f"❌ Duplicate achievement messages detected ({final_achievement_count})")
+            return False
+    else:
+        if final_achievement_count == 0:
+            print("✅ No duplicate achievement messages created (achievement already earned)")
+        else:
+            print(f"❌ Duplicate achievement messages detected ({final_achievement_count})")
+            return False
+    
+    # Step 8: Verify achievement was added to user's earned achievements list
+    print("\n📋 Step 8: Verifying achievement was added to user's earned achievements")
+    
+    success, final_user_profile = tester.run_test(
+        "Get final user profile to check achievements",
+        "GET",
+        f"users/{admin_user_id}/profile",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to get final user profile")
+        return False
+    
+    final_achievements = final_user_profile.get('achievements', [])
+    final_progress = final_user_profile.get('achievement_progress', {})
+    final_message_count = final_progress.get('chatterbox_count', 0)
+    
+    print(f"✅ Final achievements: {final_achievements}")
+    print(f"✅ Final message count: {final_message_count}")
+    
+    # Verify Chatterbox achievement is in the list
+    if 'chatterbox' not in final_achievements:
+        print("❌ Chatterbox achievement not found in user's earned achievements")
+        return False
+    
+    print("✅ Chatterbox achievement correctly added to user's earned achievements")
+    
+    # Verify message count is at least 100
+    if final_message_count < 100:
+        print(f"❌ Message count ({final_message_count}) is less than 100")
+        return False
+    
+    print(f"✅ Message count ({final_message_count}) meets achievement requirement")
+    
+    print("\n🎉 Achievement System Test Results:")
+    print("✅ Achievements automatically post to chat when NEW achievements are completed")
+    print("✅ Achievement posts only appear ONCE (no duplicate posts)")
+    print("✅ Achievement was properly added to user's earned achievements list")
+    print("✅ Duplicate prevention logic works correctly")
+    
+    return True
+
 def test_admin_role_management():
     """Test the admin role management functionality"""
     print("\n🔍 TESTING FEATURE: Admin Role Management")
