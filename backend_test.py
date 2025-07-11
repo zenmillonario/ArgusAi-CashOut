@@ -4050,7 +4050,8 @@ def main():
         "Case-Insensitive Login": test_case_insensitive_login(),
         "Optional Location Field": test_optional_location_field(),
         "Follow/Unfollow System": test_follow_unfollow_system(),
-        "Follower/Following Counts": test_follower_following_counts()
+        "Follower/Following Counts": test_follower_following_counts(),
+        "Comprehensive Notification System": test_comprehensive_notification_system()
     }
     
     print("\n📊 TEST RESULTS SUMMARY:")
