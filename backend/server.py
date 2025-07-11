@@ -796,7 +796,7 @@ ACHIEVEMENTS = {
     "referral_master": {
         "id": "referral_master",
         "name": "Referral Master",
-        "description": "Successfully referred a new member - up to $400 cash prize!",
+        "description": "Successfully referred a new member - WIN UP TO $400 CASH! 💸",
         "icon": "💰",
         "points_reward": 200,
         "requirement_type": "referral",
