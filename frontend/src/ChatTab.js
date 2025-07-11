@@ -376,7 +376,7 @@ const ChatTab = ({
           : 'bg-white/80 border-gray-200'
       }`} style={{
         maxHeight: hideMessageInput 
-          ? 'calc(100vh - 250px)'  // Account for header, navigation, and message input area
+          ? 'calc(100vh - 320px)'  // More space for message input area
           : 'calc(100vh - 350px)'  // When message input is in ChatTab
       }}>
         {/* Timezone Indicator */}
