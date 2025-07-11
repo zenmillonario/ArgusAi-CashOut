@@ -2365,6 +2365,175 @@ async def get_public_user_profile(user_id: str):
         "trades_count": user.get("trades_count", 0)
     }
 
+# NEW: Cash Prize and Referral System Endpoints
+
+@api_router.get("/admin/cash-prizes/pending")
+async def get_pending_cash_prizes(admin_id: str):
+    """Get all pending cash prizes for admin review"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get all users with pending cash prizes
+    users_with_pending = await db.users.find(
+        {"pending_cash_review": {"$exists": True, "$ne": []}}
+    ).to_list(1000)
+    
+    pending_prizes = []
+    for user in users_with_pending:
+        for prize in user.get("pending_cash_review", []):
+            prize_info = {
+                "user_id": user["id"],
+                "username": user["username"],
+                "real_name": user.get("real_name"),
+                "email": user.get("email"),
+                "prize": prize
+            }
+            pending_prizes.append(prize_info)
+    
+    return {"pending_cash_prizes": pending_prizes}
+
+@api_router.post("/admin/cash-prizes/review")
+async def review_cash_prize(review: CashPrizeReview):
+    """Admin review and approve/reject cash prize"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": review.user_id})
+    if review.user_id:
+        admin = await db.users.find_one({"id": review.user_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get user with pending cash prize
+    user = await db.users.find_one({"id": review.user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Find and update the pending cash prize
+    pending_prizes = user.get("pending_cash_review", [])
+    updated_pending = []
+    prize_found = False
+    
+    for prize in pending_prizes:
+        if prize.get("achievement_id") == review.achievement_id:
+            if review.status == "approved":
+                # Move to approved cash prizes
+                approved_prize = {
+                    **prize,
+                    "status": "approved",
+                    "reviewed_at": datetime.utcnow(),
+                    "reviewed_by": admin["id"],
+                    "admin_notes": review.admin_notes,
+                    "approved_amount": review.amount
+                }
+                
+                # Add to cash prizes and update total
+                await db.users.update_one(
+                    {"id": review.user_id},
+                    {
+                        "$push": {"cash_prizes": approved_prize},
+                        "$inc": {"total_cash_earned": review.amount}
+                    }
+                )
+                
+                # Send notification to chat about cash prize
+                await share_cash_prize_in_chat(review.user_id, approved_prize)
+                
+            elif review.status == "rejected":
+                # Just remove from pending
+                pass
+            
+            prize_found = True
+        else:
+            updated_pending.append(prize)
+    
+    if not prize_found:
+        raise HTTPException(status_code=404, detail="Pending cash prize not found")
+    
+    # Update user's pending cash review list
+    await db.users.update_one(
+        {"id": review.user_id},
+        {"$set": {"pending_cash_review": updated_pending}}
+    )
+    
+    return {"message": f"Cash prize {review.status} successfully"}
+
+@api_router.get("/users/{user_id}/referrals")
+async def get_user_referrals(user_id: str):
+    """Get user's referral information"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get referred users info
+    referred_users = []
+    for ref_id in user.get("referrals", []):
+        ref_user = await db.users.find_one({"id": ref_id})
+        if ref_user:
+            referred_users.append({
+                "id": ref_user["id"],
+                "username": ref_user["username"],
+                "real_name": ref_user.get("real_name"),
+                "created_at": ref_user.get("created_at"),
+                "status": ref_user.get("status")
+            })
+    
+    return {
+        "referral_code": user.get("referral_code"),
+        "referred_users": referred_users,
+        "successful_referrals": user.get("successful_referrals", 0),
+        "total_cash_earned": user.get("total_cash_earned", 0),
+        "cash_prizes": user.get("cash_prizes", []),
+        "pending_cash_review": user.get("pending_cash_review", [])
+    }
+
+@api_router.get("/referral/{referral_code}")
+async def get_referral_info(referral_code: str):
+    """Get information about a referral code for signup form"""
+    user = await db.users.find_one({"referral_code": referral_code})
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid referral code")
+    
+    return {
+        "valid": True,
+        "referrer_username": user["username"],
+        "referrer_name": user.get("real_name", user["username"])
+    }
+
+async def share_cash_prize_in_chat(user_id: str, cash_prize: dict):
+    """Share cash prize award in chat"""
+    try:
+        # Get user info
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            return
+            
+        amount = cash_prize.get("approved_amount", cash_prize.get("amount", 0))
+        achievement_id = cash_prize.get("achievement_id", "")
+        
+        # Create cash prize message
+        message = Message(
+            user_id=user_id,
+            username=user.get("username", ""),
+            content=f"💰 Cash Prize Awarded: ${amount:.2f} for {achievement_id} achievement! 🎉",
+            is_admin=False,
+            avatar_url=user.get("avatar_url"),
+            real_name=user.get("real_name"),
+            screen_name=user.get("screen_name")
+        )
+        
+        # Save message to database
+        await db.messages.insert_one(message.dict())
+        
+        # Broadcast to all connected users
+        await manager.broadcast(json.dumps({
+            "type": "message",
+            "data": message.dict()
+        }, default=str))
+        
+    except Exception as e:
+        logger.error(f"Error sharing cash prize in chat: {e}")
+
 # NEW: Theme Customization Endpoints
 @api_router.post("/users/{user_id}/theme")
 async def update_user_theme(user_id: str, theme_update: ThemeUpdate):
