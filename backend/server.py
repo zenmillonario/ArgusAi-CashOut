@@ -916,10 +916,46 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
                 earned = True
             elif achievement_id == "profit_5k" and user.get("total_profit", 0) >= 5000:
                 earned = True
+            elif achievement_id == "team_member_3m":
+                # Check if user has been a member for 3 months (90 days)
+                created_at = user.get("created_at")
+                if created_at:
+                    if isinstance(created_at, str):
+                        created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    days_since_creation = (datetime.utcnow() - created_at).days
+                    if days_since_creation >= 90:
+                        earned = True
+            elif achievement_id == "team_member_8m":
+                # Check if user has been a member for 8 months (240 days)
+                created_at = user.get("created_at")
+                if created_at:
+                    if isinstance(created_at, str):
+                        created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    days_since_creation = (datetime.utcnow() - created_at).days
+                    if days_since_creation >= 240:
+                        earned = True
+            elif achievement_id == "team_member_12m":
+                # Check if user has been a member for 12 months (365 days)
+                created_at = user.get("created_at")
+                if created_at:
+                    if isinstance(created_at, str):
+                        created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    days_since_creation = (datetime.utcnow() - created_at).days
+                    if days_since_creation >= 365:
+                        earned = True
+            elif achievement_id == "referral_master":
+                # Check if user has successfully referred someone
+                successful_referrals = user.get("successful_referrals", 0)
+                if successful_referrals >= 1:
+                    earned = True
                 
             if earned:
                 new_achievements.append(achievement_id)
                 await award_xp(user_id, "achievement_unlocked", achievement["points_reward"])
+                
+                # Handle cash prize for referral achievement
+                if achievement_id == "referral_master" and achievement.get("cash_prize_eligible"):
+                    await create_pending_cash_prize(user_id, achievement_id, achievement.get("max_cash_prize", 400))
         
         # Update user progress and achievements
         if new_achievements or progress != user.get("achievement_progress", {}):
