@@ -160,7 +160,7 @@ const ChatTab = ({
       </div>
 
       {/* Mobile Sliding User List - Fixed positioning to prevent scroll interference */}
-      {showMobileUserList && (
+      {mobileUserListOpen && (
         <div 
           className={`md:hidden fixed z-[9999] transform transition-all duration-300 ease-in-out ${
             isDarkTheme ? 'bg-gray-900/98' : 'bg-white/98'
