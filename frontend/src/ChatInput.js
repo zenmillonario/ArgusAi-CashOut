@@ -137,21 +137,22 @@ const ChatInput = ({
       {/* Message Input */}
       <form onSubmit={sendMessage} className="space-y-2">
         <div className="flex space-x-2">
-          <input
-            type="text"
+          <textarea
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            onPaste={handlePaste}
-            placeholder={replyToMessage 
-              ? `Replying to ${replyToMessage.screen_name || replyToMessage.username}...`
-              : "Type a message... (Use $TSLA for stock tickers, or paste images)"
-            }
+            placeholder="Type your message... (Use $TSLA for stock tickers, or paste images)"
+            rows="3"
             className={`flex-1 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               isDarkTheme 
-                ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-            }`}
-            disabled={!!imageFile}
+                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+            } border resize-none`}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage(e);
+              }
+            }}
           />
           
           {/* Image Upload Button */}
