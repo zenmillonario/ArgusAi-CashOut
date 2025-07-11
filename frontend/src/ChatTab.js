@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const ChatTab = ({ 
   messages, 
@@ -21,9 +21,21 @@ const ChatTab = ({
   setImagePreview,
   isDarkTheme,
   replyToMessage,
-  setReplyToMessage
+  setReplyToMessage,
+  // User list props for mobile integration
+  onlineUsers,
+  allUsers,
+  currentUser,
+  onViewProfile
 }) => {
   const displayMessages = showSearch ? filteredMessages : messages;
+  const [showMobileUserList, setShowMobileUserList] = useState(false);
+  const [followingUsers, setFollowingUsers] = useState([]);
+  const [followerCounts, setFollowerCounts] = useState({});
+
+  // API setup
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+  const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
