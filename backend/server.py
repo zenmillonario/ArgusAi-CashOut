@@ -692,6 +692,48 @@ ACHIEVEMENTS = {
         "requirement_type": "count",
         "requirement_value": 10,
         "category": "trading"
+    },
+    "team_member_3m": {
+        "id": "team_member_3m",
+        "name": "Team Player - 3 Months",
+        "description": "3 months as a team member",
+        "icon": "🥉",
+        "points_reward": 150,
+        "requirement_type": "duration",
+        "requirement_value": 90,  # 90 days
+        "category": "membership"
+    },
+    "team_member_8m": {
+        "id": "team_member_8m", 
+        "name": "Team Veteran - 8 Months",
+        "description": "8 months as a team member",
+        "icon": "🥈",
+        "points_reward": 400,
+        "requirement_type": "duration", 
+        "requirement_value": 240,  # 240 days
+        "category": "membership"
+    },
+    "team_member_12m": {
+        "id": "team_member_12m",
+        "name": "Team Legend - 12 Months", 
+        "description": "12 months as a team member",
+        "icon": "🥇",
+        "points_reward": 600,
+        "requirement_type": "duration",
+        "requirement_value": 365,  # 365 days
+        "category": "membership"
+    },
+    "referral_master": {
+        "id": "referral_master",
+        "name": "Referral Master",
+        "description": "Successfully referred a new member",
+        "icon": "💰",
+        "points_reward": 200,
+        "requirement_type": "referral",
+        "requirement_value": 1,
+        "category": "growth",
+        "cash_prize_eligible": True,
+        "max_cash_prize": 400
     }
 }
 
