@@ -168,7 +168,6 @@ const ChatInput = ({
               className="hidden"
             />
           </label>
-          </label>
           
           <button
             type="submit"
