@@ -368,14 +368,13 @@ const ChatTab = ({
       )}
 
       {/* Messages - STREAMLINED SAME LINE FORMAT - Fixed scrolling */}
-      <div className={`flex-1 backdrop-blur-lg rounded-2xl border p-4 mb-4 overflow-y-auto min-h-0 ${
+      <div className={`flex-1 backdrop-blur-lg rounded-2xl border p-4 overflow-y-auto min-h-0 ${
+        hideMessageInput ? '' : 'mb-4'
+      } ${
         isDarkTheme 
           ? 'bg-white/5 border-white/10' 
           : 'bg-white/80 border-gray-200'
-      }`} style={{ 
-        maxHeight: showMobileUserList ? 'calc(100vh - 500px)' : 'calc(100vh - 280px)', 
-        minHeight: showMobileUserList ? '200px' : '400px' 
-      }}>
+      }`}>
         {/* Timezone Indicator */}
         <div className={`text-xs text-center pb-2 mb-2 border-b ${
           isDarkTheme 
