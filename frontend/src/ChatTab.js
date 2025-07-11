@@ -133,25 +133,27 @@ const ChatTab = ({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Mobile User List Toggle Button */}
-      <div className="md:hidden flex items-center justify-between p-2 border-b border-white/10 flex-shrink-0">
+      {/* Mobile User List Toggle Button - Always visible on mobile */}
+      <div className="md:hidden flex items-center justify-between p-3 border-b border-white/20 flex-shrink-0 bg-opacity-90 backdrop-blur-sm" style={{
+        background: isDarkTheme ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'
+      }}>
         <h2 className={`text-lg font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
           Chat
         </h2>
         <button
           onClick={() => setShowMobileUserList(!showMobileUserList)}
-          className={`p-2 rounded-lg transition-all duration-200 ${
+          className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium border-2 ${
             showMobileUserList 
-              ? 'bg-blue-500 text-white' 
+              ? 'bg-blue-500 text-white border-blue-500 shadow-lg' 
               : isDarkTheme 
-                ? 'bg-white/10 text-gray-300 hover:bg-white/20' 
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-white/20 text-white border-white/30 hover:bg-white/30' 
+                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
           }`}
           title={showMobileUserList ? 'Hide user list' : 'Show user list'}
         >
-          <span className="flex items-center space-x-1">
-            <span>👥</span>
-            <span className="text-sm">({onlineUsers?.length || 0})</span>
+          <span className="flex items-center space-x-2">
+            <span className="text-lg">👥</span>
+            <span className="text-sm font-semibold">({onlineUsers?.length || 0})</span>
           </span>
         </button>
       </div>
