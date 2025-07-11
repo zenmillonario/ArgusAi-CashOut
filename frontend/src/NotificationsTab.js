@@ -130,6 +130,11 @@ const NotificationsTab = ({ notifications, isDarkTheme, currentUser, onMarkAsRea
 
                   {/* Action Buttons */}
                   <div className="flex items-center space-x-2 mt-3">
+                    {notification.read && (
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                        ✓ Read
+                      </span>
+                    )}
                     <button
                       onClick={() => onDeleteNotification && onDeleteNotification(notification.id)}
                       className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition-colors"
