@@ -192,7 +192,7 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
       {/* Desktop User List */}
       <div className={`w-64 flex-shrink-0 flex flex-col ${
         isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-      } border-l hidden md:flex`} style={{ height: 'calc(100vh - 160px)' }}>
+      } border-l hidden md:flex`} style={{ height: 'calc(100vh - 180px)' }}>
         {/* Header */}
         <div className={`p-4 border-b flex-shrink-0 ${
           isDarkTheme ? 'border-gray-700' : 'border-gray-200'
@@ -204,8 +204,8 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
           </h3>
         </div>
 
-        {/* Desktop User List - Scrollable */}
-        <div className="flex-1 overflow-y-auto p-2 min-h-0">
+        {/* Desktop User List - Scrollable - isolated scroll container */}
+        <div className="flex-1 overflow-y-auto p-2 min-h-0" style={{ maxHeight: 'calc(100vh - 260px)' }}>
           {sortedUsers.map((user) => {
             const isOnline = getUserStatus(user);
             const isCurrentUser = user.id === currentUser?.id;
