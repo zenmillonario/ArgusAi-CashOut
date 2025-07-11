@@ -157,9 +157,9 @@ const ChatTab = ({
 
       {/* Mobile Sliding User List */}
       {showMobileUserList && (
-        <div className={`md:hidden absolute top-12 left-0 right-0 bottom-0 z-50 transform transition-transform duration-300 ${
-          isDarkTheme ? 'bg-gray-900/95' : 'bg-white/95'
-        } backdrop-blur-lg border-t border-white/10`}>
+        <div className={`md:hidden absolute top-12 left-0 right-0 bottom-0 z-50 transform transition-all duration-300 ease-in-out ${
+          isDarkTheme ? 'bg-gray-900/98' : 'bg-white/98'
+        } backdrop-blur-xl border-t border-white/20 shadow-2xl`}>
           <div className="h-full flex flex-col">
             {/* User List Header */}
             <div className={`p-3 border-b flex items-center justify-between ${
