@@ -275,7 +275,7 @@ const ChatTab = ({
                     Offline ({allUsers.filter(user => !getUserStatus(user)).length})
                   </div>
                   
-                  {allUsers.filter(user => !getUserStatus(user)).slice(0, 10).map((user) => {
+                  {allUsers.filter(user => !getUserStatus(user)).map((user) => {
                     const isFollowing = followingUsers.includes(user.id);
                     const followerCount = followerCounts[user.id] || 0;
                     
