@@ -190,7 +190,7 @@ function App() {
 
   const markNotificationAsRead = async (notificationId) => {
     try {
-      await axios.post(`${API}/users/${currentUser.id}/notifications/${notificationId}/read`);
+      await axios.put(`${API}/users/${currentUser.id}/notifications/${notificationId}/read`);
       setNotifications(prev => 
         prev.map(notification => 
           notification.id === notificationId 
