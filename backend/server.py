@@ -1464,6 +1464,10 @@ async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks
     
     await db.users.insert_one(user.dict())
     
+    # Handle referral if provided
+    if referral_code:
+        background_tasks.add_task(handle_referral_signup, user.id, referral_code)
+    
     # Notify admins about new registration via WebSocket
     await manager.send_admin_notification(json.dumps({
         "type": "new_registration",
