@@ -2748,7 +2748,112 @@ async def get_unread_notification_count(user_id: str):
         {"user_id": user_id, "read": False}
     )
     
-    return {"unread_count": count}
+    return {"message": f"Unread notification count: {count}"}
+
+# Message Reaction Endpoints
+@api_router.post("/messages/{message_id}/react")
+async def add_message_reaction(message_id: str, reaction_data: dict, background_tasks: BackgroundTasks):
+    """Add a reaction to a message"""
+    user_id = reaction_data.get("user_id")
+    reaction_type = reaction_data.get("reaction_type", "heart")  # Default to heart
+    
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID required")
+    
+    # Get the message and user
+    message = await db.messages.find_one({"id": message_id})
+    user = await db.users.find_one({"id": user_id})
+    
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if user already reacted to this message
+    existing_reaction = await db.reactions.find_one({
+        "message_id": message_id,
+        "user_id": user_id,
+        "reaction_type": reaction_type
+    })
+    
+    if existing_reaction:
+        raise HTTPException(status_code=400, detail="Already reacted to this message")
+    
+    # Create reaction
+    reaction = {
+        "id": str(uuid.uuid4()),
+        "message_id": message_id,
+        "user_id": user_id,
+        "reaction_type": reaction_type,
+        "created_at": datetime.utcnow()
+    }
+    
+    await db.reactions.insert_one(reaction)
+    
+    # Award XP for giving reaction
+    await award_xp(user_id, "heart_reaction", 2)
+    
+    # Create notification for the message author (if not reacting to own message)
+    if message["user_id"] != user_id:
+        reactor_name = user.get("screen_name") or user.get("username")
+        reaction_emoji = "❤️" if reaction_type == "heart" else "👍"
+        
+        await create_user_notification(
+            user_id=message["user_id"],
+            notification_type="reaction",
+            title="New Reaction",
+            message=f"{reactor_name} reacted {reaction_emoji} to your message: \"{message['content'][:50]}{'...' if len(message['content']) > 50 else ''}\"",
+            data={
+                "reactor_id": user_id,
+                "reactor_name": reactor_name,
+                "reactor_avatar": user.get("avatar_url"),
+                "message_id": message_id,
+                "reaction_type": reaction_type,
+                "message_content": message["content"],
+                "action": "reaction"
+            }
+        )
+    
+    return {"message": "Reaction added successfully", "reaction": reaction}
+
+@api_router.delete("/messages/{message_id}/react")
+async def remove_message_reaction(message_id: str, user_id: str, reaction_type: str = "heart"):
+    """Remove a reaction from a message"""
+    result = await db.reactions.delete_one({
+        "message_id": message_id,
+        "user_id": user_id,
+        "reaction_type": reaction_type
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Reaction not found")
+    
+    return {"message": "Reaction removed successfully"}
+
+@api_router.get("/messages/{message_id}/reactions")
+async def get_message_reactions(message_id: str):
+    """Get all reactions for a message"""
+    reactions = await db.reactions.find({"message_id": message_id}).to_list(1000)
+    
+    # Group reactions by type and get user info
+    reaction_summary = {}
+    for reaction in reactions:
+        reaction_type = reaction["reaction_type"]
+        if reaction_type not in reaction_summary:
+            reaction_summary[reaction_type] = []
+        
+        # Get user info for the reaction
+        user = await db.users.find_one({"id": reaction["user_id"]})
+        if user:
+            reaction_summary[reaction_type].append({
+                "user_id": user["id"],
+                "username": user["username"],
+                "screen_name": user.get("screen_name"),
+                "avatar_url": user.get("avatar_url"),
+                "created_at": reaction["created_at"]
+            })
+    
+    return reaction_summary
 
 @api_router.get("/users/{user_id}/followers")
 async def get_user_followers(user_id: str):
