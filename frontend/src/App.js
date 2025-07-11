@@ -2114,6 +2114,175 @@ function App() {
                 setReplyToMessage={setReplyToMessage}
               />
             </div>
+            
+            {/* Mobile User List Overlay - Fixed positioning */}
+            {mobileUserListOpen && (
+              <div 
+                className={`md:hidden fixed z-[9999] transform transition-all duration-300 ease-in-out ${
+                  isDarkTheme ? 'bg-gray-900/98' : 'bg-white/98'
+                } backdrop-blur-xl shadow-2xl border border-white/10`} 
+                style={{ 
+                  top: '160px',  // Below the mobile header
+                  left: '0',
+                  right: '0', 
+                  bottom: '0',
+                  position: 'fixed',
+                  overflow: 'hidden'
+                }}
+              >
+                <div className="h-full flex flex-col">
+                  {/* User List Header */}
+                  <div className={`p-3 border-b border-t flex items-center justify-between ${
+                    isDarkTheme ? 'border-white/10' : 'border-gray-200'
+                  }`}>
+                    <h3 className={`font-semibold ${
+                      isDarkTheme ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Online Users ({onlineUsers?.length || 0})
+                    </h3>
+                    <button
+                      onClick={() => setMobileUserListOpen(false)}
+                      className={`p-1.5 rounded-lg ${
+                        isDarkTheme ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Scrollable User List */}
+                  <div className="flex-1 overflow-y-auto p-2">
+                    {onlineUsers?.map((user) => {
+                      const isCurrentUser = user.id === currentUser?.id;
+                      
+                      return (
+                        <div
+                          key={`mobile-${user.id}`}
+                          onClick={() => {
+                            if (!isCurrentUser && handleViewProfile) {
+                              handleViewProfile(user.id);
+                              setMobileUserListOpen(false);
+                            }
+                          }}
+                          className={`flex items-center space-x-3 p-3 rounded-lg mb-2 ${
+                            isCurrentUser 
+                              ? isDarkTheme ? 'bg-blue-900/50' : 'bg-blue-100'
+                              : isDarkTheme ? 'hover:bg-white/10 cursor-pointer' : 'hover:bg-gray-50 cursor-pointer'
+                          } transition-colors`}
+                        >
+                          {/* Avatar */}
+                          <div className="relative">
+                            {user.avatar_url ? (
+                              <img
+                                src={user.avatar_url}
+                                alt={`${user.username}'s avatar`}
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
+                                user.is_admin 
+                                  ? 'bg-yellow-500 text-white' 
+                                  : isDarkTheme ? 'bg-gray-600 text-white' : 'bg-gray-300 text-gray-700'
+                              }`}>
+                                {user.is_admin ? '👑' : (user.screen_name || user.username).charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            
+                            {/* Online status indicator */}
+                            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 ${
+                              isDarkTheme ? 'border-gray-900' : 'border-white'
+                            } bg-green-400`}></div>
+                          </div>
+
+                          {/* User Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-1">
+                              <p className={`text-sm font-medium truncate ${
+                                isDarkTheme ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {user.screen_name || user.username}
+                                {isCurrentUser && ' (You)'}
+                                {!isCurrentUser && ' 👁️'}
+                              </p>
+                              {user.is_admin && (
+                                <span className="text-xs">👑</span>
+                              )}
+                            </div>
+                            
+                            <p className={`text-xs truncate ${
+                              isDarkTheme ? 'text-gray-400' : 'text-gray-500'
+                            }`}>
+                              {user.role || 'Member'} • Online
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Offline Users Section */}
+                    {allUsers && allUsers.filter(user => !onlineUsers?.some(onlineUser => onlineUser.id === user.id)).length > 0 && (
+                      <>
+                        <div className={`px-2 py-1 mt-4 mb-2 text-xs font-semibold uppercase tracking-wide ${
+                          isDarkTheme ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
+                          Offline ({allUsers.filter(user => !onlineUsers?.some(onlineUser => onlineUser.id === user.id)).length})
+                        </div>
+                        
+                        {allUsers.filter(user => !onlineUsers?.some(onlineUser => onlineUser.id === user.id)).map((user) => (
+                          <div
+                            key={`offline-${user.id}`}
+                            onClick={() => {
+                              if (handleViewProfile) {
+                                handleViewProfile(user.id);
+                                setMobileUserListOpen(false);
+                              }
+                            }}
+                            className={`flex items-center space-x-3 p-2 rounded-lg mb-1 opacity-60 cursor-pointer ${
+                              isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-gray-50'
+                            } transition-colors`}
+                          >
+                            {user.avatar_url ? (
+                              <img
+                                src={user.avatar_url}
+                                alt={`${user.username}'s avatar`}
+                                className="w-8 h-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                                user.is_admin 
+                                  ? 'bg-yellow-500 text-white' 
+                                  : isDarkTheme ? 'bg-gray-600 text-white' : 'bg-gray-300 text-gray-700'
+                              }`}>
+                                {user.is_admin ? '👑' : (user.screen_name || user.username).charAt(0).toUpperCase()}
+                              </div>
+                            )}
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-1">
+                                <p className={`text-sm font-medium truncate ${
+                                  isDarkTheme ? 'text-gray-300' : 'text-gray-600'
+                                }`}>
+                                  {user.screen_name || user.username} 👁️
+                                </p>
+                                {user.is_admin && (
+                                  <span className="text-xs">👑</span>
+                                )}
+                              </div>
+                              
+                              <p className={`text-xs truncate ${
+                                isDarkTheme ? 'text-gray-500' : 'text-gray-400'
+                              }`}>
+                                {user.role || 'Member'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
