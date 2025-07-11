@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const NotificationsTab = ({ notifications, isDarkTheme, currentUser, onMarkAsRead, onDeleteNotification }) => {
+  const processedNotifications = useRef(new Set());
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
