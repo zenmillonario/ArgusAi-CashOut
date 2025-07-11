@@ -368,19 +368,14 @@ const ChatTab = ({
       )}
 
       {/* Messages - STREAMLINED SAME LINE FORMAT - Fixed scrolling */}
-      <div className={`backdrop-blur-lg rounded-2xl border p-4 overflow-y-auto min-h-0 ${
+      <div className={`backdrop-blur-lg rounded-2xl border p-4 overflow-y-auto ${
         hideMessageInput ? 'flex-1' : 'flex-1 mb-4'
       } ${
         isDarkTheme 
           ? 'bg-white/5 border-white/10' 
           : 'bg-white/80 border-gray-200'
       }`} style={{
-        maxHeight: hideMessageInput 
-          ? showMobileUserList
-            ? 'calc(100vh - 500px)'  // Mobile with user list open
-            : 'calc(100vh - 320px)'  // Normal mode with external message input
-          : 'calc(100vh - 350px)',   // When message input is in ChatTab
-        height: hideMessageInput ? 'auto' : undefined
+        minHeight: hideMessageInput ? '400px' : '300px'  // Ensure minimum height for content
       }}>
         {/* Timezone Indicator */}
         <div className={`text-xs text-center pb-2 mb-2 border-b ${
