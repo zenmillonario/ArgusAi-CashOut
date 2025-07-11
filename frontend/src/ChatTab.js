@@ -368,13 +368,17 @@ const ChatTab = ({
       )}
 
       {/* Messages - STREAMLINED SAME LINE FORMAT - Fixed scrolling */}
-      <div className={`flex-1 backdrop-blur-lg rounded-2xl border p-4 overflow-y-auto min-h-0 ${
-        hideMessageInput ? '' : 'mb-4'
+      <div className={`backdrop-blur-lg rounded-2xl border p-4 overflow-y-auto min-h-0 ${
+        hideMessageInput ? 'flex-1' : 'flex-1 mb-4'
       } ${
         isDarkTheme 
           ? 'bg-white/5 border-white/10' 
           : 'bg-white/80 border-gray-200'
-      }`}>
+      }`} style={{
+        maxHeight: hideMessageInput 
+          ? 'calc(100vh - 250px)'  // Account for header, navigation, and message input area
+          : 'calc(100vh - 350px)'  // When message input is in ChatTab
+      }}>
         {/* Timezone Indicator */}
         <div className={`text-xs text-center pb-2 mb-2 border-b ${
           isDarkTheme 
