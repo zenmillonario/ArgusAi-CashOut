@@ -131,7 +131,6 @@ const ChatInput = ({
             Click send to share this image
           </div>
         </div>
-        </div>
       )}
 
       {/* Message Input */}
