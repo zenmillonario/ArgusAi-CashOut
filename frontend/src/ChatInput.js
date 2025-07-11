@@ -141,7 +141,7 @@ const ChatInput = ({
       )}
 
       {/* Message Input */}
-      <form onSubmit={sendMessage} className="space-y-3">
+      <form onSubmit={sendMessage} className="space-y-2">
         <div className="flex space-x-2">
           <input
             type="text"
