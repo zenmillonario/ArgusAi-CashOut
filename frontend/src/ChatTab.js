@@ -44,7 +44,6 @@ const ChatTab = ({
       if (!currentUser) return;
       
       try {
-        const axios = require('axios');
         const response = await axios.get(`${API}/users/${currentUser.id}/profile`);
         setFollowingUsers(response.data.following || []);
       } catch (error) {
