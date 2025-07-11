@@ -97,25 +97,40 @@ const ChatInput = ({
       {imagePreview && (
         <div className={`p-3 rounded-lg border ${
           isDarkTheme 
-            ? 'bg-white/5 border-white/10' 
-            : 'bg-white/80 border-gray-200'
+            ? 'bg-gray-700 border-gray-600' 
+            : 'bg-gray-50 border-gray-200'
         }`}>
           <div className="flex items-center justify-between mb-2">
-            <span className={`text-sm font-medium ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-              Image to share:
+            <span className={`text-sm font-medium ${
+              isDarkTheme ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              Image Preview
             </span>
             <button
               onClick={removeImage}
-              className="text-red-400 hover:text-red-300 text-sm"
+              className={`text-sm px-2 py-1 rounded ${
+                isDarkTheme ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+              }`}
             >
-              ✕ Remove
+              ✕
             </button>
           </div>
-          <img 
-            src={imagePreview} 
-            alt="Preview" 
-            className="max-w-xs max-h-32 rounded border border-white/20"
-          />
+          <div className="flex items-center space-x-2 mb-2">
+            <img 
+              src={imagePreview} 
+              alt="Preview" 
+              className="w-20 h-20 object-cover rounded" 
+            />
+            <div className={`text-sm ${
+              isDarkTheme ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              {imageFile?.name}
+            </div>
+          </div>
+          <div className="mt-2 text-xs opacity-75">
+            Click send to share this image
+          </div>
+        </div>
         </div>
       )}
 
