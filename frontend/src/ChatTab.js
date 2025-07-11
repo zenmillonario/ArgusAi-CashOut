@@ -132,7 +132,7 @@ const ChatTab = ({
   };
 
   return (
-    <div className="h-full flex flex-col relative">
+    <div className="h-full flex flex-col">
       {/* Mobile User List Toggle Button */}
       <div className="md:hidden flex items-center justify-between p-2 border-b border-white/10 flex-shrink-0">
         <h2 className={`text-lg font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
