@@ -16,7 +16,8 @@ const ProfileCustomization = ({ currentUser, isDarkTheme, onUpdate }) => {
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+  const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
   const tradingStyleOptions = [
     { id: 'day_trader', label: '📈 Day Trader', color: 'bg-red-500' },
