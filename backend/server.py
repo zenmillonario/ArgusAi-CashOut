@@ -934,6 +934,8 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
             progress["profitable_trades"] = progress.get("profitable_trades", 0) + 1
         elif action == "daily_login":
             progress["login_streak"] = metadata.get("streak", 0)
+        elif action == "referral_success":
+            progress["successful_referrals"] = progress.get("successful_referrals", 0) + 1
         
         # Check for new achievements
         new_achievements = []
