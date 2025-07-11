@@ -2798,7 +2798,7 @@ async def get_user_notifications(user_id: str, limit: int = 50, offset: int = 0)
     
     return notifications
 
-@api_router.post("/users/{user_id}/notifications/{notification_id}/read")
+@api_router.put("/users/{user_id}/notifications/{notification_id}/read")
 async def mark_notification_as_read(user_id: str, notification_id: str):
     """Mark a notification as read"""
     result = await db.notifications.update_one(
