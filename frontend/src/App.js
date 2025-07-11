@@ -6,6 +6,7 @@ import PortfolioTab from './PortfolioTab';
 import UserList from './UserList';
 import FavoritesTab from './FavoritesTab';
 import AchievementsTab from './AchievementsTab';
+import NotificationsTab from './NotificationsTab';
 import ProfileCustomization from './ProfileCustomization';
 import PublicProfile from './PublicProfile';
 import XPProgressBar from './XPProgressBar';
