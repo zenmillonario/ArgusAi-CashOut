@@ -298,7 +298,7 @@ const ChatTab = ({
                         onClick={() => {
                           if (onViewProfile) {
                             onViewProfile(user.id);
-                            setShowMobileUserList(false);
+                            setMobileUserListOpen(false);
                           }
                         }}
                         className={`flex items-center space-x-3 p-2 rounded-lg mb-1 opacity-60 cursor-pointer ${
