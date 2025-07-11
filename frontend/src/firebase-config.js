@@ -232,7 +232,9 @@ class NotificationService {
   async testNotification() {
     if (this.token) {
       try {
-        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/fcm/test-notification`, {
+        const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+        const API_URL = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
+        const response = await fetch(`${API_URL}/fcm/test-notification`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
