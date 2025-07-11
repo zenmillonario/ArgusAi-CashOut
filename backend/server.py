@@ -2781,7 +2781,7 @@ async def unfollow_user(user_id: str, follow_request: FollowRequest):
 
 @api_router.get("/users/{user_id}/notifications")
 async def get_user_notifications(user_id: str, limit: int = 50, offset: int = 0):
-    """Get notifications for a user"""
+    """Get user notifications and automatically mark them as read when viewed"""
     notifications = await db.notifications.find(
         {"user_id": user_id}
     ).sort("created_at", -1).skip(offset).limit(limit).to_list(limit)
@@ -2795,6 +2795,25 @@ async def get_user_notifications(user_id: str, limit: int = 50, offset: int = 0)
         # Remove MongoDB's _id field if present
         if "_id" in notification:
             del notification["_id"]
+    
+    # Auto-mark all fetched notifications as read
+    if notifications:
+        notification_ids = [notif["id"] for notif in notifications if not notif.get("read", False)]
+        if notification_ids:
+            await db.notifications.update_many(
+                {
+                    "id": {"$in": notification_ids},
+                    "user_id": user_id
+                },
+                {"$set": {"read": True, "read_at": datetime.utcnow()}}
+            )
+            logger.info(f"Auto-marked {len(notification_ids)} notifications as read for user {user_id}")
+            
+            # Update the notifications list to reflect read status
+            for notif in notifications:
+                if notif["id"] in notification_ids:
+                    notif["read"] = True
+                    notif["read_at"] = datetime.utcnow().isoformat()
     
     return notifications
 
