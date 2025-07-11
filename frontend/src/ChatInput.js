@@ -158,16 +158,17 @@ const ChatInput = ({
           {/* Image Upload Button */}
           <label className={`px-4 py-3 rounded-lg cursor-pointer transition-colors ${
             isDarkTheme 
-              ? 'bg-white/10 border border-white/20 text-gray-300 hover:bg-white/20' 
-              : 'bg-gray-100 border border-gray-200 text-gray-600 hover:bg-gray-200'
-          }`}>
-            📷
+              ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600' 
+              : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
+          } border`}>
+            📎
             <input
               type="file"
-              accept="image/*,image/gif"
+              accept="image/*"
               onChange={handleImageSelect}
               className="hidden"
             />
+          </label>
           </label>
           
           <button
