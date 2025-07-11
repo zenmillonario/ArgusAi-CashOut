@@ -1,86 +1,111 @@
 <analysis>
-The AI engineer has transformed the ArgusAI CashOut application from an MVP to a feature-rich trading platform. Initially, critical focus was on perfecting FCM notifications, especially admin-only chat alerts, and resolving a sensitive credential () exposure in Git history. This involved extensive Git manipulation and security awareness. Post-FCM, the work pivoted to significant gamification and social features, including an XP system, achievements, profile customization with banners and pictures, asset allocation visualization, and currently, a follow/unfollow system with optional location. The engineer demonstrated strong debugging skills, particularly with complex frontend JSX errors and browser-specific video autoplay challenges, ensuring a polished user experience while continuously integrating new, complex functionalities.
+The previous AI engineer successfully brought the ArgusAI CashOut application from an initial corrupted state to a fully functional, enhanced trading platform. The work trajectory highlights a systematic approach to problem-solving, starting with repository setup and environment debugging, then progressing to iterative feature development. Key challenges included re-cloning the correct repository, resolving complex preview environment routing issues (involving Nginx, Supervisor, and React environment variables), and debugging frontend-backend communication. The engineer demonstrated strong debugging skills by methodically identifying and rectifying issues related to file system watchers, CORS, and API routing. Subsequent enhancements involved significant full-stack modifications for chat UI, gamification (achievements, referral system with admin approval), and a comprehensive notification system, showcasing a breadth of development capabilities. The engineer consistently confirmed functionality through testing and engaged the user for feedback and clarification, ensuring alignment with product goals.
 </analysis>
 
 <product_requirements>
-The ArgusAI CashOut application is an AI-powered financial trading platform. The core objective was to build a full-featured application from an MVP, supporting user authentication, real-time WebSocket chat, paper trading, portfolio management (positions, P&L), an admin panel, real-time stock prices, and a multi-tab interface. Specific enhancements included: accurate P&L and low-priced stock handling, chat scrolling fixes, message replies and image pasting, email notifications, last 50 trades history, password management, admin demotion, and WhatsApp-style FCM notifications (admin-only). Recent additions encompass: a 5-second intro video loading screen, a notifications tab (for replies/reactions), heart reactions, a user list sidebar, and enhanced reply previews. The latest requested features are: an Experience Points (XP) system, Achievements, Profile Customization (banners, bios, trading style tags, large profile pictures), an Asset Allocation Wheel, and the ongoing implementation of user following with optional location.
+The user's core problem was to obtain a fresh, working copy of the ArgusAI-CashOut trading platform from GitHub, as previous attempts by other agents resulted in corrupted files. Once the base application was verified as working, the user requested several enhancements:
+1.  **Repository Setup & Verification**: Clone  to , ensure it's fully working with  credentials, and address any environment/preview issues.
+2.  **Chat UI Enhancement**: Redesign the user list on the chat tab for mobile devices to be a sliding panel within the chat area, ensuring the message input remains visible. This also involved fixing desktop layout issues, proper scrolling, and eliminating excessive spacing.
+3.  **Achievement System Augmentation**:
+    *   Add new achievements for membership duration (3, 8, 12 months).
+    *   Implement a referral system where a referrer earns a Referral Master achievement and is eligible for a cash prize (up to 00) when a new member signs up using their code.
+    *   The cash prize must be triggered by an admin after review.
+    *   Update the Referral Master achievement description to prominently display the cash prize.
+4.  **Notification System Expansion**:
+    *   Users should receive notifications when someone follows them and when someone replies to their messages.
+    *   Ability to mark notifications as read.
+    *   Additional notification scenarios were suggested and implemented (reactions, achievements, cash prizes, level-ups, mentions).
+    *   The mark as read functionality was updated to auto-mark as read when viewed as per user's preference.
 </product_requirements>
 
 <key_technical_concepts>
-- **Backend**: FastAPI, MongoDB (Motor), Python, WebSockets, SMTP (), Firebase Admin SDK.
-- **Frontend**: React.js, Tailwind CSS, JavaScript, Firebase JavaScript SDK, Recharts, Victory Chart.
-- **APIs**: Financial Modeling Prep (FMP) API.
-- **Development**: Git, Supervisor, Yarn, Pip.
+-   **Full-Stack Architecture**: React (frontend), FastAPI (backend), MongoDB (database).
+-   **Deployment & Environment**: Kubernetes container, Supervisor for service management, Nginx for reverse proxy.
+-   **Web Technologies**: RESTful APIs, WebSockets (for real-time chat/notifications), Tailwind CSS for styling.
+-   **Data Management**: MongoDB operations, Pydantic models for data validation.
+-   **Authentication & Authorization**: User registration, login, admin roles.
+-   **System Utilities**: Git for version control,  for kernel parameters (file watch limits).
 </key_technical_concepts>
 
 <code_architecture>
-The application utilizes a full-stack architecture with a React frontend, FastAPI backend, and MongoDB for data persistence.
+The application follows a standard full-stack structure with separate  and  directories.
 
 
--   : Core FastAPI application for API endpoints.
-    -   **Importance**: Handles all backend logic, user management, trading, chat, and now gamification/social features.
-    -   **Changes**: Modified P&L, integrated email/FCM. Updated chat message model for replies and admin-only push notifications. Extensively modified for XP, achievement, profile (banners, bios, tags, avatar, location, followers/following), and theme management. Added API endpoints for these new features and integrated XP awarding into message, login, and trade functions.
--   : Manages Firebase Cloud Messaging interactions.
-    -   **Importance**: Enables sending push notifications via Firebase.
-    -   **Changes**: Created to send admin chat notifications using Firebase Admin SDK.
--   : Previously stored Firebase service account key.
-    -   **Importance**: Authenticates backend for FCM.
-    -   **Changes**: Initially provided by the user, then removed from git tracking and history for security. Later, re-added locally by the AI engineer with user-provided credentials, and an auto-commit unintentionally pushed it to the repository, enabling real FCM. **This file should typically NOT be committed.**
--   : Main React component.
-    -   **Importance**: Central control for frontend, managing state, routing, and overall layout.
-    -   **Changes**: Integrated Firebase notification permissions and token registration, including a critical service worker path fix. Added and iterated on a loading screen with intro video, addressing autoplay and skipping challenges. Integrated new tabs (Notifications, Achievements) and components (XPProgressBar, ProfileCustomization, PublicProfile, AssetAllocationWheel). Managed global state for XP, achievements, and public profile modals. Fixed numerous JSX and scrolling layout issues.
--   : Intro video file.
-    -   **Importance**: Provides the visual and audio content for the loading screen.
-    -   **Changes**: Downloaded from a user-provided URL and placed in the public directory for web access.
--   : Displays intro video on app load.
-    -   **Importance**: Enhances initial user experience with branded content.
-    -   **Changes**: Created to play a 5-second video, featuring smooth fade transitions. Implemented intricate logic for browser autoplay compatibility (muted-first, then unmute attempt) and emergency skip mechanisms, which were later removed for mandatory playback.
--   : New React component for user notifications.
-    -   **Importance**: Provides a dedicated feed for in-app alerts on message replies and reactions.
-    -   **Changes**: Created to display professional notification cards, enhancing user engagement in chat.
--   : New React component for displaying users.
-    -   **Importance**: Offers a real-time view of online/offline users in the chat sidebar.
-    -   **Changes**: Created to show user statuses, admin indicators, avatars, and enabled clicking on users to view their public profiles.
--   : New React component for Experience Points visualization.
-    -   **Importance**: Provides visual feedback on user progression and engagement.
-    -   **Changes**: Created to display current XP and level in an animated progress bar in the main header.
--   : New React component for achievements.
-    -   **Importance**: Showcases user accomplishments within the trading platform.
-    -   **Changes**: Created to display earned and available achievements with progress tracking, integrated into the navigation.
--   : New React component for profile editing.
-    -   **Importance**: Enables users to personalize their in-app identity.
-    -   **Changes**: Created to allow editing of bio, setting trading style tags, uploading banner images, and managing profile pictures, integrated into the existing profile tab.
--   : New React component for portfolio visualization.
-    -   **Importance**: Provides an interactive visual breakdown of a user's portfolio by sector.
-    -   **Changes**: Created using  to display asset allocation, integrated into the Portfolio tab.
--   : New React component for viewing other users' profiles.
-    -   **Importance**: Fosters social interaction by allowing users to explore each other's profiles and trading stats.
-    -   **Changes**: Created as a modal to display comprehensive public user data, including banners, large profile pictures, stats, and achievements, accessible by clicking users in the .
 
+-   **/app/backend/server.py**:
+    -   **Summary**: The core FastAPI backend application. Manages API endpoints, database interactions with MongoDB, user authentication, chat logic, achievement system, referral system, and notification handling.
+    -   **Changes**:
+        -   Defined  dictionary to include new Team Player - 3/8/12 Months and Referral Master achievements, including  for the latter.
+        -   Modified  and  Pydantic models to include fields for , , , .
+        -   Updated  and  functions to incorporate new achievement logic for membership duration and referrals.
+        -   Implemented  to generate and track referral codes.
+        -   Added new API endpoints:
+            -   : For admin to approve/reject referral cash prizes, including setting custom amounts and notes.
+            -   : For admins to view pending cash prize reviews.
+            -   : To view a user's referral code and referred users.
+        -   Enhanced notification system by adding:
+            -   Reply notifications ().
+            -   Reaction notifications (added , , ).
+            -   Achievement, cash prize, and level-up notifications.
+            -   Mention notifications ( function).
+        -   Modified  to handle new achievement types.
+        -   Adjusted logging and error handling.
+-   **/app/frontend/src/App.js**:
+    -   **Summary**: The main React component that handles routing, global state, and renders different tabs (including chat). It coordinates data flow between components.
+    -   **Changes**:
+        -   Passed  state and  function to  and  for coordinated mobile UI.
+        -   Modified  logic to prevent auto-scrolling when  is true.
+        -   Restructured chat layout to separate chat messages and user list into columns, with message input fixed at the bottom.
+        -   Integrated a separate  component.
+        -   Moved the mobile chat header with the user list toggle button from  to  for better control over visibility and positioning.
+        -   Added the mobile user list overlay at  level to ensure fixed positioning relative to the viewport.
+-   **/app/frontend/src/ChatTab.js**:
+    -   **Summary**: Displays the chat messages, handles message sending, image uploads, and reactions.
+    -   **Changes**:
+        -   Removed local  state; now receives  and  as props.
+        -   Adjusted height calculation for chat messages area (e.g., ) to prevent overlap with the fixed message input.
+        -   Conditional rendering for message input (now handled by  component) based on  prop.
+        -   Removed the mobile header and user list components as they are now handled in .
+        -   Adjusted flex properties to eliminate excess space between chat messages and input.
+        -   Ensured  import was present.
+-   **/app/frontend/src/UserList.js**:
+    -   **Summary**: Displays the list of online and offline users.
+    -   **Changes**:
+        -   Removed the 10-user limit on offline users for mobile view.
+        -   Added proper height constraints and a bottom border to make it scrollable on desktop.
+-   **/app/frontend/src/ChatInput.js**:
+    -   **Summary**: A newly created component to encapsulate the message input, image upload, and send button logic.
+    -   **Changes**:
+        -   New file created to separate out the message input UI and logic from .
+-   **/app/frontend/.env**:
+    -   **Summary**: Environment variables for frontend configuration.
+    -   **Changes**:
+        -   Added  and  to resolve file watch and host header validation issues in the preview environment.
+        -    was modified multiple times during debugging; its final desired state is  (as set by the testing agent to resolve preview issues).
+-   **/app/frontend/package.json**:
+    -   **Summary**: Defines frontend dependencies and scripts.
+    -   **Changes**:
+        -   Added  during debugging to route API calls for React development server. This was later deemed ineffective and changed.
+-   **/app/nginx.conf**:
+    -   **Summary**: Nginx configuration for serving frontend assets and proxying backend API requests.
+    -   **Changes**:
+        -   Updated  to point to  (after ).
+        -   Adjusted  port from 8080 to 80 during debugging to align with preview proxy expectations.
+        -   Fixed  path issue.
+-   **/app/Dockerfile & /app/entrypoint.sh**:
+    -   **Summary**: Docker container build instructions and startup script.
+    -   **Changes**:
+        -   No explicit code changes were made to these files by the AI engineer, but they were analyzed to understand the deployment environment and troubleshoot routing issues (e.g., Nginx not running). The engineer needed to manually install Nginx as it was missing from the environment.
 </code_architecture>
 
 <pending_tasks>
-- Test the newly implemented backend for optional location, follow/unfollow functionality, and follower/following counts.
-- Implement the frontend integration for the optional location field and the follow/unfollow system, displaying counts on user profiles and lists.
-- Develop follow notifications to alert users when they are followed.
-- Implement the visual polish and unlock mechanisms for custom themes (based on XP levels).
+-   Complete the implementation of Auto-Mark as Read When Viewed for notifications in the frontend.
 </pending_tasks>
 
 <current_work>
-Immediately before this summary request, the AI engineer was implementing social features: **optional location and a follow/unfollow system**. This work is currently at the **backend completion stage**.
-
-On the backend, within , the following modifications were made:
--   The  model was enhanced to include  (an optional string),  (a list of user IDs who follow this user), and  (a list of user IDs this user follows).
--   The  model was also updated to accept the  field for user profile updates.
--   The  endpoint was modified to process and save the user's provided .
--   New API endpoints were introduced:
-    -   : Allows a user to follow another user, adding their ID to the target user's  list and the current user's  list.
-    -   : Allows a user to unfollow another user, removing their IDs from the respective lists.
--   The  endpoint (used for both public and private profile views) was updated to return the  field, as well as the  and  lists, which implicitly provide the follower/following counts.
-
-The backend changes are committed, and the next logical step would be the frontend implementation of these features, specifically displaying the location, implementing the follow/unfollow buttons, and showing the follower/following counts on the profile pages and user lists.
+The immediate work being carried out is implementing the user's request to change the notification mark as read behavior from manual to auto-mark as read when viewed. This involves modifying the frontend's  (and potentially  or a new utility file) to automatically trigger the mark as read API call () as soon as a notification is displayed or viewed by the user, rather than requiring a manual click. The backend support for this feature, including the  endpoint, is already in place. The AI engineer received the explicit instruction Option 2 which refers to Auto-Mark as Read When Viewed. The last observed action was Edit was successful. in response to the plan to implement this. This suggests a backend modification or initial frontend adjustment has been made, but the full frontend logic for triggering this behavior upon view is likely still pending.
 </current_work>
 
 <optional_next_step>
-Integrate the optional location and follow/unfollow system into the frontend, including displaying follower/following counts.
+Complete the frontend implementation of auto-mark as read when viewed for notifications.
 </optional_next_step>
