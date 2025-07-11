@@ -59,7 +59,7 @@ const ChatInput = ({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* Reply To Message UI */}
       {replyToMessage && (
         <div className={`p-3 rounded-lg border ${
