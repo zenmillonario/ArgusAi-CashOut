@@ -97,7 +97,9 @@ class NotificationService {
   // Send token to backend
   async sendTokenToBackend(token, userId) {
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/fcm/register-token`, {
+      const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+      const API_URL = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
+      const response = await fetch(`${API_URL}/fcm/register-token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
