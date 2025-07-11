@@ -2164,6 +2164,7 @@ async def get_user_profile(user_id: str):
         "level": user.get("level", 1),
         "experience_points": user.get("experience_points", 0),
         "achievements": user.get("achievements", []),
+        "achievement_progress": user.get("achievement_progress", {}),
         "total_profit": user.get("total_profit", 0),
         "win_percentage": user.get("win_percentage", 0),
         "trades_count": user.get("trades_count", 0),
