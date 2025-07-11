@@ -878,7 +878,19 @@ async def handle_level_up(user_id: str, new_level: int, old_level: int):
         }
         
         if new_level in level_rewards:
-            # You could send a notification or update user permissions here
+            # Create level up notification
+            await create_user_notification(
+                user_id=user_id,
+                notification_type="level_up",
+                title=f"Level Up! 🎉",
+                message=f"Congratulations! You've reached Level {new_level}! {level_rewards[new_level]}",
+                data={
+                    "new_level": new_level,
+                    "old_level": old_level,
+                    "reward": level_rewards[new_level],
+                    "action": "level_up"
+                }
+            )
             logger.info(f"User {user_id} leveled up to {new_level}: {level_rewards[new_level]}")
             
     except Exception as e:
