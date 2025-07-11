@@ -27,7 +27,8 @@ const ChatTab = ({
   onlineUsers,
   allUsers,
   currentUser,
-  onViewProfile
+  onViewProfile,
+  hideMessageInput = false
 }) => {
   const displayMessages = showSearch ? filteredMessages : messages;
   const [showMobileUserList, setShowMobileUserList] = useState(false);
