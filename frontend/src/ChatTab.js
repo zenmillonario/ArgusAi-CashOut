@@ -412,7 +412,7 @@ const ChatTab = ({
 
       {/* Message Input - Fixed at bottom - Only show if not hidden */}
       {!hideMessageInput && (
-        <div className={`mt-auto ${mobileUserListOpen ? 'relative z-60' : ''}`}>
+        <div className={`flex-shrink-0 ${mobileUserListOpen ? 'relative z-60' : ''}`}>
           <form onSubmit={sendMessage} className="space-y-3">
             <div className="flex space-x-2">
               <input
