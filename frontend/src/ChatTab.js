@@ -132,7 +132,219 @@ const ChatTab = ({
   };
 
   return (
-    <div className="h-full flex flex-col" style={{ maxHeight: 'calc(100vh - 160px)' }}>{/* Better height constraint */}
+    <div className="h-full flex flex-col relative" style={{ maxHeight: 'calc(100vh - 160px)' }}>
+      {/* Mobile User List Toggle Button */}
+      <div className="md:hidden flex items-center justify-between p-2 border-b border-white/10">
+        <h2 className={`text-lg font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+          Chat
+        </h2>
+        <button
+          onClick={() => setShowMobileUserList(!showMobileUserList)}
+          className={`p-2 rounded-lg transition-all duration-200 ${
+            showMobileUserList 
+              ? 'bg-blue-500 text-white' 
+              : isDarkTheme 
+                ? 'bg-white/10 text-gray-300 hover:bg-white/20' 
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+          title={showMobileUserList ? 'Hide user list' : 'Show user list'}
+        >
+          <span className="flex items-center space-x-1">
+            <span>👥</span>
+            <span className="text-sm">({onlineUsers?.length || 0})</span>
+          </span>
+        </button>
+      </div>
+
+      {/* Mobile Sliding User List */}
+      {showMobileUserList && (
+        <div className={`md:hidden absolute top-12 left-0 right-0 bottom-0 z-50 transform transition-transform duration-300 ${
+          isDarkTheme ? 'bg-gray-900/95' : 'bg-white/95'
+        } backdrop-blur-lg border-t border-white/10`}>
+          <div className="h-full flex flex-col">
+            {/* User List Header */}
+            <div className={`p-3 border-b flex items-center justify-between ${
+              isDarkTheme ? 'border-white/10' : 'border-gray-200'
+            }`}>
+              <h3 className={`font-semibold ${
+                isDarkTheme ? 'text-white' : 'text-gray-900'
+              }`}>
+                Online Users ({onlineUsers?.length || 0})
+              </h3>
+              <button
+                onClick={() => setShowMobileUserList(false)}
+                className={`p-1.5 rounded-lg ${
+                  isDarkTheme ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+                }`}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable User List */}
+            <div className="flex-1 overflow-y-auto p-2">
+              {sortedUsers.map((user) => {
+                const isOnline = getUserStatus(user);
+                const isCurrentUser = user.id === currentUser?.id;
+                const isFollowing = followingUsers.includes(user.id);
+                const followerCount = followerCounts[user.id] || 0;
+                
+                return (
+                  <div
+                    key={`mobile-${user.id}`}
+                    onClick={() => {
+                      if (!isCurrentUser && onViewProfile) {
+                        onViewProfile(user.id);
+                        setShowMobileUserList(false);
+                      }
+                    }}
+                    className={`flex items-center space-x-3 p-3 rounded-lg mb-2 ${
+                      isCurrentUser 
+                        ? isDarkTheme ? 'bg-blue-900/50' : 'bg-blue-100'
+                        : isDarkTheme ? 'hover:bg-white/10 cursor-pointer' : 'hover:bg-gray-50 cursor-pointer'
+                    } transition-colors`}
+                  >
+                    {/* Avatar */}
+                    <div className="relative">
+                      {user.avatar_url ? (
+                        <img
+                          src={user.avatar_url}
+                          alt={`${user.username}'s avatar`}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
+                          user.is_admin 
+                            ? 'bg-yellow-500 text-white' 
+                            : isDarkTheme ? 'bg-gray-600 text-white' : 'bg-gray-300 text-gray-700'
+                        }`}>
+                          {user.is_admin ? '👑' : (user.screen_name || user.username).charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      
+                      {/* Online status indicator */}
+                      <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 ${
+                        isDarkTheme ? 'border-gray-900' : 'border-white'
+                      } ${isOnline ? 'bg-green-400' : 'bg-gray-400'}`}></div>
+                    </div>
+
+                    {/* User Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-1">
+                        <p className={`text-sm font-medium truncate ${
+                          isDarkTheme ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {user.screen_name || user.username}
+                          {isCurrentUser && ' (You)'}
+                          {!isCurrentUser && ' 👁️'}
+                        </p>
+                        {user.is_admin && (
+                          <span className="text-xs">👑</span>
+                        )}
+                        {!isCurrentUser && isFollowing && (
+                          <span className="text-xs bg-blue-500 text-white px-1 rounded">Following</span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <p className={`text-xs truncate ${
+                          isDarkTheme ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
+                          {user.role || 'Member'}
+                          {isOnline && (
+                            <span className="ml-1 text-green-400">• Online</span>
+                          )}
+                        </p>
+                        {followerCount > 0 && (
+                          <span className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                            👥 {followerCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Offline Users Section */}
+              {allUsers && allUsers.filter(user => !getUserStatus(user)).length > 0 && (
+                <>
+                  <div className={`px-2 py-1 mt-4 mb-2 text-xs font-semibold uppercase tracking-wide ${
+                    isDarkTheme ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    Offline ({allUsers.filter(user => !getUserStatus(user)).length})
+                  </div>
+                  
+                  {allUsers.filter(user => !getUserStatus(user)).slice(0, 10).map((user) => {
+                    const isFollowing = followingUsers.includes(user.id);
+                    const followerCount = followerCounts[user.id] || 0;
+                    
+                    return (
+                      <div
+                        key={`offline-${user.id}`}
+                        onClick={() => {
+                          if (onViewProfile) {
+                            onViewProfile(user.id);
+                            setShowMobileUserList(false);
+                          }
+                        }}
+                        className={`flex items-center space-x-3 p-2 rounded-lg mb-1 opacity-60 cursor-pointer ${
+                          isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-gray-50'
+                        } transition-colors`}
+                      >
+                        {user.avatar_url ? (
+                          <img
+                            src={user.avatar_url}
+                            alt={`${user.username}'s avatar`}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                            user.is_admin 
+                              ? 'bg-yellow-500 text-white' 
+                              : isDarkTheme ? 'bg-gray-600 text-white' : 'bg-gray-300 text-gray-700'
+                          }`}>
+                            {user.is_admin ? '👑' : (user.screen_name || user.username).charAt(0).toUpperCase()}
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-1">
+                            <p className={`text-sm font-medium truncate ${
+                              isDarkTheme ? 'text-gray-300' : 'text-gray-600'
+                            }`}>
+                              {user.screen_name || user.username} 👁️
+                            </p>
+                            {user.is_admin && (
+                              <span className="text-xs">👑</span>
+                            )}
+                            {isFollowing && (
+                              <span className="text-xs bg-blue-500 text-white px-1 rounded">Following</span>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center space-x-2">
+                            <p className={`text-xs truncate ${
+                              isDarkTheme ? 'text-gray-500' : 'text-gray-400'
+                            }`}>
+                              {user.role || 'Member'}
+                            </p>
+                            {followerCount > 0 && (
+                              <span className={`text-xs ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'}`}>
+                                👥 {followerCount}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {/* Search Bar */}
       {showSearch && (
         <div className="mb-4">
