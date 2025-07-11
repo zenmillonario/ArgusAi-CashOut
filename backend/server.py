@@ -1024,6 +1024,22 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
             for achievement_id in new_achievements:
                 achievement = ACHIEVEMENTS[achievement_id]
                 await share_achievement_in_chat(user_id, achievement)
+                
+                # Create achievement notification for the user
+                await create_user_notification(
+                    user_id=user_id,
+                    notification_type="achievement",
+                    title="Achievement Unlocked! 🏆",
+                    message=f"Congratulations! You've unlocked: {achievement['name']} - {achievement['description']} {achievement['icon']}",
+                    data={
+                        "achievement_id": achievement_id,
+                        "achievement_name": achievement['name'],
+                        "achievement_description": achievement['description'],
+                        "achievement_icon": achievement['icon'],
+                        "points_reward": achievement['points_reward'],
+                        "action": "achievement_unlocked"
+                    }
+                )
             
     except Exception as e:
         logger.error(f"Error checking achievements: {e}")
