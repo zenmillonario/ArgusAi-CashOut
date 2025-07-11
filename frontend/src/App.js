@@ -2053,6 +2053,8 @@ function App() {
                   currentUser={currentUser}
                   onViewProfile={handleViewProfile}
                   hideMessageInput={true}
+                  mobileUserListOpen={mobileUserListOpen}
+                  setMobileUserListOpen={setMobileUserListOpen}
                 />
               </div>
               
