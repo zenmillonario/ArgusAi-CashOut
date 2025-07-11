@@ -413,6 +413,18 @@ class UserCreate(BaseModel):
     real_name: str  # NEW: Required real name
     membership_plan: str  # NEW: Required membership plan
     password: str
+    referral_code: Optional[str] = None  # Optional referral code of referring user
+
+class CashPrizeReview(BaseModel):
+    user_id: str
+    achievement_id: str
+    amount: float
+    status: str  # "approved", "rejected"
+    admin_notes: Optional[str] = None
+
+class ReferralInfo(BaseModel):
+    referral_code: str
+    referred_users: List[Dict[str, Any]]
 
 class UserLogin(BaseModel):
     username: str
