@@ -2867,6 +2867,27 @@ async def create_message(message_data: MessageCreate):
     # Award extra XP for reply
     if message_data.reply_to_id:
         await award_xp(message_data.user_id, "reply_message", 8)
+        
+        # Create notification for the user being replied to
+        if reply_to_data and reply_to_data.get("username"):
+            # Find the original message sender
+            original_sender = await db.users.find_one({"username": reply_to_data["username"]})
+            if original_sender and original_sender["id"] != message_data.user_id:  # Don't notify self-replies
+                replier_name = user.get("screen_name") or user.get("username")
+                await create_user_notification(
+                    user_id=original_sender["id"],
+                    notification_type="reply",
+                    title="New Reply",
+                    message=f"{replier_name} replied to your message: \"{message_data.content[:50]}{'...' if len(message_data.content) > 50 else ''}\"",
+                    data={
+                        "replier_id": message_data.user_id,
+                        "replier_name": replier_name,
+                        "replier_avatar": user.get("avatar_url"),
+                        "original_message_id": reply_to_data["id"],
+                        "reply_content": message_data.content,
+                        "action": "reply"
+                    }
+                )
     
     # Broadcast message to all connected users
     await manager.broadcast(json.dumps({
