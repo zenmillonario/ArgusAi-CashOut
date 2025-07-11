@@ -70,3 +70,4 @@ __pycache__/
 android-sdk/
 
 # Firebase credentials - NEVER commit these!
+frontend/node_modules/.cache/default-development/0.pack
