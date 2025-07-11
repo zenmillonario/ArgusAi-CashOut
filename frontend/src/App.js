@@ -2055,7 +2055,7 @@ function App() {
             </div>
             
             {/* Message Input Area - Always at bottom */}
-            <div className={`flex-shrink-0 p-4 border-t ${
+            <div className={`flex-shrink-0 p-3 border-t ${
               isDarkTheme ? 'border-white/10 bg-gray-900/50' : 'border-gray-200 bg-white/50'
             } backdrop-blur-lg`}>
               <ChatInput 
