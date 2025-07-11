@@ -2786,6 +2786,16 @@ async def get_user_notifications(user_id: str, limit: int = 50, offset: int = 0)
         {"user_id": user_id}
     ).sort("created_at", -1).skip(offset).limit(limit).to_list(limit)
     
+    # Convert datetime objects to ISO strings for JSON serialization
+    for notification in notifications:
+        if "created_at" in notification and notification["created_at"]:
+            notification["created_at"] = notification["created_at"].isoformat()
+        if "expires_at" in notification and notification["expires_at"]:
+            notification["expires_at"] = notification["expires_at"].isoformat()
+        # Remove MongoDB's _id field if present
+        if "_id" in notification:
+            del notification["_id"]
+    
     return notifications
 
 @api_router.post("/users/{user_id}/notifications/{notification_id}/read")
