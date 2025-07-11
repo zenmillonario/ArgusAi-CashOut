@@ -372,7 +372,10 @@ const ChatTab = ({
         isDarkTheme 
           ? 'bg-white/5 border-white/10' 
           : 'bg-white/80 border-gray-200'
-      }`} style={{ maxHeight: 'calc(100vh - 280px)', minHeight: '400px' }}>{/* Better height constraint */}
+      }`} style={{ 
+        maxHeight: showMobileUserList ? 'calc(100vh - 500px)' : 'calc(100vh - 280px)', 
+        minHeight: showMobileUserList ? '200px' : '400px' 
+      }}>
         {/* Timezone Indicator */}
         <div className={`text-xs text-center pb-2 mb-2 border-b ${
           isDarkTheme 
