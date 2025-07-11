@@ -376,8 +376,11 @@ const ChatTab = ({
           : 'bg-white/80 border-gray-200'
       }`} style={{
         maxHeight: hideMessageInput 
-          ? 'calc(100vh - 320px)'  // More space for message input area
-          : 'calc(100vh - 350px)'  // When message input is in ChatTab
+          ? showMobileUserList
+            ? 'calc(100vh - 500px)'  // Mobile with user list open
+            : 'calc(100vh - 320px)'  // Normal mode with external message input
+          : 'calc(100vh - 350px)',   // When message input is in ChatTab
+        height: hideMessageInput ? 'auto' : undefined
       }}>
         {/* Timezone Indicator */}
         <div className={`text-xs text-center pb-2 mb-2 border-b ${
