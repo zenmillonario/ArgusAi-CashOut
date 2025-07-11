@@ -5,7 +5,8 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
   const [followingUsers, setFollowingUsers] = React.useState([]);
   const [followerCounts, setFollowerCounts] = React.useState({});
 
-  const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+  const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
   React.useEffect(() => {
     // Fetch current user's following list
