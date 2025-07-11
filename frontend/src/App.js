@@ -2028,16 +2028,23 @@ function App() {
               isDarkTheme={isDarkTheme}
               replyToMessage={replyToMessage}
               setReplyToMessage={setReplyToMessage}
-            />
-            <UserList 
               onlineUsers={onlineUsers}
               allUsers={allUsers}
               currentUser={currentUser}
-              isDarkTheme={isDarkTheme}
-              showUserList={showUserList}
-              setShowUserList={setShowUserList}
               onViewProfile={handleViewProfile}
             />
+            {/* Desktop UserList - hidden on mobile, ChatTab handles mobile user list */}
+            <div className="hidden md:block">
+              <UserList 
+                onlineUsers={onlineUsers}
+                allUsers={allUsers}
+                currentUser={currentUser}
+                isDarkTheme={isDarkTheme}
+                showUserList={showUserList}
+                setShowUserList={setShowUserList}
+                onViewProfile={handleViewProfile}
+              />
+            </div>
           </div>
         )}
 
