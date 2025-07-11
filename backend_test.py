@@ -3826,7 +3826,7 @@ def test_comprehensive_notification_system():
         f"messages/{admin_message_id}/react",
         200,
         session=tester.session2,
-        data={"reaction": "heart", "user_id": demo2_user['id']}
+        data={"reaction_type": "heart", "user_id": demo2_user['id']}
     )
     
     if not success:
