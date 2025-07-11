@@ -3076,6 +3076,9 @@ async def create_message(message_data: MessageCreate):
                     }
                 )
     
+    # Handle @username mentions in the message
+    await handle_message_mentions(message_data.content, user, message.id)
+    
     # Broadcast message to all connected users
     await manager.broadcast(json.dumps({
         "type": "message",
