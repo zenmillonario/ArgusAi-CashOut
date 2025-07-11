@@ -37,6 +37,55 @@ const ChatTab = ({
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
   const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
+  // Fetch user data (similar to UserList component)
+  React.useEffect(() => {
+    const fetchFollowingList = async () => {
+      if (!currentUser) return;
+      
+      try {
+        const axios = require('axios');
+        const response = await axios.get(`${API}/users/${currentUser.id}/profile`);
+        setFollowingUsers(response.data.following || []);
+      } catch (error) {
+        console.error('Error fetching following list:', error);
+      }
+    };
+
+    fetchFollowingList();
+  }, [currentUser, API]);
+
+  React.useEffect(() => {
+    const fetchFollowerCounts = async () => {
+      if (!allUsers || allUsers.length === 0) return;
+      
+      const counts = {};
+      const axios = require('axios');
+      
+      for (const user of allUsers) {
+        try {
+          const response = await axios.get(`${API}/users/${user.id}/profile`);
+          counts[user.id] = response.data.follower_count || 0;
+        } catch (error) {
+          console.error(`Error fetching follower count for user ${user.id}:`, error);
+          counts[user.id] = 0;
+        }
+      }
+      
+      setFollowerCounts(counts);
+    };
+
+    fetchFollowerCounts();
+  }, [allUsers, API]);
+
+  const getUserStatus = (user) => {
+    return onlineUsers?.some(onlineUser => onlineUser.id === user.id) || false;
+  };
+
+  const sortedUsers = onlineUsers ? [...onlineUsers].sort((a, b) => {
+    if (a.is_admin !== b.is_admin) return b.is_admin ? 1 : -1;
+    return (a.screen_name || a.username).localeCompare(b.screen_name || b.username);
+  }) : [];
+
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
