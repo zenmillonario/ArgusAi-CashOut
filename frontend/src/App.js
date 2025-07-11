@@ -15,8 +15,8 @@ import { formatPrice, formatPnL, formatCurrency } from './utils';
 import notificationService from './firebase-config';
 import './App.css';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
 
 function App() {
   const [showLoadingScreen, setShowLoadingScreen] = useState(true);
