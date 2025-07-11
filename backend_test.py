@@ -3719,7 +3719,7 @@ def test_comprehensive_notification_system():
     success, follow_response = tester.run_test(
         "Admin follows demo2",
         "POST",
-        f"users/{demo2_user['id']}/follow",
+        f"users/{admin_user['id']}/follow",
         200,
         session=tester.session1,
         data={"target_user_id": demo2_user['id']}
