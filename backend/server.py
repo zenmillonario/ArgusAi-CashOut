@@ -2906,11 +2906,7 @@ async def add_message_reaction(message_id: str, reaction_data: dict, background_
             }
         )
     
-    # Convert datetime to string for JSON serialization
-    reaction_response = reaction.copy()
-    reaction_response["created_at"] = reaction["created_at"].isoformat()
-    
-    return {"message": "Reaction added successfully", "reaction": reaction_response}
+    return {"message": "Reaction added successfully"}
 
 @api_router.delete("/messages/{message_id}/react")
 async def remove_message_reaction(message_id: str, user_id: str, reaction_type: str = "heart"):
