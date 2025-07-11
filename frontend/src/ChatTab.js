@@ -165,7 +165,7 @@ const ChatTab = ({
           : 'bg-white/80 border-gray-200'
       } overflow-hidden`} style={{
         minHeight: hideMessageInput ? '400px' : '300px',
-        maxHeight: 'calc(100vh - 280px)' // Ensure it doesn't exceed viewport
+        maxHeight: 'calc(100vh - 300px)' // Adjusted for new header height
       }}>
         {/* Timezone Indicator */}
         <div className={`text-xs text-center pb-2 mb-2 border-b ${
@@ -177,7 +177,7 @@ const ChatTab = ({
         </div>
         
         {/* Messages container with isolated scroll */}
-        <div className="overflow-y-auto space-y-1" style={{ maxHeight: 'calc(100vh - 340px)' }}>
+        <div className="overflow-y-auto space-y-1" style={{ maxHeight: 'calc(100vh - 360px)' }}>
           {displayMessages.map((message) => (
             <div key={message.id} className="group">
               {/* STREAMLINED FORMAT: Username: Message on same line */}
