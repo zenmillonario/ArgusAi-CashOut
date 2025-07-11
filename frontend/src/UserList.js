@@ -355,6 +355,11 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
             </>
           )}
         </div>
+        
+        {/* Bottom border */}
+        <div className={`h-px ${
+          isDarkTheme ? 'bg-gray-700' : 'bg-gray-200'
+        }`}></div>
       </div>
     </>
   );
