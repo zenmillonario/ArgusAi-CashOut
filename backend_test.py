@@ -1750,6 +1750,347 @@ def test_email_notification_registration():
         print("❌ Registration endpoint did not create user properly")
         return False
 
+def test_notification_system_backend():
+    """Test the comprehensive notification system backend functionality"""
+    print("\n🔍 TESTING FEATURE: Notification System Backend")
+    
+    tester = CashoutAITester()
+    
+    # Login as admin user
+    admin_user = tester.test_login("admin", "admin123", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed, cannot test notification system")
+        return False
+    
+    # Login as demo2 user for testing
+    demo2_user = tester.test_login("demo2", "demo123", tester.session2)
+    if not demo2_user:
+        print("❌ Demo2 login failed, cannot test notification system")
+        return False
+    
+    print(f"✅ Logged in as admin: {admin_user['id']}")
+    print(f"✅ Logged in as demo2: {demo2_user['id']}")
+    
+    # Test 1: Follow Notification Creation
+    print("\n🔍 Test 1: Follow Notification Creation")
+    success, follow_response = tester.run_test(
+        "Admin follows demo2",
+        "POST",
+        f"users/{demo2_user['id']}/follow",
+        200,
+        session=tester.session1,
+        data={"target_user_id": demo2_user['id']}
+    )
+    
+    if not success:
+        print("❌ Failed to create follow action")
+        return False
+    
+    print("✅ Follow action successful")
+    
+    # Test 2: Get Notifications for demo2 user
+    print("\n🔍 Test 2: Get Notifications for demo2 user")
+    success, notifications = tester.run_test(
+        "Get notifications for demo2",
+        "GET",
+        f"users/{demo2_user['id']}/notifications",
+        200,
+        session=tester.session2
+    )
+    
+    if not success:
+        print("❌ Failed to get notifications")
+        return False
+    
+    print(f"✅ Retrieved {len(notifications)} notifications")
+    
+    # Find follow notification
+    follow_notification = None
+    for notif in notifications:
+        if notif.get('type') == 'follow' and notif.get('data', {}).get('follower_id') == admin_user['id']:
+            follow_notification = notif
+            break
+    
+    if not follow_notification:
+        print("❌ Follow notification not found")
+        return False
+    
+    print("✅ Follow notification found")
+    print(f"  - Title: {follow_notification.get('title')}")
+    print(f"  - Message: {follow_notification.get('message')}")
+    print(f"  - Read status: {follow_notification.get('read')}")
+    
+    # Test 3: Send a message to create reply notification
+    print("\n🔍 Test 3: Send message and reply to create reply notification")
+    
+    # Admin sends a message
+    admin_message = tester.test_send_message(
+        tester.session1, 
+        admin_user['id'], 
+        "This is a test message from admin for reply testing"
+    )
+    
+    if not admin_message:
+        print("❌ Failed to send admin message")
+        return False
+    
+    print("✅ Admin message sent")
+    
+    # Demo2 replies to admin's message
+    reply_message = tester.test_send_message(
+        tester.session2,
+        demo2_user['id'],
+        "This is a reply from demo2 to admin's message",
+        reply_to_id=admin_message['id']
+    )
+    
+    if not reply_message:
+        print("❌ Failed to send reply message")
+        return False
+    
+    print("✅ Reply message sent")
+    
+    # Get admin's notifications to check for reply notification
+    success, admin_notifications = tester.run_test(
+        "Get notifications for admin",
+        "GET",
+        f"users/{admin_user['id']}/notifications",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to get admin notifications")
+        return False
+    
+    # Find reply notification
+    reply_notification = None
+    for notif in admin_notifications:
+        if notif.get('type') == 'reply' and notif.get('data', {}).get('replier_id') == demo2_user['id']:
+            reply_notification = notif
+            break
+    
+    if not reply_notification:
+        print("❌ Reply notification not found")
+        return False
+    
+    print("✅ Reply notification found")
+    print(f"  - Title: {reply_notification.get('title')}")
+    print(f"  - Message: {reply_notification.get('message')}")
+    
+    # Test 4: Create reaction notification
+    print("\n🔍 Test 4: Create reaction notification")
+    
+    # Demo2 reacts to admin's message
+    success, reaction_response = tester.run_test(
+        "Demo2 reacts to admin's message",
+        "POST",
+        f"messages/{admin_message['id']}/react",
+        200,
+        session=tester.session2,
+        data={
+            "user_id": demo2_user['id'],
+            "emoji": "❤️"
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to create reaction")
+        return False
+    
+    print("✅ Reaction created")
+    
+    # Get admin's notifications again to check for reaction notification
+    success, admin_notifications = tester.run_test(
+        "Get updated notifications for admin",
+        "GET",
+        f"users/{admin_user['id']}/notifications",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to get updated admin notifications")
+        return False
+    
+    # Find reaction notification
+    reaction_notification = None
+    for notif in admin_notifications:
+        if notif.get('type') == 'reaction' and notif.get('data', {}).get('reactor_id') == demo2_user['id']:
+            reaction_notification = notif
+            break
+    
+    if not reaction_notification:
+        print("❌ Reaction notification not found")
+        return False
+    
+    print("✅ Reaction notification found")
+    print(f"  - Title: {reaction_notification.get('title')}")
+    print(f"  - Message: {reaction_notification.get('message')}")
+    
+    # Test 5: Create mention notification
+    print("\n🔍 Test 5: Create mention notification")
+    
+    # Admin mentions demo2 in a message
+    mention_message = tester.test_send_message(
+        tester.session1,
+        admin_user['id'],
+        f"Hey @{demo2_user['username']}, this is a mention test!"
+    )
+    
+    if not mention_message:
+        print("❌ Failed to send mention message")
+        return False
+    
+    print("✅ Mention message sent")
+    
+    # Get demo2's notifications to check for mention notification
+    success, demo2_notifications = tester.run_test(
+        "Get updated notifications for demo2",
+        "GET",
+        f"users/{demo2_user['id']}/notifications",
+        200,
+        session=tester.session2
+    )
+    
+    if not success:
+        print("❌ Failed to get updated demo2 notifications")
+        return False
+    
+    # Find mention notification
+    mention_notification = None
+    for notif in demo2_notifications:
+        if notif.get('type') == 'mention' and notif.get('data', {}).get('mentioner_id') == admin_user['id']:
+            mention_notification = notif
+            break
+    
+    if not mention_notification:
+        print("❌ Mention notification not found")
+        return False
+    
+    print("✅ Mention notification found")
+    print(f"  - Title: {mention_notification.get('title')}")
+    print(f"  - Message: {mention_notification.get('message')}")
+    
+    # Test 6: Mark notification as read
+    print("\n🔍 Test 6: Mark notification as read")
+    
+    # Mark the follow notification as read
+    success, mark_read_response = tester.run_test(
+        "Mark follow notification as read",
+        "PUT",
+        f"users/{demo2_user['id']}/notifications/{follow_notification['id']}/read",
+        200,
+        session=tester.session2
+    )
+    
+    if not success:
+        print("❌ Failed to mark notification as read")
+        return False
+    
+    print("✅ Notification marked as read")
+    
+    # Test 7: Verify read status persistence
+    print("\n🔍 Test 7: Verify read status persistence")
+    
+    # Get notifications again to verify read status
+    success, updated_notifications = tester.run_test(
+        "Get notifications to verify read status",
+        "GET",
+        f"users/{demo2_user['id']}/notifications",
+        200,
+        session=tester.session2
+    )
+    
+    if not success:
+        print("❌ Failed to get notifications for read status verification")
+        return False
+    
+    # Find the follow notification again
+    updated_follow_notification = None
+    for notif in updated_notifications:
+        if notif.get('id') == follow_notification['id']:
+            updated_follow_notification = notif
+            break
+    
+    if not updated_follow_notification:
+        print("❌ Follow notification not found after marking as read")
+        return False
+    
+    if not updated_follow_notification.get('read'):
+        print("❌ Notification read status not persisted")
+        return False
+    
+    print("✅ Notification read status persisted correctly")
+    
+    # Test 8: Test multiple notifications mark as read
+    print("\n🔍 Test 8: Test multiple notifications mark as read")
+    
+    # Mark mention notification as read
+    success, mark_mention_read = tester.run_test(
+        "Mark mention notification as read",
+        "PUT",
+        f"users/{demo2_user['id']}/notifications/{mention_notification['id']}/read",
+        200,
+        session=tester.session2
+    )
+    
+    if not success:
+        print("❌ Failed to mark mention notification as read")
+        return False
+    
+    print("✅ Mention notification marked as read")
+    
+    # Get final notifications to verify both are read
+    success, final_notifications = tester.run_test(
+        "Get final notifications to verify read status",
+        "GET",
+        f"users/{demo2_user['id']}/notifications",
+        200,
+        session=tester.session2
+    )
+    
+    if not success:
+        print("❌ Failed to get final notifications")
+        return False
+    
+    # Count read notifications
+    read_count = sum(1 for notif in final_notifications if notif.get('read'))
+    unread_count = sum(1 for notif in final_notifications if not notif.get('read'))
+    
+    print(f"✅ Final notification status: {read_count} read, {unread_count} unread")
+    
+    # Test 9: Test notification data integrity
+    print("\n🔍 Test 9: Test notification data integrity")
+    
+    for notif in final_notifications:
+        # Check required fields
+        required_fields = ['id', 'user_id', 'type', 'title', 'message', 'read', 'created_at']
+        missing_fields = [field for field in required_fields if field not in notif]
+        
+        if missing_fields:
+            print(f"❌ Missing required fields in notification: {missing_fields}")
+            return False
+        
+        # Check data field exists and is a dict
+        if 'data' not in notif or not isinstance(notif['data'], dict):
+            print("❌ Notification data field missing or not a dictionary")
+            return False
+        
+        # Check datetime serialization
+        if not isinstance(notif['created_at'], str):
+            print("❌ Notification created_at not properly serialized")
+            return False
+    
+    print("✅ All notifications have proper data integrity")
+    
+    print("\n✅ Notification System Backend Test PASSED")
+    print(f"✅ Successfully tested: Follow notifications, Reply notifications, Reaction notifications, Mention notifications")
+    print(f"✅ Successfully tested: Mark as read functionality, Read status persistence, Multiple notification handling")
+    print(f"✅ Successfully tested: Data integrity and proper serialization")
+    
+    return True
+
 def test_achievement_system():
     """Test the achievement system for duplicate prevention and auto-posting to chat"""
     print("\n🔍 TESTING FEATURE: Achievement System - Chatterbox Achievement")
