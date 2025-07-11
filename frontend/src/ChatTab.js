@@ -156,15 +156,16 @@ const ChatTab = ({
         </div>
       )}
 
-      {/* Messages - STREAMLINED SAME LINE FORMAT - Fixed scrolling */}
-      <div className={`backdrop-blur-lg rounded-2xl border p-4 overflow-y-auto ${
+      {/* Messages - STREAMLINED SAME LINE FORMAT - Isolated scroll container */}
+      <div className={`backdrop-blur-lg rounded-2xl border p-4 ${
         hideMessageInput ? 'flex-1' : 'flex-1 mb-4'
       } ${
         isDarkTheme 
           ? 'bg-white/5 border-white/10' 
           : 'bg-white/80 border-gray-200'
-      }`} style={{
-        minHeight: hideMessageInput ? '400px' : '300px'  // Ensure minimum height for content
+      } overflow-hidden`} style={{
+        minHeight: hideMessageInput ? '400px' : '300px',
+        maxHeight: 'calc(100vh - 280px)' // Ensure it doesn't exceed viewport
       }}>
         {/* Timezone Indicator */}
         <div className={`text-xs text-center pb-2 mb-2 border-b ${
@@ -175,7 +176,8 @@ const ChatTab = ({
           🕐 Times shown in Eastern Time Zone (ET)
         </div>
         
-        <div className="space-y-1">
+        {/* Messages container with isolated scroll */}
+        <div className="overflow-y-auto space-y-1" style={{ maxHeight: 'calc(100vh - 340px)' }}>
           {displayMessages.map((message) => (
             <div key={message.id} className="group">
               {/* STREAMLINED FORMAT: Username: Message on same line */}
