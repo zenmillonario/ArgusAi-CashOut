@@ -4,6 +4,8 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 import uuid
 import secrets
+from fastapi import File, UploadFile, HTTPException
+import shutil
 
 # Generate referral code for new users
 def generate_referral_code(username: str) -> str:
