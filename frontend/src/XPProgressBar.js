@@ -14,43 +14,43 @@ const XPProgressBar = ({ currentXP, level, isDarkTheme }) => {
   const isMaxLevel = level >= thresholds.length - 1;
   
   return (
-    <div className={`p-4 rounded-lg ${
+    <div className={`p-2 rounded-lg ${
       isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
     } border`}>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-1">
         <div className="flex items-center space-x-2">
-          <span className="text-2xl">⭐</span>
+          <span className="text-lg">⭐</span>
           <div>
-            <h3 className={`font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+            <h3 className={`font-bold text-sm ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
               Level {level}
             </h3>
-            <p className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+            <p className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
               {currentXP.toLocaleString()} XP
             </p>
           </div>
         </div>
         
         {!isMaxLevel && (
-          <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
-            <span className="font-medium">{(nextLevelStart - currentXP).toLocaleString()}</span> XP to next level
+          <div className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
+            <span className="font-medium">{(nextLevelStart - currentXP).toLocaleString()}</span> XP to next
           </div>
         )}
       </div>
       
       {!isMaxLevel && (
-        <div className={`w-full h-3 rounded-full ${
+        <div className={`w-full h-2 rounded-full ${
           isDarkTheme ? 'bg-gray-700' : 'bg-gray-200'
         }`}>
           <div 
-            className="h-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-300"
+            className="h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-300"
             style={{ width: `${Math.min(progressPercentage, 100)}%` }}
           ></div>
         </div>
       )}
       
       {isMaxLevel && (
-        <div className={`text-center py-2 ${isDarkTheme ? 'text-yellow-400' : 'text-yellow-600'}`}>
-          <span className="text-lg">👑 MAX LEVEL REACHED!</span>
+        <div className={`text-center py-1 ${isDarkTheme ? 'text-yellow-400' : 'text-yellow-600'}`}>
+          <span className="text-sm">👑 MAX LEVEL REACHED!</span>
         </div>
       )}
     </div>
