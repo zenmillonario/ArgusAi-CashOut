@@ -1719,7 +1719,7 @@ function App() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+                  className={`px-2 py-1 rounded-lg font-medium transition-colors ${
                     activeTab === tab.key
                       ? isDarkTheme 
                         ? 'bg-blue-600 text-white' 
@@ -1730,13 +1730,13 @@ function App() {
                   }`}
                   title={tab.label}
                 >
-                  <span className="text-lg">{tab.emoji}</span>
+                  <span className="text-base">{tab.emoji}</span>
                 </button>
               ))}
               {currentUser?.is_admin && (
                 <button
                   onClick={() => setActiveTab('admin')}
-                  className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+                  className={`px-2 py-1 rounded-lg font-medium transition-colors ${
                     activeTab === 'admin'
                       ? isDarkTheme 
                         ? 'bg-yellow-600 text-white' 
@@ -1747,7 +1747,7 @@ function App() {
                   }`}
                   title="Admin"
                 >
-                  <span className="text-lg">👑</span>
+                  <span className="text-base">👑</span>
                 </button>
               )}
             </div>
