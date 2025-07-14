@@ -141,26 +141,28 @@
             progressContainer.style.display = 'block';
             showStatus('Uploading video...', 'info');
 
-            // Simulate upload progress (replace with actual upload logic)
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += 10;
-                progressBar.style.width = progress + '%';
-                
-                if (progress >= 100) {
-                    clearInterval(interval);
-                    showStatus('✅ Video uploaded successfully! The intro video has been updated.', 'success');
+            // Upload to backend
+            fetch('/api/upload-video', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    progressBar.style.width = '100%';
+                    showStatus(`✅ ${data.message}`, 'success');
                     setTimeout(() => {
-                        showStatus('You can now close this page and test your application.', 'success');
+                        showStatus('The intro video has been updated in your application. You can now close this page and test your app!', 'success');
                     }, 2000);
+                } else {
+                    throw new Error(data.detail || 'Upload failed');
                 }
-            }, 200);
-
-            // In a real implementation, you would upload to your backend
-            // fetch('/api/upload-video', {
-            //     method: 'POST',
-            //     body: formData
-            // })
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                showStatus(`❌ Upload failed: ${error.message}`, 'error');
+                progressBar.style.width = '0%';
+            });
         }
 
         function showStatus(message, type) {
