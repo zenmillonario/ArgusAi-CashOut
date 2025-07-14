@@ -1794,7 +1794,7 @@ function App() {
               </div>
 
               {/* XP Progress Bar - Desktop */}
-              <div className="hidden lg:block w-48">
+              <div className="hidden lg:block w-40">
                 <XPProgressBar 
                   currentXP={userXP.experience_points} 
                   level={userXP.level} 
