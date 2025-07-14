@@ -9,11 +9,11 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
   useEffect(() => {
     const video = videoRef.current;
     
-    // EMERGENCY: Auto-proceed after 3 seconds no matter what
+    // Emergency timeout to prevent indefinite loading - extended for 6 second video
     const emergencyTimeout = setTimeout(() => {
-      console.log('Emergency timeout: Proceeding to app after 3 seconds');
+      console.log('Emergency timeout: Proceeding to app after 8 seconds');
       onComplete();
-    }, 3000);
+    }, 8000); // 8 seconds to allow full 6 second video + buffer
 
     if (video) {
       // Handle video load
