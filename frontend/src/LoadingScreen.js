@@ -134,8 +134,9 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
           playsInline
           preload="auto"
           autoPlay
+          crossOrigin="anonymous"
         >
-          <source src="https://drive.google.com/uc?id=10geS9b6QtH8ulGiEQE6TOJT00sPoNgQA&export=download" type="video/mp4" />
+          <source src="https://drive.usercontent.google.com/download?id=10geS9b6QtH8ulGiEQE6TOJT00sPoNgQA&export=download" type="video/mp4" />
           <source src="/intro-video.webm" type="video/webm" />
           Your browser does not support the video tag.
         </video>
