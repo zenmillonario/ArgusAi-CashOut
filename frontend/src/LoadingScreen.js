@@ -137,6 +137,7 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
           crossOrigin="anonymous"
         >
           <source src="https://drive.usercontent.google.com/download?id=19NLybpEkx50oacdalum1xix3AedFeXNX&export=download" type="video/mp4" />
+          <source src="https://drive.google.com/uc?id=19NLybpEkx50oacdalum1xix3AedFeXNX&export=download" type="video/mp4" />
           <source src="/intro-video.webm" type="video/webm" />
           Your browser does not support the video tag.
         </video>
