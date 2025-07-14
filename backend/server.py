@@ -3515,6 +3515,59 @@ async def update_user_profile(user_id: str, profile_data: ProfileUpdate):
     updated_user = await db.users.find_one({"id": user_id})
     return User(**updated_user)
 
+@api_router.post("/upload-video")
+async def upload_intro_video(video: UploadFile = File(...)):
+    """Upload intro video for the application"""
+    try:
+        # Validate file type
+        if not video.content_type.startswith('video/'):
+            raise HTTPException(status_code=400, detail="File must be a video")
+        
+        # Check file size (max 50MB)
+        if video.size > 50 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File size must be less than 50MB")
+        
+        # Define the path where the video will be saved
+        frontend_public_path = Path("/app/frontend/public")
+        video_path = frontend_public_path / "intro-video.mp4"
+        
+        # Create directory if it doesn't exist
+        frontend_public_path.mkdir(parents=True, exist_ok=True)
+        
+        # Save the uploaded video
+        with open(video_path, "wb") as buffer:
+            shutil.copyfileobj(video.file, buffer)
+        
+        # Update the video source in LoadingScreen.js to use local file
+        loading_screen_path = Path("/app/frontend/src/LoadingScreen.js")
+        if loading_screen_path.exists():
+            with open(loading_screen_path, "r") as f:
+                content = f.read()
+            
+            # Replace Google Drive URLs with local video path
+            content = content.replace(
+                'https://drive.usercontent.google.com/download?id=10geS9b6QtH8ulGiEQE6TOJT00sPoNgQA&export=download',
+                '/intro-video.mp4'
+            )
+            content = content.replace(
+                'https://drive.google.com/uc?id=10geS9b6QtH8ulGiEQE6TOJT00sPoNgQA&export=download',
+                '/intro-video.mp4'
+            )
+            
+            with open(loading_screen_path, "w") as f:
+                f.write(content)
+        
+        return {
+            "message": "Video uploaded successfully",
+            "filename": "intro-video.mp4",
+            "size": video.size,
+            "path": str(video_path)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error uploading video: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
+
 # Include the router in the main app
 app.include_router(api_router)
 
