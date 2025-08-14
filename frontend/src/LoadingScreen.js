@@ -160,26 +160,36 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
               loop
               muted
               playsInline
-              preload="auto"
+              preload="metadata"
               className="w-full h-full object-cover rounded-lg"
               style={{ filter: 'brightness(1.2) contrast(1.1)' }}
-              onError={(e) => console.log('Video error:', e)}
+              onError={(e) => {
+                console.log('Video error, showing fallback');
+                e.target.style.display = 'none';
+                e.target.nextElementSibling.style.display = 'flex';
+              }}
               onLoadStart={() => console.log('Video load started')}
               onCanPlay={() => console.log('Video can play')}
+              onTimeUpdate={() => {
+                // Ensure video is playing properly
+                if (e.target.paused) {
+                  e.target.play().catch(() => {});
+                }
+              }}
             >
               <source src="/peacock-animation.mp4" type="video/mp4" />
               <source src="/peacock-animation.mov" type="video/quicktime" />
-              {/* Enhanced fallback content with peacock styling */}
-              <div className="text-center flex flex-col items-center justify-center h-full w-full">
-                <div className="text-4xl mb-2 animate-pulse">🦚</div>
-                <div className="text-lg font-bold text-green-400 tracking-wider">
-                  ARGUS AI
-                </div>
-                <div className="text-sm text-green-300 mt-1">
-                  Trading Platform
-                </div>
-              </div>
             </video>
+            {/* Enhanced fallback content - hidden by default, shown on video error */}
+            <div className="absolute inset-0 flex-col items-center justify-center h-full w-full" style={{display: 'none'}}>
+              <div className="text-6xl mb-3 animate-pulse">🦚</div>
+              <div className="text-2xl font-bold text-green-400 tracking-wider mb-1">
+                ARGUS AI
+              </div>
+              <div className="text-lg text-green-300">
+                CashOut Trading Platform
+              </div>
+            </div>
           </div>
         </div>
 
