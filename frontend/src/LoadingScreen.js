@@ -7,15 +7,17 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
   // Matrix code characters
   const matrixChars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
 
-  // Generate matrix columns - moved to top to avoid hooks rule violation
+  // Generate matrix columns - bidirectional (top to bottom and bottom to top)
   const generateMatrixColumns = () => {
-    const columns = [];
+    const topToBottomColumns = [];
+    const bottomToTopColumns = [];
     const columnCount = Math.floor(window.innerWidth / 20);
     
     for (let i = 0; i < columnCount; i++) {
-      const column = [];
-      const columnHeight = Math.floor(Math.random() * 25) + 15; // Increased height
+      const columnHeight = Math.floor(Math.random() * 25) + 15;
       
+      // Generate characters for column
+      const column = [];
       for (let j = 0; j < columnHeight; j++) {
         column.push({
           char: matrixChars[Math.floor(Math.random() * matrixChars.length)],
@@ -24,14 +26,23 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         });
       }
       
-      columns.push({
-        chars: column,
-        left: i * 20,
-        animationDelay: Math.random() * 6 // Increased animation delay range
-      });
+      // Randomly assign to top-to-bottom or bottom-to-top
+      if (Math.random() > 0.5) {
+        topToBottomColumns.push({
+          chars: column,
+          left: i * 20,
+          animationDelay: Math.random() * 8 // Increased animation delay range
+        });
+      } else {
+        bottomToTopColumns.push({
+          chars: column,
+          left: i * 20,
+          animationDelay: Math.random() * 8 // Increased animation delay range
+        });
+      }
     }
     
-    return columns;
+    return { topToBottom: topToBottomColumns, bottomToTop: bottomToTopColumns };
   };
 
   const [matrixColumns] = useState(() => generateMatrixColumns());
