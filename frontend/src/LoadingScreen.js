@@ -14,7 +14,7 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
     const columnCount = Math.floor(window.innerWidth / 20);
     
     for (let i = 0; i < columnCount; i++) {
-      const columnHeight = Math.floor(Math.random() * 25) + 15;
+      const columnHeight = Math.floor(Math.random() * 40) + 30; // Increased from 25+15 to 40+30 for much longer columns
       
       // Generate characters for column
       const column = [];
@@ -22,7 +22,7 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         column.push({
           char: matrixChars[Math.floor(Math.random() * matrixChars.length)],
           opacity: Math.random() * 0.8 + 0.2,
-          delay: Math.random() * 1
+          delay: Math.random() * 0.5 // Reduced delay for more synchronized appearance
         });
       }
       
@@ -31,13 +31,13 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         topToBottomColumns.push({
           chars: column,
           left: i * 20,
-          animationDelay: Math.random() * 4 // Reduced to ensure continuous animation
+          animationDelay: Math.random() * 2 // Reduced to 2 seconds for better overlap
         });
       } else {
         bottomToTopColumns.push({
           chars: column,
           left: i * 20,
-          animationDelay: Math.random() * 4 // Reduced to ensure continuous animation
+          animationDelay: Math.random() * 2 // Reduced to 2 seconds for better overlap
         });
       }
     }
