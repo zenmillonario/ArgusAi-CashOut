@@ -22,7 +22,7 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         column.push({
           char: matrixChars[Math.floor(Math.random() * matrixChars.length)],
           opacity: Math.random() * 0.8 + 0.2,
-          delay: Math.random() * 2
+          delay: Math.random() * 1
         });
       }
       
@@ -31,13 +31,13 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         topToBottomColumns.push({
           chars: column,
           left: i * 20,
-          animationDelay: Math.random() * 8 // Increased animation delay range
+          animationDelay: Math.random() * 4 // Reduced to ensure continuous animation
         });
       } else {
         bottomToTopColumns.push({
           chars: column,
           left: i * 20,
-          animationDelay: Math.random() * 8 // Increased animation delay range
+          animationDelay: Math.random() * 4 // Reduced to ensure continuous animation
         });
       }
     }
