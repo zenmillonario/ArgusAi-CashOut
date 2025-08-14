@@ -3166,24 +3166,45 @@ def parse_price_alert(content: str, subject: str = "") -> str:
         # Extract ticker symbol (looks for patterns like "AIMH price alert" or "$AIMH")
         import re
         
+        ticker = None
+        price = None
+        
         # Pattern 1: "TICKER price alert" in subject or content
-        ticker_match = re.search(r'([A-Z]{1,5})\s+price\s+alert', content.upper() + " " + subject.upper())
-        
-        if not ticker_match:
-            # Pattern 2: Look for ticker symbols in various formats
-            ticker_match = re.search(r'\$?([A-Z]{1,5})\s+', content.upper())
-        
-        # Extract price (looks for patterns like "Last = .04" or "$.04")
-        price_match = re.search(r'Last\s*=\s*[\$]?([0-9]+\.?[0-9]*)', content)
-        
-        if not price_match:
-            # Alternative price patterns
-            price_match = re.search(r'[\$]([0-9]+\.?[0-9]*)', content)
-        
-        if ticker_match and price_match:
+        ticker_match = re.search(r'([A-Z]{2,5})\s+price\s+alert', content.upper() + " " + subject.upper())
+        if ticker_match:
             ticker = ticker_match.group(1).upper()
+        
+        if not ticker:
+            # Pattern 2: Look for ticker symbols at start of content/subject
+            ticker_match = re.search(r'^([A-Z]{2,5})\s', content.upper())
+            if ticker_match:
+                ticker = ticker_match.group(1).upper()
+        
+        if not ticker:
+            # Pattern 3: Look for $TICKER format
+            ticker_match = re.search(r'\$([A-Z]{2,5})', content.upper())
+            if ticker_match:
+                ticker = ticker_match.group(1).upper()
+        
+        # Extract price - handle various formats
+        # Pattern 1: "Last = .04" or "Last = $0.04"
+        price_match = re.search(r'Last\s*=\s*\$?([0-9]*\.?[0-9]+)', content)
+        if price_match:
             price = price_match.group(1)
-            
+        
+        if not price:
+            # Pattern 2: "Last is at or above $.04"
+            price_match = re.search(r'Last\s+is\s+at\s+or\s+above\s+\$([0-9]*\.?[0-9]+)', content)
+            if price_match:
+                price = price_match.group(1)
+        
+        if not price:
+            # Pattern 3: Simple "$price" format
+            price_match = re.search(r'\$([0-9]*\.?[0-9]+)', content)
+            if price_match:
+                price = price_match.group(1)
+        
+        if ticker and price:
             # Format price properly
             try:
                 price_float = float(price)
@@ -3202,6 +3223,7 @@ def parse_price_alert(content: str, subject: str = "") -> str:
         
         # If parsing fails, try to extract any recognizable info
         logger.warning(f"Could not parse price alert properly: content='{content[:100]}', subject='{subject}'")
+        logger.warning(f"Debug - ticker found: {ticker}, price found: {price}")
         return None
         
     except Exception as e:
