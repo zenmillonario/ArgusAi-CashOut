@@ -932,24 +932,33 @@ async def share_achievement_in_chat(user_id: str, achievement: dict):
 async def check_achievements(user_id: str, action: str, metadata: dict):
     """Check and award achievements based on user actions"""
     try:
+        logger.info(f"check_achievements called for user {user_id}, action: {action}")
+        
         user = await db.users.find_one({"id": user_id})
         if not user:
+            logger.error(f"User {user_id} not found in check_achievements")
             return
             
         user_achievements = user.get("achievements", [])
         progress = user.get("achievement_progress", {})
         
+        logger.info(f"Current progress for {user_id}: {progress}")
+        
         # Update progress based on action
         if action == "chat_message":
             progress["chatterbox_count"] = progress.get("chatterbox_count", 0) + 1
         elif action == "heart_reaction":
-            progress["heart_giver_count"] = progress.get("heart_giver_count", 0) + 1
+            old_count = progress.get("heart_giver_count", 0)
+            progress["heart_giver_count"] = old_count + 1
+            logger.info(f"Updated heart_giver_count from {old_count} to {progress['heart_giver_count']}")
         elif action == "profitable_trade":
             progress["profitable_trades"] = progress.get("profitable_trades", 0) + 1
         elif action == "daily_login":
             progress["login_streak"] = metadata.get("streak", 0)
         elif action == "referral_success":
             progress["successful_referrals"] = progress.get("successful_referrals", 0) + 1
+        
+        logger.info(f"Updated progress for {user_id}: {progress}")
         
         # Check for new achievements
         new_achievements = []
@@ -964,6 +973,7 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
                 earned = True
             elif achievement_id == "heart_giver" and progress.get("heart_giver_count", 0) >= 50:
                 earned = True
+                logger.info(f"HEART_GIVER ACHIEVEMENT EARNED! Count: {progress.get('heart_giver_count', 0)}")
             elif achievement_id == "dedication" and progress.get("login_streak", 0) >= 30:
                 earned = True
             elif achievement_id == "first_blood" and progress.get("profitable_trades", 0) >= 1:
@@ -1022,6 +1032,8 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
         # Update user progress and achievements
         progress_changed = progress != user.get("achievement_progress", {})
         
+        logger.info(f"About to update user {user_id}: new_achievements={new_achievements}, progress_changed={progress_changed}")
+        
         if new_achievements or progress_changed:
             logger.info(f"Updating user {user_id}: achievements={new_achievements}, progress_changed={progress_changed}")
             logger.info(f"Old progress: {user.get('achievement_progress', {})}")
@@ -1037,12 +1049,15 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
                 }
             )
             
+            logger.info(f"Database update completed for user {user_id}")
+            
         if new_achievements:
             logger.info(f"User {user_id} earned achievements: {new_achievements}")
             
             # Auto-share achievements in chat
             for achievement_id in new_achievements:
                 achievement = ACHIEVEMENTS[achievement_id]
+                logger.info(f"Sharing achievement {achievement_id} in chat for user {user_id}")
                 await share_achievement_in_chat(user_id, achievement)
                 
                 # Create achievement notification for the user
