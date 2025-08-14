@@ -140,13 +140,15 @@ const ChatInput = ({
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onPaste={handlePaste}
-            placeholder="Type your message... (Use $TSLA for stock tickers, or paste images)"
+            placeholder="Type your message... (Use $TSLA for stock tickers, or paste images with Ctrl+V)"
             rows="3"
             className={`flex-1 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               isDarkTheme 
                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-            } border resize-none`}
+            } border resize-none transition-all duration-200 ${
+              imageFile ? 'border-green-500 bg-green-50/10' : ''
+            }`}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
