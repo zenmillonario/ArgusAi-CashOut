@@ -3254,10 +3254,33 @@ async def create_paper_trade(trade_data: PaperTradeCreate, user_id: str):
     
     # Award extra XP for profitable trades  
     if trade_data.action == "SELL":
-        # For sell trades, check if the overall position became profitable
-        # This is a simplified check - you might want more sophisticated logic
-        if performance.get("total_profit", 0) > 0:
-            await award_xp(user_id, "profitable_trade", 50)
+        # Calculate if this specific SELL trade was profitable
+        # Get the position that was just closed/reduced
+        position = await db.positions.find_one({
+            "user_id": user_id, 
+            "symbol": trade_data.symbol,
+            "status": {"$in": ["open", "closed"]}
+        })
+        
+        if position:
+            # Calculate P&L for this specific position/trade
+            buy_price = position.get("average_price", 0)
+            sell_price = trade_data.price
+            quantity_sold = trade_data.quantity
+            
+            # Calculate profit/loss for this specific trade
+            trade_pnl = (sell_price - buy_price) * quantity_sold
+            
+            logger.info(f"Trade P&L calculation: user={user_id}, symbol={trade_data.symbol}, buy_price={buy_price}, sell_price={sell_price}, quantity={quantity_sold}, pnl={trade_pnl}")
+            
+            # Award profitable trade XP if this specific trade was profitable
+            if trade_pnl > 0:
+                logger.info(f"🎯 PROFITABLE TRADE DETECTED! User {user_id} made ${trade_pnl:.2f} profit on {trade_data.symbol}")
+                await award_xp(user_id, "profitable_trade", 50)
+            else:
+                logger.info(f"📉 Trade was not profitable: User {user_id} lost ${abs(trade_pnl):.2f} on {trade_data.symbol}")
+        else:
+            logger.warning(f"⚠️ Could not find position for profitable trade calculation: user={user_id}, symbol={trade_data.symbol}")
     
     return trade
 
