@@ -3056,6 +3056,196 @@ async def get_follow_status(user_id: str, target_user_id: str):
     is_following = target_user_id in user.get("following", [])
     return {"is_following": is_following}
 
+# Bot Message System
+@api_router.post("/bot/message")
+async def create_bot_message(message_data: dict):
+    """Create a message from external bot (e.g., email alerts)"""
+    try:
+        # Parse the raw email content
+        raw_content = message_data.get("content", "")
+        email_subject = message_data.get("subject", "")
+        sender = message_data.get("sender", "")
+        
+        logger.info(f"Bot message received: subject='{email_subject}', content='{raw_content[:100]}...'")
+        
+        # Parse price alert emails
+        formatted_message = parse_price_alert(raw_content, email_subject)
+        
+        if formatted_message:
+            # Get or create bot user
+            bot_user = await get_or_create_bot_user()
+            
+            # Create chat message
+            chat_message = {
+                "id": str(uuid.uuid4()),
+                "user_id": bot_user["id"],
+                "username": bot_user["username"],
+                "content": formatted_message,
+                "content_type": "text",
+                "is_admin": True,  # Bot messages appear with admin styling
+                "is_bot": True,    # Special bot flag
+                "real_name": bot_user["real_name"],
+                "screen_name": bot_user.get("screen_name"),
+                "avatar_url": bot_user.get("avatar_url"),
+                "timestamp": datetime.utcnow(),
+                "highlighted_tickers": extract_tickers(formatted_message),
+                "reply_to_id": None,
+                "reply_to": None
+            }
+            
+            # Insert into database
+            await db.messages.insert_one(chat_message)
+            
+            logger.info(f"Bot message created: {formatted_message}")
+            
+            return {"message": "Bot message posted successfully", "formatted_content": formatted_message}
+        else:
+            logger.warning(f"Could not parse bot message: {raw_content}")
+            return {"message": "Message received but could not be parsed", "raw_content": raw_content}
+            
+    except Exception as e:
+        logger.error(f"Error creating bot message: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create bot message")
+
+async def get_or_create_bot_user():
+    """Get existing bot user or create one"""
+    bot_user = await db.users.find_one({"username": "pricebot"})
+    
+    if not bot_user:
+        # Create bot user
+        bot_user = {
+            "id": str(uuid.uuid4()),
+            "username": "pricebot",
+            "email": "bot@cashoutai.com",
+            "real_name": "Price Alert Bot",
+            "screen_name": "🤖 AlertBot",
+            "membership_plan": "premium",
+            "is_admin": True,
+            "is_bot": True,
+            "role": "bot",
+            "status": UserStatus.APPROVED,
+            "avatar_url": None,
+            "total_profit": 0,
+            "win_percentage": 0,
+            "trades_count": 0,
+            "average_gain": 0,
+            "is_online": True,
+            "last_seen": datetime.utcnow(),
+            "active_session_id": None,
+            "session_created_at": datetime.utcnow(),
+            "created_at": datetime.utcnow(),
+            "approved_at": datetime.utcnow(),
+            "approved_by": "system",
+            "experience_points": 0,
+            "level": 1,
+            "daily_login_streak": 0,
+            "last_login_date": None,
+            "profile_banner": None,
+            "bio": "Automated price alert bot 🤖",
+            "trading_style_tags": ["automated", "alerts"],
+            "custom_theme": None,
+            "active_theme_name": "dark",
+            "achievements": [],
+            "achievement_progress": {},
+            "location": "Cloud",
+            "show_location": False,
+            "followers": [],
+            "following": [],
+            "follower_count": 0,
+            "following_count": 0
+        }
+        
+        await db.users.insert_one(bot_user)
+        logger.info("Price Alert Bot user created")
+    
+    return bot_user
+
+def parse_price_alert(content: str, subject: str = "") -> str:
+    """Parse price alert email and format for chat"""
+    try:
+        # Extract ticker symbol (looks for patterns like "AIMH price alert" or "$AIMH")
+        import re
+        
+        # Pattern 1: "TICKER price alert" in subject or content
+        ticker_match = re.search(r'([A-Z]{1,5})\s+price\s+alert', content.upper() + " " + subject.upper())
+        
+        if not ticker_match:
+            # Pattern 2: Look for ticker symbols in various formats
+            ticker_match = re.search(r'\$?([A-Z]{1,5})\s+', content.upper())
+        
+        # Extract price (looks for patterns like "Last = .04" or "$.04")
+        price_match = re.search(r'Last\s*=\s*[\$]?([0-9]+\.?[0-9]*)', content)
+        
+        if not price_match:
+            # Alternative price patterns
+            price_match = re.search(r'[\$]([0-9]+\.?[0-9]*)', content)
+        
+        if ticker_match and price_match:
+            ticker = ticker_match.group(1).upper()
+            price = price_match.group(1)
+            
+            # Format price properly
+            try:
+                price_float = float(price)
+                if price_float < 1:
+                    price_str = f"${price_float:.4f}".rstrip('0').rstrip('.')
+                else:
+                    price_str = f"${price_float:.2f}"
+            except:
+                price_str = f"${price}"
+            
+            # Create formatted message
+            formatted = f"🔔 ${ticker} {price_str} 👀"
+            
+            logger.info(f"Parsed price alert: ticker={ticker}, price={price_str}, formatted={formatted}")
+            return formatted
+        
+        # If parsing fails, try to extract any recognizable info
+        logger.warning(f"Could not parse price alert properly: content='{content[:100]}', subject='{subject}'")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error parsing price alert: {e}")
+        return None
+
+def extract_tickers(message: str) -> list:
+    """Extract ticker symbols from message for highlighting"""
+    import re
+    tickers = re.findall(r'\$([A-Z]{1,5})', message)
+    return [{"symbol": ticker, "start": message.find(f"${ticker}"), "end": message.find(f"${ticker}") + len(ticker) + 1} for ticker in tickers]
+
+# Email-to-Chat Bridge endpoint
+@api_router.post("/bot/email-webhook")
+async def email_webhook(request: dict):
+    """Webhook endpoint for email-to-chat bridge services (like Zapier, IFTTT, etc.)"""
+    try:
+        # This endpoint can be used with services like:
+        # - Zapier Email Parser
+        # - IFTTT Email trigger
+        # - Custom email forwarding rules
+        
+        # Expected format from email services:
+        # {
+        #   "subject": "AIMH price alert",
+        #   "body": "Last is at or above $.04 Last = .04; Bid = .0351; Ask = .04...",
+        #   "from": "alerts@yourservice.com",
+        #   "to": "bot@cashoutai.com"
+        # }
+        
+        content = request.get("body", "") or request.get("content", "")
+        subject = request.get("subject", "")
+        sender = request.get("from", "") or request.get("sender", "")
+        
+        return await create_bot_message({
+            "content": content,
+            "subject": subject,
+            "sender": sender
+        })
+        
+    except Exception as e:
+        logger.error(f"Error processing email webhook: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process email webhook")
+
 @api_router.post("/messages", response_model=Message)
 async def create_message(message_data: MessageCreate):
     # Get user info
