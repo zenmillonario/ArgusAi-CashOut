@@ -1031,22 +1031,22 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
         
         # Update user progress and achievements
         original_progress = user.get("achievement_progress", {})
+        
+        # EXPLICIT CHECK: Always update when heart_giver_count is added/modified
+        explicit_update_needed = False
+        if action == "heart_reaction":
+            original_heart_count = original_progress.get("heart_giver_count", 0)
+            new_heart_count = progress.get("heart_giver_count", 0)
+            if new_heart_count > original_heart_count:
+                explicit_update_needed = True
+                logger.info(f"🔥 EXPLICIT UPDATE NEEDED for heart_reaction: {original_heart_count} -> {new_heart_count}")
+        
         progress_changed = progress != original_progress
         
-        logger.info(f"About to update user {user_id}: new_achievements={new_achievements}, progress_changed={progress_changed}")
-        logger.info(f"Comparison: {progress} != {original_progress} = {progress_changed}")
-        logger.info(f"Progress types: {[(k, type(v).__name__, v) for k, v in progress.items()]}")
-        logger.info(f"Original types: {[(k, type(v).__name__, v) for k, v in original_progress.items()]}")
+        logger.info(f"About to update user {user_id}: new_achievements={new_achievements}, progress_changed={progress_changed}, explicit_update_needed={explicit_update_needed}")
         
-        # Force database update if there's any change in keys or values (more robust comparison)
-        keys_changed = set(progress.keys()) != set(original_progress.keys())
-        values_changed = any(str(progress.get(k, 0)) != str(original_progress.get(k, 0)) for k in set(progress.keys()) | set(original_progress.keys()))
-        force_update = keys_changed or values_changed
-        
-        logger.info(f"Force update check: keys_changed={keys_changed}, values_changed={values_changed}, force_update={force_update}")
-        
-        if new_achievements or force_update:
-            logger.info(f"UPDATING DATABASE for user {user_id}: achievements={new_achievements}, force_update={force_update}")
+        if new_achievements or progress_changed or explicit_update_needed:
+            logger.info(f"✅ UPDATING DATABASE for user {user_id}")
             logger.info(f"Old progress: {original_progress}")
             logger.info(f"New progress: {progress}")
             
@@ -1061,6 +1061,8 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
             )
             
             logger.info(f"✅ Database update completed for user {user_id}")
+        else:
+            logger.warning(f"⚠️ SKIPPING DATABASE UPDATE for user {user_id} - no changes detected")
             
         if new_achievements:
             logger.info(f"User {user_id} earned achievements: {new_achievements}")
