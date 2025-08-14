@@ -197,17 +197,17 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
       {/* CSS Animations */}
       <style jsx>{`
         @keyframes matrixFallDown {
-          0% { transform: translateY(-100vh); opacity: 0; }
-          5% { opacity: 1; }
-          95% { opacity: 1; }
-          100% { transform: translateY(100vh); opacity: 0; }
+          0% { transform: translateY(-150vh); opacity: 0; }
+          2% { opacity: 1; }
+          98% { opacity: 1; }
+          100% { transform: translateY(150vh); opacity: 0; }
         }
         
         @keyframes matrixFallUp {
-          0% { transform: translateY(100vh); opacity: 0; }
-          5% { opacity: 1; }
-          95% { opacity: 1; }
-          100% { transform: translateY(-100vh); opacity: 0; }
+          0% { transform: translateY(150vh); opacity: 0; }
+          2% { opacity: 1; }
+          98% { opacity: 1; }
+          100% { transform: translateY(-150vh); opacity: 0; }
         }
         
         @keyframes neonRotate {
@@ -220,13 +220,13 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
           50% { opacity: 1; }
         }
         
-        /* Ensure continuous rain for the full duration */
+        /* Ensure continuous rain for the full duration with longer columns and better timing */
         .matrix-column-down {
-          animation: matrixFallDown 4s linear infinite !important;
+          animation: matrixFallDown 5s linear infinite !important;
         }
         
         .matrix-column-up {
-          animation: matrixFallUp 4s linear infinite !important;
+          animation: matrixFallUp 5s linear infinite !important;
         }
       `}</style>
     </div>
