@@ -48,13 +48,13 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
   const [matrixColumns] = useState(() => generateMatrixColumns());
 
   useEffect(() => {
-    // Matrix code rain animation duration: 10 seconds (extended for better effect)
+    // Matrix code rain animation duration: 8 seconds (reduced for faster loading)
     const timeout = setTimeout(() => {
       setIsVisible(false);
       setTimeout(() => {
         onComplete();
       }, 500);
-    }, 10000); // Extended from 6000 to 10000ms
+    }, 8000); // Reduced from 10000 to 8000ms for faster loading
 
     // Animated dots for loading effect
     const dotInterval = setInterval(() => {
