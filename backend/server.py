@@ -3255,16 +3255,15 @@ async def create_paper_trade(trade_data: PaperTradeCreate, user_id: str):
     # Award extra XP for profitable trades  
     if trade_data.action == "SELL":
         # Calculate if this specific SELL trade was profitable
-        # Get the position that was just closed/reduced
+        # Get the position that was just updated/closed
         position = await db.positions.find_one({
             "user_id": user_id, 
-            "symbol": trade_data.symbol,
-            "status": {"$in": ["open", "closed"]}
+            "symbol": trade_data.symbol.upper()
         })
         
         if position:
-            # Calculate P&L for this specific position/trade
-            buy_price = position.get("average_price", 0)
+            # Calculate P&L for this specific trade
+            buy_price = position.get("avg_price", 0)  # Use avg_price (correct field name)
             sell_price = trade_data.price
             quantity_sold = trade_data.quantity
             
@@ -3281,6 +3280,12 @@ async def create_paper_trade(trade_data: PaperTradeCreate, user_id: str):
                 logger.info(f"📉 Trade was not profitable: User {user_id} lost ${abs(trade_pnl):.2f} on {trade_data.symbol}")
         else:
             logger.warning(f"⚠️ Could not find position for profitable trade calculation: user={user_id}, symbol={trade_data.symbol}")
+            
+            # Fallback: Check if the user's total profit increased
+            # This ensures we don't miss profitable trades due to timing issues
+            if performance.get("total_profit", 0) > 0:
+                logger.info(f"🎯 FALLBACK: User {user_id} has positive total profit: ${performance.get('total_profit', 0):.2f}")
+                await award_xp(user_id, "profitable_trade", 50)
     
     return trade
 
