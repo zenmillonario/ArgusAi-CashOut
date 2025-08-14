@@ -170,12 +170,6 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
               }}
               onLoadStart={() => console.log('Video load started')}
               onCanPlay={() => console.log('Video can play')}
-              onTimeUpdate={() => {
-                // Ensure video is playing properly
-                if (e.target.paused) {
-                  e.target.play().catch(() => {});
-                }
-              }}
             >
               <source src="/peacock-animation.mp4" type="video/mp4" />
               <source src="/peacock-animation.mov" type="video/quicktime" />
