@@ -155,17 +155,25 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
           {/* Inner Glow */}
           <div className="absolute inset-2 rounded-lg bg-gradient-to-r from-green-400/20 to-blue-400/20 blur-lg" />
           
-          {/* Logo Container - Rectangular for peacock logo */}
-          <div className="relative w-48 h-32 flex items-center justify-center bg-black/80 rounded-lg backdrop-blur-sm">
-            {/* Peacock Logo Placeholder - Need to upload the image */}
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-400 mb-2">
-                🦚 PEACOCK LOGO
+          {/* Peacock Animation Video */}
+          <div className="relative w-48 h-32 flex items-center justify-center bg-black/80 rounded-lg backdrop-blur-sm overflow-hidden">
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover rounded-lg"
+              style={{ filter: 'brightness(1.2) contrast(1.1)' }}
+            >
+              <source src="/peacock-animation.mov" type="video/quicktime" />
+              <source src="/peacock-animation.mov" type="video/mp4" />
+              {/* Fallback content */}
+              <div className="text-center flex items-center justify-center h-full">
+                <div className="text-2xl font-bold text-green-400 mb-2">
+                  🦚 ARGUS AI
+                </div>
               </div>
-              <div className="text-sm text-green-300">
-                Upload peacock image to /app/frontend/public/peacock-logo.png
-              </div>
-            </div>
+            </video>
           </div>
         </div>
 
