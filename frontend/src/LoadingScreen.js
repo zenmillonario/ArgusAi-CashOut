@@ -78,16 +78,17 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         isVisible ? 'opacity-100' : 'opacity-0'
       } ${isDarkTheme ? 'bg-black' : 'bg-gray-900'}`}
     >
-      {/* Matrix Code Rain Background */}
+      {/* Matrix Code Rain Background - Bidirectional */}
       <div className="absolute inset-0">
-        {matrixColumns.map((column, columnIndex) => (
+        {/* Top to Bottom Rain */}
+        {matrixColumns.topToBottom.map((column, columnIndex) => (
           <div
-            key={columnIndex}
+            key={`ttb-${columnIndex}`}
             className="absolute top-0 flex flex-col text-green-400 font-mono text-sm leading-tight"
             style={{
               left: `${column.left}px`,
               animationDelay: `${column.animationDelay}s`,
-              animation: 'matrixFall 6s linear infinite' // Increased duration
+              animation: 'matrixFallDown 10s linear infinite' // Extended duration
             }}
           >
             {column.chars.map((item, charIndex) => (
@@ -98,6 +99,33 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
                   opacity: item.opacity,
                   animationDelay: `${item.delay}s`,
                   color: charIndex === 0 ? '#00ff00' : `rgba(0, 255, 0, ${item.opacity})`
+                }}
+              >
+                {item.char}
+              </span>
+            ))}
+          </div>
+        ))}
+        
+        {/* Bottom to Top Rain */}
+        {matrixColumns.bottomToTop.map((column, columnIndex) => (
+          <div
+            key={`btt-${columnIndex}`}
+            className="absolute bottom-0 flex flex-col-reverse text-blue-400 font-mono text-sm leading-tight"
+            style={{
+              left: `${column.left}px`,
+              animationDelay: `${column.animationDelay}s`,
+              animation: 'matrixFallUp 10s linear infinite' // Extended duration
+            }}
+          >
+            {column.chars.map((item, charIndex) => (
+              <span
+                key={charIndex}
+                className="block"
+                style={{
+                  opacity: item.opacity,
+                  animationDelay: `${item.delay}s`,
+                  color: charIndex === 0 ? '#0088ff' : `rgba(0, 136, 255, ${item.opacity})`
                 }}
               >
                 {item.char}
