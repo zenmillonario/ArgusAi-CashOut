@@ -169,9 +169,8 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
               onLoadStart={() => console.log('Video load started')}
               onCanPlay={() => console.log('Video can play')}
             >
-              <source src="/peacock-animation.mov" type="video/mp4" />
+              <source src="/peacock-animation.mp4" type="video/mp4" />
               <source src="/peacock-animation.mov" type="video/quicktime" />
-              <source src="/peacock-animation.mov" type="video/mov" />
               {/* Enhanced fallback content with peacock styling */}
               <div className="text-center flex flex-col items-center justify-center h-full w-full">
                 <div className="text-4xl mb-2 animate-pulse">🦚</div>
