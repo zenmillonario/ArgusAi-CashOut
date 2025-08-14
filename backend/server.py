@@ -1030,13 +1030,15 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
                     await create_pending_cash_prize(user_id, achievement_id, achievement.get("max_cash_prize", 400))
         
         # Update user progress and achievements
-        progress_changed = progress != user.get("achievement_progress", {})
+        original_progress = user.get("achievement_progress", {})
+        progress_changed = progress != original_progress
         
         logger.info(f"About to update user {user_id}: new_achievements={new_achievements}, progress_changed={progress_changed}")
+        logger.info(f"Comparison: {progress} != {original_progress} = {progress_changed}")
         
         if new_achievements or progress_changed:
             logger.info(f"Updating user {user_id}: achievements={new_achievements}, progress_changed={progress_changed}")
-            logger.info(f"Old progress: {user.get('achievement_progress', {})}")
+            logger.info(f"Old progress: {original_progress}")
             logger.info(f"New progress: {progress}")
             
             await db.users.update_one(
