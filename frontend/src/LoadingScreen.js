@@ -200,15 +200,15 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
       <style jsx>{`
         @keyframes matrixFallDown {
           0% { transform: translateY(-100vh); opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
+          5% { opacity: 1; }
+          95% { opacity: 1; }
           100% { transform: translateY(100vh); opacity: 0; }
         }
         
         @keyframes matrixFallUp {
           0% { transform: translateY(100vh); opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
+          5% { opacity: 1; }
+          95% { opacity: 1; }
           100% { transform: translateY(-100vh); opacity: 0; }
         }
         
@@ -220,6 +220,15 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         @keyframes pulse {
           0%, 100% { opacity: 0.4; }
           50% { opacity: 1; }
+        }
+        
+        /* Ensure continuous rain for the full duration */
+        .matrix-column-down {
+          animation: matrixFallDown 4s linear infinite !important;
+        }
+        
+        .matrix-column-up {
+          animation: matrixFallUp 4s linear infinite !important;
         }
       `}</style>
     </div>
