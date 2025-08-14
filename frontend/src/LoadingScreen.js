@@ -162,15 +162,24 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
               loop
               muted
               playsInline
+              preload="auto"
               className="w-full h-full object-cover rounded-lg"
               style={{ filter: 'brightness(1.2) contrast(1.1)' }}
+              onError={(e) => console.log('Video error:', e)}
+              onLoadStart={() => console.log('Video load started')}
+              onCanPlay={() => console.log('Video can play')}
             >
-              <source src="/peacock-animation.mov" type="video/quicktime" />
               <source src="/peacock-animation.mov" type="video/mp4" />
-              {/* Fallback content */}
-              <div className="text-center flex items-center justify-center h-full">
-                <div className="text-2xl font-bold text-green-400 mb-2">
-                  🦚 ARGUS AI
+              <source src="/peacock-animation.mov" type="video/quicktime" />
+              <source src="/peacock-animation.mov" type="video/mov" />
+              {/* Enhanced fallback content with peacock styling */}
+              <div className="text-center flex flex-col items-center justify-center h-full w-full">
+                <div className="text-4xl mb-2 animate-pulse">🦚</div>
+                <div className="text-lg font-bold text-green-400 tracking-wider">
+                  ARGUS AI
+                </div>
+                <div className="text-sm text-green-300 mt-1">
+                  Trading Platform
                 </div>
               </div>
             </video>
