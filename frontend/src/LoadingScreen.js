@@ -190,9 +190,18 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
 
       {/* CSS Animations */}
       <style jsx>{`
-        @keyframes matrixFall {
-          0% { transform: translateY(-100vh); }
-          100% { transform: translateY(100vh); }
+        @keyframes matrixFallDown {
+          0% { transform: translateY(-100vh); opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { transform: translateY(100vh); opacity: 0; }
+        }
+        
+        @keyframes matrixFallUp {
+          0% { transform: translateY(100vh); opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { transform: translateY(-100vh); opacity: 0; }
         }
         
         @keyframes neonRotate {
