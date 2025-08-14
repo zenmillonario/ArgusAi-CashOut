@@ -50,6 +50,44 @@ const ChatInput = ({
           const reader = new FileReader();
           reader.onload = (e) => {
             setImagePreview(e.target.result);
+            
+            // Show success notification
+            const notification = document.createElement('div');
+            notification.innerHTML = '✅ Image pasted successfully! Click "Send Image" to share.';
+            notification.style.cssText = `
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              background: #10b981;
+              color: white;
+              padding: 12px 20px;
+              border-radius: 8px;
+              z-index: 1000;
+              font-size: 14px;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+              animation: slideIn 0.3s ease-out;
+            `;
+            
+            // Add slide-in animation
+            const style = document.createElement('style');
+            style.textContent = `
+              @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+              }
+            `;
+            document.head.appendChild(style);
+            
+            document.body.appendChild(notification);
+            
+            // Remove notification after 3 seconds
+            setTimeout(() => {
+              notification.style.animation = 'slideIn 0.3s ease-out reverse';
+              setTimeout(() => {
+                document.body.removeChild(notification);
+                document.head.removeChild(style);
+              }, 300);
+            }, 3000);
           };
           reader.readAsDataURL(blob);
         }
