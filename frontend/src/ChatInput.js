@@ -139,6 +139,7 @@ const ChatInput = ({
           <textarea
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
+            onPaste={handlePaste}
             placeholder="Type your message... (Use $TSLA for stock tickers, or paste images)"
             rows="3"
             className={`flex-1 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
