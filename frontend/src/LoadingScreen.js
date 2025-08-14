@@ -84,11 +84,10 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         {matrixColumns.topToBottom.map((column, columnIndex) => (
           <div
             key={`ttb-${columnIndex}`}
-            className="absolute top-0 flex flex-col text-green-400 font-mono text-sm leading-tight"
+            className="absolute top-0 flex flex-col text-green-400 font-mono text-sm leading-tight matrix-column-down"
             style={{
               left: `${column.left}px`,
-              animationDelay: `${column.animationDelay}s`,
-              animation: 'matrixFallDown 10s linear infinite' // Extended duration
+              animationDelay: `${column.animationDelay}s`
             }}
           >
             {column.chars.map((item, charIndex) => (
@@ -111,11 +110,10 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
         {matrixColumns.bottomToTop.map((column, columnIndex) => (
           <div
             key={`btt-${columnIndex}`}
-            className="absolute bottom-0 flex flex-col-reverse text-blue-400 font-mono text-sm leading-tight"
+            className="absolute bottom-0 flex flex-col-reverse text-blue-400 font-mono text-sm leading-tight matrix-column-up"
             style={{
               left: `${column.left}px`,
-              animationDelay: `${column.animationDelay}s`,
-              animation: 'matrixFallUp 10s linear infinite' // Extended duration
+              animationDelay: `${column.animationDelay}s`
             }}
           >
             {column.chars.map((item, charIndex) => (
