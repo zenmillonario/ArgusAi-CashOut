@@ -4601,4 +4601,14 @@ def main():
     return 0 if all_passed else 1
 
 if __name__ == "__main__":
-    sys.exit(main())
+    print("🚀 Starting Email-to-Chat Webhook Integration Tests")
+    
+    # Run the email webhook integration test
+    webhook_test_result = test_email_webhook_integration()
+    
+    # Print summary
+    print("\n📊 Test Summary:")
+    print(f"Email-to-Chat Webhook Integration: {'✅ PASSED' if webhook_test_result else '❌ FAILED'}")
+    
+    # Exit with appropriate code
+    sys.exit(0 if webhook_test_result else 1)
