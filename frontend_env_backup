@@ -1,2 +1,2 @@
 WDS_SOCKET_PORT=443
-REACT_APP_BACKEND_URL=https://argus-trader.preview.emergentagent.com
+REACT_APP_BACKEND_URL=https://trader-bridge.preview.emergentagent.com
