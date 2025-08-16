@@ -3339,46 +3339,17 @@ async def email_webhook(request: dict):
         
         logger.info(f"📧 EXTRACTED DATA - Subject: '{subject}', Content: '{content[:200]}...', Sender: '{sender}'")
         
-        # TEMPORARY: Always create a debug message to see what Zapier is sending
-        logger.info("🔧 Creating bot user...")
-        try:
-            bot_user = await get_or_create_bot_user()
-            logger.info(f"✅ Bot user obtained: {bot_user.get('username', 'Unknown')}")
-        except Exception as bot_error:
-            logger.error(f"❌ Bot user creation failed: {bot_error}")
-            return {"message": "Bot user creation failed", "error": str(bot_error)}
-        
-        debug_content = f"🔧 ZAPIER TEST DEBUG\n📧 Subject: '{subject}'\n👤 Sender: '{sender}'\n📝 Content: '{content}'\n\n🗂️ RAW FIELDS: {', '.join(request.keys())}"
-        
-        logger.info(f"🔧 Preparing message: {debug_content[:100]}...")
-        
-        # Create message using the proper Message model
-        chat_message = Message(
-            user_id=bot_user["id"],
-            username=bot_user["username"],
-            content=debug_content,
-            content_type="text",
-            is_admin=True,
-            real_name=bot_user["real_name"],
-            screen_name=bot_user.get("screen_name"),
-            avatar_url=bot_user.get("avatar_url"),
-            highlighted_tickers=[],
-            reply_to_id=None,
-            reply_to=None
-        )
-        
-        logger.info("🔧 Inserting message into database...")
-        # Insert debug message into database
-        try:
-            result = await db.messages.insert_one(chat_message.dict())
-            logger.info(f"✅ Debug message inserted with ID: {result.inserted_id}")
-        except Exception as db_error:
-            logger.error(f"❌ Database insertion failed: {db_error}")
-            return {"message": "Database insertion failed", "error": str(db_error)}
-        
-        logger.info(f"✅ Debug message created successfully: {chat_message.id}")
-        
-        return {"message": "Debug message created", "debug_content": debug_content}
+        # Smart filtering: Only process emails that look like price alerts
+        if is_price_alert_email(content, subject, sender):
+            return await create_bot_message({
+                "content": content,
+                "subject": subject,
+                "sender": sender
+            })
+        else:
+            # Log unrelated emails but don't post to chat
+            logger.info(f"Filtered out non-alert email: subject='{subject}', sender='{sender}'")
+            return {"message": "Email filtered - not a price alert", "filtered": True}
         
     except Exception as e:
         logger.error(f"Error processing email webhook: {e}")
