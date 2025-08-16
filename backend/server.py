@@ -3166,10 +3166,12 @@ def parse_price_alert(content: str, subject: str = "") -> str:
         # Extract ticker symbol (looks for patterns like "AIMH price alert" or "$AIMH")
         import re
         
+        logger.info(f"🔍 PARSING EMAIL - Subject: '{subject}', Content: '{content}'")
+        
         ticker = None
         price = None
         
-        # Enhanced ticker detection patterns
+        # Enhanced ticker detection patterns (case insensitive)
         ticker_patterns = [
             # Pattern 1: "TICKER price alert" or "TICKER alert" 
             r'([A-Z]{2,5})\s+(?:price\s+)?alert',
@@ -3184,15 +3186,20 @@ def parse_price_alert(content: str, subject: str = "") -> str:
         ]
         
         combined_text = content.upper() + " " + subject.upper()
+        logger.info(f"🔍 COMBINED TEXT FOR TICKER SEARCH: '{combined_text}'")
         
-        for pattern in ticker_patterns:
-            ticker_match = re.search(pattern, combined_text)
+        for i, pattern in enumerate(ticker_patterns):
+            ticker_match = re.search(pattern, combined_text, re.IGNORECASE)
             if ticker_match:
                 potential_ticker = ticker_match.group(1).upper()
+                logger.info(f"🎯 Pattern {i+1} matched ticker: '{potential_ticker}'")
                 # Filter out common words that aren't tickers
-                if potential_ticker not in ['ALERT', 'PRICE', 'LAST', 'TEST', 'EMAIL', 'FROM', 'SENT']:
+                if potential_ticker not in ['ALERT', 'PRICE', 'LAST', 'TEST', 'EMAIL', 'FROM', 'SENT', 'WITH', 'THAT', 'THIS', 'HAVE']:
                     ticker = potential_ticker
+                    logger.info(f"✅ TICKER FOUND: {ticker}")
                     break
+                else:
+                    logger.info(f"❌ Ticker '{potential_ticker}' filtered out as common word")
         
         # Enhanced price detection patterns
         price_patterns = [
