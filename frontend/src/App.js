@@ -33,6 +33,7 @@ function App() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const [mobileUserListOpen, setMobileUserListOpen] = useState(false); // Track mobile user list state
   const [pendingUsers, setPendingUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
