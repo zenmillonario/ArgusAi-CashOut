@@ -364,8 +364,14 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # WebSocket endpoint for real-time chat
-@app.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
+@app.websocket("/api/ws/{user_id}/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str):
+    # Validate user and session
+    user = await db.users.find_one({"id": user_id, "active_session_id": session_id})
+    if not user:
+        await websocket.close(code=1008, reason="Invalid user or session")
+        return
+    
     await manager.connect(websocket, user_id)
     
     # Update user as online
@@ -381,24 +387,51 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     
     # Send current online users list to the newly connected user
     online_users = await db.users.find({"is_online": True}).to_list(1000)
+    # Remove sensitive data from user objects
+    clean_users = []
+    for user_data in online_users:
+        clean_user = {
+            "id": user_data["id"],
+            "username": user_data["username"],
+            "real_name": user_data.get("real_name"),
+            "screen_name": user_data.get("screen_name"),
+            "is_admin": user_data.get("is_admin", False),
+            "avatar_url": user_data.get("avatar_url"),
+            "last_seen": user_data.get("last_seen")
+        }
+        clean_users.append(clean_user)
+    
     await manager.send_personal_message(json.dumps({
         "type": "online_users",
-        "users": [user for user in online_users]
+        "users": clean_users
     }, default=str), websocket)
     
     # Notify all other users that this user joined
-    user_data = await db.users.find_one({"id": user_id})
-    if user_data:
-        await manager.broadcast(json.dumps({
-            "type": "user_joined",
-            "user": user_data
-        }, default=str))
+    user_join_data = {
+        "id": user["id"],
+        "username": user["username"],
+        "real_name": user.get("real_name"),
+        "screen_name": user.get("screen_name"),
+        "is_admin": user.get("is_admin", False),
+        "avatar_url": user.get("avatar_url")
+    }
+    
+    await manager.broadcast(json.dumps({
+        "type": "user_joined",
+        "user": user_join_data
+    }, default=str))
     
     try:
         while True:
-            # Keep connection alive
+            # Keep connection alive and handle heartbeat
             data = await websocket.receive_text()
-            # Handle any client messages if needed
+            try:
+                message = json.loads(data)
+                if message.get("type") == "heartbeat":
+                    # Respond to heartbeat
+                    await websocket.send_text(json.dumps({"type": "heartbeat_ack"}))
+            except:
+                pass  # Ignore invalid JSON messages
     except WebSocketDisconnect:
         manager.disconnect(websocket, user_id)
         
