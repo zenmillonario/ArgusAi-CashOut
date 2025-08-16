@@ -727,9 +727,49 @@ function App() {
   useEffect(() => {
     // Only auto-scroll if user is actively viewing chat tab, app is visible, and mobile user list is closed
     if (activeTab === 'chat' && !document.hidden && filteredMessages.length > 0 && !mobileUserListOpen) {
-      scrollToBottom();
+      // For initial load, force scroll to bottom
+      const isInitialLoad = messages.length === 0 && filteredMessages.length > 0;
+      scrollToBottom(isInitialLoad);
     }
   }, [filteredMessages, activeTab, mobileUserListOpen]);
+
+  // Add scroll event listener to detect manual scrolling
+  useEffect(() => {
+    const chatContainer = document.querySelector('.messages-container, .chat-messages, [class*="message"]')?.parentElement;
+    if (!chatContainer) return;
+
+    let scrollTimer;
+
+    const handleScroll = () => {
+      setIsUserScrolling(true);
+      
+      // Clear existing timer
+      clearTimeout(scrollTimer);
+      
+      // Set timer to reset scrolling state
+      scrollTimer = setTimeout(() => {
+        setIsUserScrolling(false);
+        // Check if user scrolled to bottom manually
+        if (isNearBottom()) {
+          setShouldAutoScroll(true);
+        }
+      }, 1000); // Reset after 1 second of no scrolling
+
+      // If user scrolled away from bottom, disable auto-scroll
+      if (!isNearBottom()) {
+        setShouldAutoScroll(false);
+      } else {
+        setShouldAutoScroll(true);
+      }
+    };
+
+    chatContainer.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      chatContainer.removeEventListener('scroll', handleScroll);
+      clearTimeout(scrollTimer);
+    };
+  }, [activeTab, filteredMessages]); // Re-setup when tab changes or messages load
 
   // WebSocket connection
   useEffect(() => {
