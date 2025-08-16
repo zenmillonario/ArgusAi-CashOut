@@ -673,6 +673,31 @@ function App() {
     return () => clearTimeout(debounceTimer);
   }, [tradeForm.symbol]);
 
+  // Simple scroll-to-bottom function
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      setShowScrollButton(false);
+    }
+  };
+
+  // Simple scroll detection for showing/hiding scroll button
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      const chatContainer = document.querySelector('.overflow-y-auto');
+      if (chatContainer) {
+        const handleScroll = () => {
+          const { scrollTop, scrollHeight, clientHeight } = chatContainer;
+          const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100;
+          setShowScrollButton(!isNearBottom);
+        };
+        
+        chatContainer.addEventListener('scroll', handleScroll);
+        return () => chatContainer.removeEventListener('scroll', handleScroll);
+      }
+    }
+  }, [activeTab]);
+
   // Simple auto-scroll to bottom when messages change
   useEffect(() => {
     if (activeTab === 'chat' && messagesEndRef.current) {
