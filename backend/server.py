@@ -3266,22 +3266,33 @@ def extract_tickers(message: str) -> list:
 async def email_webhook(request: dict):
     """Webhook endpoint for email-to-chat bridge services (like Zapier, IFTTT, etc.)"""
     try:
+        # Log the raw request data for debugging
+        logger.info(f"🔍 RAW WEBHOOK DATA: {json.dumps(request, indent=2)}")
+        
         # This endpoint can be used with services like:
         # - Zapier Email Parser
         # - IFTTT Email trigger
         # - Custom email forwarding rules
         
-        # Expected format from email services:
-        # {
-        #   "subject": "AIMH price alert",
-        #   "body": "Last is at or above $.04 Last = .04; Bid = .0351; Ask = .04...",
-        #   "from": "alerts@yourservice.com",
-        #   "to": "bot@cashoutai.com"
-        # }
+        # Try multiple possible field names that Zapier might use
+        content = (request.get("body", "") or 
+                  request.get("content", "") or 
+                  request.get("text", "") or
+                  request.get("message", "") or
+                  request.get("email_body", "") or
+                  request.get("Body", ""))
         
-        content = request.get("body", "") or request.get("content", "")
-        subject = request.get("subject", "")
-        sender = request.get("from", "") or request.get("sender", "")
+        subject = (request.get("subject", "") or 
+                  request.get("Subject", "") or
+                  request.get("title", "") or
+                  request.get("email_subject", ""))
+        
+        sender = (request.get("from", "") or 
+                 request.get("sender", "") or
+                 request.get("From", "") or
+                 request.get("email_from", ""))
+        
+        logger.info(f"📧 EXTRACTED DATA - Subject: '{subject}', Content: '{content[:200]}...', Sender: '{sender}'")
         
         # Smart filtering: Only process emails that look like price alerts
         if is_price_alert_email(content, subject, sender):
