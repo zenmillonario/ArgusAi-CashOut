@@ -747,8 +747,15 @@ function App() {
       // Use longer delay to ensure DOM is ready
       const scrollTimer = setTimeout(() => {
         console.log('⏰ Timer fired! Attempting auto-scroll...');
-        const chatContainer = document.querySelector('.overflow-y-auto.space-y-1');
-        console.log('📦 Chat container found:', !!chatContainer);
+        
+        // Try multiple selectors to find the chat container
+        const chatContainer1 = document.querySelector('.overflow-y-auto.space-y-1');
+        const chatContainer2 = document.querySelector('.overflow-y-auto');
+        const chatContainer3 = document.querySelector('[style*="max-height"]');
+        
+        console.log('📦 Selector1 (.overflow-y-auto.space-y-1):', !!chatContainer1);
+        console.log('📦 Selector2 (.overflow-y-auto):', !!chatContainer2);
+        console.log('📦 Selector3 ([style*="max-height"]):', !!chatContainer3);
         console.log('📍 messagesEndRef exists:', !!messagesEndRef.current);
         
         if (messagesEndRef.current) {
@@ -758,7 +765,17 @@ function App() {
             block: "end"
           });
         } else {
-          console.log('❌ messagesEndRef.current is null - cannot scroll');
+          console.log('❌ messagesEndRef.current is null - trying to find it in DOM');
+          // Try to find the messages end element by other means
+          const endDiv = document.querySelector('div[ref]');
+          console.log('🔍 Found div with ref attribute:', !!endDiv);
+          
+          // Fallback: scroll the container directly to bottom
+          const anyContainer = chatContainer1 || chatContainer2 || chatContainer3;
+          if (anyContainer) {
+            console.log('🔄 Fallback: scrolling container to bottom');
+            anyContainer.scrollTop = anyContainer.scrollHeight;
+          }
         }
       }, 1000); // 1 second delay
       
