@@ -363,6 +363,62 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# WebSocket endpoint for real-time chat
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await manager.connect(websocket, user_id)
+    
+    # Update user as online
+    await db.users.update_one(
+        {"id": user_id},
+        {
+            "$set": {
+                "is_online": True,
+                "last_seen": datetime.utcnow()
+            }
+        }
+    )
+    
+    # Send current online users list to the newly connected user
+    online_users = await db.users.find({"is_online": True}).to_list(1000)
+    await manager.send_personal_message(json.dumps({
+        "type": "online_users",
+        "users": [user for user in online_users]
+    }, default=str), websocket)
+    
+    # Notify all other users that this user joined
+    user_data = await db.users.find_one({"id": user_id})
+    if user_data:
+        await manager.broadcast(json.dumps({
+            "type": "user_joined",
+            "user": user_data
+        }, default=str))
+    
+    try:
+        while True:
+            # Keep connection alive
+            data = await websocket.receive_text()
+            # Handle any client messages if needed
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, user_id)
+        
+        # Update user as offline
+        await db.users.update_one(
+            {"id": user_id},
+            {
+                "$set": {
+                    "is_online": False,
+                    "last_seen": datetime.utcnow()
+                }
+            }
+        )
+        
+        # Notify all users that this user left
+        await manager.broadcast(json.dumps({
+            "type": "user_left",
+            "user_id": user_id
+        }, default=str))
+
 # Define Enums
 class UserStatus(str, Enum):
     PENDING = "pending"
