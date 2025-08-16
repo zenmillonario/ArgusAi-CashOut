@@ -673,10 +673,11 @@ function App() {
     return () => clearTimeout(debounceTimer);
   }, [tradeForm.symbol]);
 
-  // Simple scroll-to-bottom function
+  // Simple scroll-to-bottom function using container scroll instead of scrollIntoView
   const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    const chatContainer = document.querySelector('.overflow-y-auto');
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
       setShowScrollButton(false);
     }
   };
@@ -698,10 +699,13 @@ function App() {
     }
   }, [activeTab]);
 
-  // Simple auto-scroll to bottom when messages change
+  // Simple auto-scroll to bottom when messages change - using container scroll
   useEffect(() => {
-    if (activeTab === 'chat' && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    if (activeTab === 'chat') {
+      const chatContainer = document.querySelector('.overflow-y-auto');
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
     }
   }, [filteredMessages, activeTab]);
 
