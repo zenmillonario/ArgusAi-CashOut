@@ -3077,6 +3077,9 @@ async def create_bot_message(message_data: dict):
             bot_user = await get_or_create_bot_user()
             
             # Create chat message using proper Message model
+            ticker_objects = extract_tickers(formatted_message)
+            ticker_strings = [ticker["symbol"] for ticker in ticker_objects] if ticker_objects else []
+            
             chat_message = Message(
                 user_id=bot_user["id"],
                 username=bot_user["username"],
@@ -3086,7 +3089,7 @@ async def create_bot_message(message_data: dict):
                 real_name=bot_user["real_name"],
                 screen_name=bot_user.get("screen_name"),
                 avatar_url=bot_user.get("avatar_url"),
-                highlighted_tickers=extract_tickers(formatted_message),
+                highlighted_tickers=ticker_strings,
                 reply_to_id=None,
                 reply_to=None
             )
