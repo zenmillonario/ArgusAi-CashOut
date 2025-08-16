@@ -797,7 +797,7 @@ function App() {
       chatContainer.removeEventListener('scroll', handleScroll);
       clearTimeout(scrollTimer);
     };
-  }, [activeTab, filteredMessages]); // Re-setup when tab changes or messages load
+  }, [activeTab]); // Fixed: Only depend on activeTab, not filteredMessages
 
   // WebSocket connection
   useEffect(() => {
