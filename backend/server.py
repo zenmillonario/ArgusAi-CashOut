@@ -3581,6 +3581,19 @@ async def create_message(message_data: MessageCreate):
 @api_router.get("/messages", response_model=List[Message])
 async def get_messages(limit: int = 50):
     messages = await db.messages.find().sort("timestamp", -1).limit(limit).to_list(limit)
+    
+    # Fix highlighted_tickers format for compatibility
+    for message in messages:
+        if 'highlighted_tickers' in message:
+            tickers = message['highlighted_tickers']
+            if isinstance(tickers, list) and tickers:
+                # If it's a list of dicts, extract just the symbol strings
+                if isinstance(tickers[0], dict):
+                    message['highlighted_tickers'] = [ticker.get('symbol', '') for ticker in tickers if isinstance(ticker, dict)]
+                # If it's already a list of strings, keep it as is
+                elif not isinstance(tickers[0], str):
+                    message['highlighted_tickers'] = []
+    
     # Reverse to show oldest first
     messages.reverse()
     return [Message(**message) for message in messages]
