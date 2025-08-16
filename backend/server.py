@@ -373,6 +373,7 @@ class UserRole(str, Enum):
     MEMBER = "member"
     MODERATOR = "moderator"
     ADMIN = "admin"
+    BOT = "bot"
 
 class NotificationType(str, Enum):
     FOLLOW = "follow"
