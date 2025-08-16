@@ -3582,21 +3582,51 @@ async def create_message(message_data: MessageCreate):
 async def get_messages(limit: int = 50):
     messages = await db.messages.find().sort("timestamp", -1).limit(limit).to_list(limit)
     
-    # Fix highlighted_tickers format for compatibility
+    # Clean up messages for compatibility
+    cleaned_messages = []
     for message in messages:
-        if 'highlighted_tickers' in message:
-            tickers = message['highlighted_tickers']
-            if isinstance(tickers, list) and tickers:
-                # If it's a list of dicts, extract just the symbol strings
-                if isinstance(tickers[0], dict):
-                    message['highlighted_tickers'] = [ticker.get('symbol', '') for ticker in tickers if isinstance(ticker, dict)]
-                # If it's already a list of strings, keep it as is
-                elif not isinstance(tickers[0], str):
+        try:
+            # Fix highlighted_tickers format for compatibility
+            if 'highlighted_tickers' in message:
+                tickers = message['highlighted_tickers']
+                if isinstance(tickers, list) and tickers:
+                    # If it's a list of dicts, extract just the symbol strings
+                    if isinstance(tickers[0], dict):
+                        message['highlighted_tickers'] = [ticker.get('symbol', '') for ticker in tickers if isinstance(ticker, dict) and 'symbol' in ticker]
+                    # If it's not a list of strings, clean it up
+                    elif not isinstance(tickers[0], str):
+                        message['highlighted_tickers'] = []
+                else:
+                    # Ensure it's always a list
                     message['highlighted_tickers'] = []
+            else:
+                # Add missing field
+                message['highlighted_tickers'] = []
+            
+            # Ensure all required fields exist with defaults
+            message.setdefault('content_type', 'text')
+            message.setdefault('is_admin', False)
+            message.setdefault('avatar_url', None)
+            message.setdefault('real_name', None)
+            message.setdefault('screen_name', None)
+            message.setdefault('reply_to_id', None)
+            message.setdefault('reply_to', None)
+            
+            cleaned_messages.append(message)
+            
+        except Exception as e:
+            logger.warning(f"Skipping invalid message: {e}")
+            continue
     
     # Reverse to show oldest first
-    messages.reverse()
-    return [Message(**message) for message in messages]
+    cleaned_messages.reverse()
+    
+    try:
+        return [Message(**message) for message in cleaned_messages]
+    except Exception as e:
+        logger.error(f"Error creating Message objects: {e}")
+        # Return empty list if there are still validation issues
+        return []
 
 @api_router.post("/trades", response_model=PaperTrade)
 async def create_paper_trade(trade_data: PaperTradeCreate, user_id: str):
