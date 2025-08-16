@@ -635,63 +635,7 @@ function App() {
     });
   };
 
-  // Check if user is near the bottom of the chat
-  const isNearBottom = () => {
-    try {
-      // Find the chat messages container - use the simpler selector that works
-      const chatContainer = document.querySelector('.overflow-y-auto.space-y-1');
-      if (!chatContainer) {
-        console.log('Chat container not found');
-        return true; // Default to auto-scroll if can't find container
-      }
-      
-      const { scrollTop, scrollHeight, clientHeight } = chatContainer;
-      const threshold = 100; // 100px from bottom
-      const isNear = scrollTop + clientHeight >= scrollHeight - threshold;
-      
-      console.log('Scroll check:', { scrollTop, scrollHeight, clientHeight, isNear });
-      return isNear;
-    } catch (error) {
-      console.log('Scroll check error:', error);
-      return true; // Default to auto-scroll on error
-    }
-  };
 
-  const scrollToBottom = (force = false) => {
-    try {
-      // Only auto-scroll if user is near bottom, or if forced (like initial load)
-      if (!force && !shouldAutoScroll) return;
-      if (!force && isUserScrolling) return;
-      if (!force && !isNearBottom()) return;
-
-      // Don't auto-scroll if mobile user list is open or if we're on mobile
-      const isMobile = window.innerWidth < 768;
-      if (isMobile) {
-        // On mobile, be much less aggressive with auto-scroll
-        setTimeout(() => {
-          if (messagesEndRef.current && !document.hidden) {
-            // Use a gentler scroll approach on mobile
-            messagesEndRef.current.scrollIntoView({ 
-              behavior: "smooth", // Changed to smooth for better UX
-              block: "end" // Less intrusive positioning
-            });
-          }
-        }, 300); // Longer delay on mobile
-      } else {
-        // Desktop behavior
-        setTimeout(() => {
-          if (messagesEndRef.current && !document.hidden) {
-            messagesEndRef.current.scrollIntoView({ 
-              behavior: "smooth",
-              block: "nearest"
-            });
-          }
-        }, 100);
-      }
-    } catch (error) {
-      console.log('Scroll error (non-critical):', error);
-    }
-  };
 
   // Fetch stock price when symbol changes
   const fetchCurrentPrice = async (symbol) => {
