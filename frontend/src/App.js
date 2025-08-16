@@ -682,41 +682,48 @@ function App() {
     }
   };
 
-  // Simple scroll detection for showing/hiding scroll button
+  // Simple scroll detection for showing/hiding scroll button - with delay for DOM readiness
   useEffect(() => {
     console.log('🎯 Scroll button useEffect running - activeTab:', activeTab);
     
     if (activeTab === 'chat') {
-      console.log('✅ activeTab is chat, looking for container...');
-      const chatContainer = document.querySelector('.overflow-y-auto');
-      console.log('🔍 Scroll listener setup - container found:', !!chatContainer);
+      // Add delay to wait for ChatTab DOM to render
+      const setupScrollListener = () => {
+        console.log('✅ Setting up scroll listener...');
+        const chatContainer = document.querySelector('.overflow-y-auto');
+        console.log('🔍 Scroll listener setup - container found:', !!chatContainer);
+        
+        if (chatContainer) {
+          console.log('📦 Container classes:', chatContainer.className);
+          console.log('📊 Container scroll info:', {
+            scrollTop: chatContainer.scrollTop,
+            scrollHeight: chatContainer.scrollHeight,
+            clientHeight: chatContainer.clientHeight
+          });
+          
+          const handleScroll = () => {
+            const { scrollTop, scrollHeight, clientHeight } = chatContainer;
+            const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100;
+            console.log('📏 Scroll event:', { scrollTop, scrollHeight, clientHeight, isNearBottom });
+            setShowScrollButton(!isNearBottom);
+            console.log('🔘 Button should show:', !isNearBottom);
+          };
+          
+          chatContainer.addEventListener('scroll', handleScroll, { passive: true });
+          console.log('✅ Scroll listener attached');
+          
+          return () => {
+            chatContainer.removeEventListener('scroll', handleScroll);
+            console.log('🧹 Scroll listener removed');
+          };
+        } else {
+          console.log('❌ No container found, retrying in 500ms...');
+          setTimeout(setupScrollListener, 500);
+        }
+      };
       
-      if (chatContainer) {
-        console.log('📦 Container classes:', chatContainer.className);
-        console.log('📊 Container scroll info:', {
-          scrollTop: chatContainer.scrollTop,
-          scrollHeight: chatContainer.scrollHeight,
-          clientHeight: chatContainer.clientHeight
-        });
-        
-        const handleScroll = () => {
-          const { scrollTop, scrollHeight, clientHeight } = chatContainer;
-          const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100;
-          console.log('📏 Scroll event:', { scrollTop, scrollHeight, clientHeight, isNearBottom });
-          setShowScrollButton(!isNearBottom);
-          console.log('🔘 Button should show:', !isNearBottom);
-        };
-        
-        chatContainer.addEventListener('scroll', handleScroll, { passive: true });
-        console.log('✅ Scroll listener attached');
-        
-        return () => {
-          chatContainer.removeEventListener('scroll', handleScroll);
-          console.log('🧹 Scroll listener removed');
-        };
-      } else {
-        console.log('❌ No container found');
-      }
+      // Start setup after delay
+      setTimeout(setupScrollListener, 1000);
     } else {
       console.log('❌ activeTab is not chat, current value:', activeTab);
     }
