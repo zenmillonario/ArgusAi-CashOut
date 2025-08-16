@@ -3338,17 +3338,33 @@ async def email_webhook(request: dict):
         
         logger.info(f"📧 EXTRACTED DATA - Subject: '{subject}', Content: '{content[:200]}...', Sender: '{sender}'")
         
-        # Smart filtering: Only process emails that look like price alerts
-        if is_price_alert_email(content, subject, sender):
-            return await create_bot_message({
-                "content": content,
-                "subject": subject,
-                "sender": sender
-            })
-        else:
-            # Log unrelated emails but don't post to chat
-            logger.info(f"Filtered out non-alert email: subject='{subject}', sender='{sender}'")
-            return {"message": "Email filtered - not a price alert", "filtered": True}
+        # TEMPORARY: Always create a debug message to see what Zapier is sending
+        bot_user = await get_or_create_bot_user()
+        
+        debug_content = f"🔧 ZAPIER TEST DEBUG\n📧 Subject: '{subject}'\n👤 Sender: '{sender}'\n📝 Content: '{content}'\n\n🗂️ RAW FIELDS: {', '.join(request.keys())}"
+        
+        chat_message = {
+            "id": str(uuid.uuid4()),
+            "user_id": bot_user["id"],
+            "username": bot_user["username"],
+            "content": debug_content,
+            "content_type": "text",
+            "is_admin": True,
+            "is_bot": True,
+            "real_name": bot_user["real_name"],
+            "screen_name": bot_user.get("screen_name"),
+            "avatar_url": bot_user.get("avatar_url"),
+            "timestamp": datetime.utcnow(),
+            "highlighted_tickers": [],
+            "reply_to_id": None,
+            "reply_to": None
+        }
+        
+        # Insert debug message into database
+        await db.messages.insert_one(chat_message)
+        logger.info(f"Debug message created: {debug_content}")
+        
+        return {"message": "Debug message created", "debug_content": debug_content}
         
     except Exception as e:
         logger.error(f"Error processing email webhook: {e}")
