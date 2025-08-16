@@ -679,6 +679,22 @@ function App() {
     }
   }, [filteredMessages, activeTab]);
 
+  // Separate effect for initial page load - retry until ref is available
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      const initialScroll = () => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+        } else {
+          // Retry if ref not ready yet
+          setTimeout(initialScroll, 500);
+        }
+      };
+      // Start initial scroll attempt after short delay
+      setTimeout(initialScroll, 1000);
+    }
+  }, [activeTab]); // Only run when tab becomes active (page load)
+
 
 
 
