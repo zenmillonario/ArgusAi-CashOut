@@ -709,14 +709,15 @@ function App() {
     }
   }, [filteredMessages, activeTab]);
 
-  // Separate effect for initial page load - retry until ref is available
+  // Separate effect for initial page load - using container scroll
   useEffect(() => {
     if (activeTab === 'chat') {
       const initialScroll = () => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+        const chatContainer = document.querySelector('.overflow-y-auto');
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
         } else {
-          // Retry if ref not ready yet
+          // Retry if container not ready yet
           setTimeout(initialScroll, 500);
         }
       };
