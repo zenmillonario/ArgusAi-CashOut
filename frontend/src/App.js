@@ -30,6 +30,7 @@ function App() {
   const [connectionMode, setConnectionMode] = useState('disconnected'); // 'websocket', 'polling', 'disconnected'
   const [showLogin, setShowLogin] = useState(true);
   const [loginForm, setLoginForm] = useState({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
+  const [isRegistering, setIsRegistering] = useState(false);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [mobileUserListOpen, setMobileUserListOpen] = useState(false); // Track mobile user list state
