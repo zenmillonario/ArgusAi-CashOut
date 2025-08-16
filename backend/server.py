@@ -3366,8 +3366,14 @@ async def email_webhook(request: dict):
         
         logger.info("🔧 Inserting message into database...")
         # Insert debug message into database
-        await db.messages.insert_one(chat_message)
-        logger.info(f"✅ Debug message created and inserted: {chat_message['id']}")
+        try:
+            result = await db.messages.insert_one(chat_message)
+            logger.info(f"✅ Debug message inserted with ID: {result.inserted_id}")
+        except Exception as db_error:
+            logger.error(f"❌ Database insertion failed: {db_error}")
+            return {"message": "Database insertion failed", "error": str(db_error)}
+        
+        logger.info(f"✅ Debug message created successfully: {chat_message['id']}")
         
         return {"message": "Debug message created", "debug_content": debug_content}
         
