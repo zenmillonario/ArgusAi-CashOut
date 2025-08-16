@@ -641,14 +641,21 @@ function App() {
   // Check if user is near the bottom of the chat
   const isNearBottom = () => {
     try {
-      const chatContainer = document.querySelector('.messages-container, .chat-messages, [class*="message"]')?.parentElement;
-      if (!chatContainer) return true; // Default to auto-scroll if can't find container
+      // Find the chat messages container with overflow-y-auto class
+      const chatContainer = document.querySelector('.overflow-y-auto[style*="maxHeight"]');
+      if (!chatContainer) {
+        console.log('Chat container not found');
+        return true; // Default to auto-scroll if can't find container
+      }
       
       const { scrollTop, scrollHeight, clientHeight } = chatContainer;
       const threshold = 100; // 100px from bottom
+      const isNear = scrollTop + clientHeight >= scrollHeight - threshold;
       
-      return scrollTop + clientHeight >= scrollHeight - threshold;
+      console.log('Scroll check:', { scrollTop, scrollHeight, clientHeight, isNear });
+      return isNear;
     } catch (error) {
+      console.log('Scroll check error:', error);
       return true; // Default to auto-scroll on error
     }
   };
