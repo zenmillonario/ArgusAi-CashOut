@@ -3258,15 +3258,64 @@ async def email_webhook(request: dict):
         subject = request.get("subject", "")
         sender = request.get("from", "") or request.get("sender", "")
         
-        return await create_bot_message({
-            "content": content,
-            "subject": subject,
-            "sender": sender
-        })
+        # Smart filtering: Only process emails that look like price alerts
+        if is_price_alert_email(content, subject, sender):
+            return await create_bot_message({
+                "content": content,
+                "subject": subject,
+                "sender": sender
+            })
+        else:
+            # Log unrelated emails but don't post to chat
+            logger.info(f"Filtered out non-alert email: subject='{subject}', sender='{sender}'")
+            return {"message": "Email filtered - not a price alert", "filtered": True}
         
     except Exception as e:
         logger.error(f"Error processing email webhook: {e}")
         raise HTTPException(status_code=500, detail="Failed to process email webhook")
+
+def is_price_alert_email(content: str, subject: str = "", sender: str = "") -> bool:
+    """Filter out unrelated emails - only process price alerts"""
+    try:
+        import re
+        
+        # Check for price alert keywords in subject or content
+        alert_keywords = [
+            "price alert", "stock alert", "trading alert",
+            "last =", "last is", "$", "bid", "ask", 
+            "volume", "trading at", "price target"
+        ]
+        
+        combined_text = (content + " " + subject).lower()
+        
+        # Must contain at least one alert keyword
+        has_alert_keywords = any(keyword in combined_text for keyword in alert_keywords)
+        
+        # Must contain a ticker-like pattern (2-5 capital letters)
+        has_ticker = bool(re.search(r'[A-Z]{2,5}', content + " " + subject))
+        
+        # Must contain a price-like pattern
+        has_price = bool(re.search(r'\$?[0-9]+\.?[0-9]*', content))
+        
+        # Filter out obvious spam/unrelated emails
+        spam_keywords = [
+            "unsubscribe", "viagra", "lottery", "winner", "claim",
+            "free money", "urgent", "act now", "limited time"
+        ]
+        
+        is_spam = any(spam in combined_text for spam in spam_keywords)
+        
+        # Email passes filter if it has alert indicators and isn't spam
+        is_valid = has_alert_keywords and has_ticker and has_price and not is_spam
+        
+        logger.info(f"Email filter check: alert_keywords={has_alert_keywords}, ticker={has_ticker}, price={has_price}, spam={is_spam}, valid={is_valid}")
+        
+        return is_valid
+        
+    except Exception as e:
+        logger.error(f"Error filtering email: {e}")
+        # Default to allowing email through if filter fails
+        return True
 
 @api_router.post("/messages", response_model=Message)
 async def create_message(message_data: MessageCreate):
