@@ -1750,6 +1750,197 @@ def test_email_notification_registration():
         print("❌ Registration endpoint did not create user properly")
         return False
 
+def test_email_webhook_integration():
+    """Test the Email-to-Chat webhook integration for ArgusAI CashOut application"""
+    print("\n🔍 TESTING FEATURE: Email-to-Chat Webhook Integration")
+    
+    tester = CashoutAITester()
+    
+    # Test 1: Test the webhook endpoint with sample email data
+    print("\n🔍 Test 1: Testing webhook endpoint /api/bot/email-webhook")
+    
+    # Sample email data that would come from Zapier
+    sample_email_data = {
+        "subject": "TSLA Price Alert - $242.65",
+        "body": "Tesla Inc (TSLA) is now trading at $242.65. This is a 2.5% increase from yesterday's close.",
+        "from": "alerts@tradingplatform.com",
+        "content": "Tesla Inc (TSLA) is now trading at $242.65. Volume: 45.2M shares.",
+        "email_body": "TSLA last = $242.65, bid = $242.60, ask = $242.70"
+    }
+    
+    success, webhook_response = tester.run_test(
+        "Email webhook with sample data",
+        "POST",
+        "bot/email-webhook",
+        200,
+        data=sample_email_data
+    )
+    
+    if not success:
+        print("❌ Failed to call email webhook endpoint")
+        return False
+    
+    print("✅ Email webhook endpoint responded successfully")
+    print(f"Response: {webhook_response}")
+    
+    # Test 2: Verify bot user creation
+    print("\n🔍 Test 2: Verifying bot user creation")
+    
+    # Login as admin to check users
+    admin_user = tester.test_login("admin", "admin123", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed")
+        return False
+    
+    # Get all users to find the bot user
+    all_users = tester.test_get_all_users(tester.session1)
+    if not all_users:
+        print("❌ Failed to get users list")
+        return False
+    
+    # Find the bot user
+    bot_user = None
+    for user in all_users:
+        if user.get('username') == 'cashoutai_bot':
+            bot_user = user
+            break
+    
+    if not bot_user:
+        print("❌ Bot user 'cashoutai_bot' not found")
+        return False
+    
+    print("✅ Bot user 'cashoutai_bot' found successfully")
+    print(f"Bot user details: {bot_user.get('real_name')} - {bot_user.get('screen_name')}")
+    
+    # Test 3: Verify bot messages are created in database
+    print("\n🔍 Test 3: Verifying bot messages in database")
+    
+    # Get messages to see if bot message was created
+    messages = tester.test_get_messages(tester.session1, limit=10)
+    if not messages:
+        print("❌ Failed to get messages")
+        return False
+    
+    # Find bot messages
+    bot_messages = [msg for msg in messages if msg.get('username') == 'cashoutai_bot']
+    
+    if not bot_messages:
+        print("❌ No bot messages found in chat")
+        return False
+    
+    print(f"✅ Found {len(bot_messages)} bot messages in chat")
+    
+    # Verify the most recent bot message contains our test data
+    latest_bot_message = bot_messages[0]  # Messages are sorted by timestamp desc
+    message_content = latest_bot_message.get('content', '')
+    
+    if 'TSLA' in message_content and 'Price Alert' in message_content:
+        print("✅ Bot message contains expected email content")
+    else:
+        print("⚠️ Bot message may not contain expected content (could be from previous test)")
+    
+    print(f"Latest bot message: {message_content[:100]}...")
+    
+    # Test 4: Test messages API with different limits
+    print("\n🔍 Test 4: Testing messages API with different limits")
+    
+    # Test with limit 10
+    messages_10 = tester.test_get_messages(tester.session1, limit=10)
+    if not messages_10:
+        print("❌ Failed to get messages with limit 10")
+        return False
+    
+    print(f"✅ Retrieved {len(messages_10)} messages with limit=10")
+    
+    # Test with limit 50
+    messages_50 = tester.test_get_messages(tester.session1, limit=50)
+    if not messages_50:
+        print("❌ Failed to get messages with limit 50")
+        return False
+    
+    print(f"✅ Retrieved {len(messages_50)} messages with limit=50")
+    
+    # Verify limits work correctly
+    if len(messages_10) <= 10:
+        print("✅ Limit=10 parameter working correctly")
+    else:
+        print(f"❌ Limit=10 not working correctly, got {len(messages_10)} messages")
+        return False
+    
+    if len(messages_50) <= 50:
+        print("✅ Limit=50 parameter working correctly")
+    else:
+        print(f"❌ Limit=50 not working correctly, got {len(messages_50)} messages")
+        return False
+    
+    # Test 5: Verify message structure includes all required fields
+    print("\n🔍 Test 5: Verifying message structure")
+    
+    if not messages_10:
+        print("❌ No messages to verify structure")
+        return False
+    
+    sample_message = messages_10[0]
+    required_fields = [
+        'id', 'user_id', 'username', 'content', 'content_type', 
+        'is_admin', 'timestamp', 'highlighted_tickers'
+    ]
+    
+    missing_fields = []
+    for field in required_fields:
+        if field not in sample_message:
+            missing_fields.append(field)
+    
+    if missing_fields:
+        print(f"❌ Missing required fields in message structure: {missing_fields}")
+        return False
+    
+    print("✅ All required fields present in message structure")
+    print(f"Message fields: {list(sample_message.keys())}")
+    
+    # Test 6: Test webhook with different email formats
+    print("\n🔍 Test 6: Testing webhook with different email formats")
+    
+    # Test with minimal data
+    minimal_email_data = {
+        "body": "AAPL trading at $188.40",
+        "subject": "Apple Alert"
+    }
+    
+    success, minimal_response = tester.run_test(
+        "Email webhook with minimal data",
+        "POST",
+        "bot/email-webhook",
+        200,
+        data=minimal_email_data
+    )
+    
+    if not success:
+        print("❌ Failed to process minimal email data")
+        return False
+    
+    print("✅ Webhook handles minimal email data correctly")
+    
+    # Test with empty data
+    empty_email_data = {}
+    
+    success, empty_response = tester.run_test(
+        "Email webhook with empty data",
+        "POST",
+        "bot/email-webhook",
+        200,
+        data=empty_email_data
+    )
+    
+    if not success:
+        print("❌ Failed to process empty email data")
+        return False
+    
+    print("✅ Webhook handles empty email data gracefully")
+    
+    print("\n✅ Email-to-Chat Webhook Integration test completed successfully")
+    return True
+
 def test_notification_system_backend():
     """Test the comprehensive notification system backend functionality"""
     print("\n🔍 TESTING FEATURE: Notification System Backend")
