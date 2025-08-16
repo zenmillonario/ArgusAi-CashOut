@@ -743,7 +743,7 @@ function App() {
 
   // Add scroll event listener to detect manual scrolling
   useEffect(() => {
-    const chatContainer = document.querySelector('.overflow-y-auto[style*="maxHeight"]');
+    const chatContainer = document.querySelector('.overflow-y-auto.space-y-1');
     if (!chatContainer) {
       console.log('Chat container not found for scroll listener');
       return;
