@@ -751,7 +751,7 @@ function App() {
       
       return () => clearTimeout(scrollTimer);
     }
-  }, [activeTab]); // Only run when activeTab changes (including initial load)
+  }, [activeTab, filteredMessages.length]); // Fixed: Wait for messages to load
 
   // Add scroll event listener to detect manual scrolling
   useEffect(() => {
