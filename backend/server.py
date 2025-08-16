@@ -3375,7 +3375,7 @@ async def email_webhook(request: dict):
             logger.error(f"❌ Database insertion failed: {db_error}")
             return {"message": "Database insertion failed", "error": str(db_error)}
         
-        logger.info(f"✅ Debug message created successfully: {chat_message['id']}")
+        logger.info(f"✅ Debug message created successfully: {chat_message.id}")
         
         return {"message": "Debug message created", "debug_content": debug_content}
         
