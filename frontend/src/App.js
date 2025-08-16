@@ -641,8 +641,8 @@ function App() {
   // Check if user is near the bottom of the chat
   const isNearBottom = () => {
     try {
-      // Find the chat messages container with overflow-y-auto class
-      const chatContainer = document.querySelector('.overflow-y-auto[style*="maxHeight"]');
+      // Find the chat messages container - use the simpler selector that works
+      const chatContainer = document.querySelector('.overflow-y-auto.space-y-1');
       if (!chatContainer) {
         console.log('Chat container not found');
         return true; // Default to auto-scroll if can't find container
