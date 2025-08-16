@@ -2065,8 +2065,6 @@ function App() {
                   hideMessageInput={true}
                   mobileUserListOpen={mobileUserListOpen}
                   setMobileUserListOpen={setMobileUserListOpen}
-                  showScrollButton={showScrollButton}
-                  scrollToBottom={() => scrollToBottom(true)}
                 />
               </div>
               
