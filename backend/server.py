@@ -3169,40 +3169,52 @@ def parse_price_alert(content: str, subject: str = "") -> str:
         ticker = None
         price = None
         
-        # Pattern 1: "TICKER price alert" in subject or content
-        ticker_match = re.search(r'([A-Z]{2,5})\s+price\s+alert', content.upper() + " " + subject.upper())
-        if ticker_match:
-            ticker = ticker_match.group(1).upper()
+        # Enhanced ticker detection patterns
+        ticker_patterns = [
+            # Pattern 1: "TICKER price alert" or "TICKER alert" 
+            r'([A-Z]{2,5})\s+(?:price\s+)?alert',
+            # Pattern 2: Start of content/subject
+            r'^([A-Z]{2,5})\s',
+            # Pattern 3: $TICKER format
+            r'\$([A-Z]{2,5})',
+            # Pattern 4: TICKER followed by any text
+            r'\b([A-Z]{2,5})\b(?=\s+(?:price|alert|Last|trading))',
+            # Pattern 5: Any isolated ticker (fallback)
+            r'\b([A-Z]{2,5})\b'
+        ]
         
-        if not ticker:
-            # Pattern 2: Look for ticker symbols at start of content/subject
-            ticker_match = re.search(r'^([A-Z]{2,5})\s', content.upper())
+        combined_text = content.upper() + " " + subject.upper()
+        
+        for pattern in ticker_patterns:
+            ticker_match = re.search(pattern, combined_text)
             if ticker_match:
-                ticker = ticker_match.group(1).upper()
+                potential_ticker = ticker_match.group(1).upper()
+                # Filter out common words that aren't tickers
+                if potential_ticker not in ['ALERT', 'PRICE', 'LAST', 'TEST', 'EMAIL', 'FROM', 'SENT']:
+                    ticker = potential_ticker
+                    break
         
-        if not ticker:
-            # Pattern 3: Look for $TICKER format
-            ticker_match = re.search(r'\$([A-Z]{2,5})', content.upper())
-            if ticker_match:
-                ticker = ticker_match.group(1).upper()
-        
-        # Extract price - handle various formats
-        # Pattern 1: "Last = .04" or "Last = $0.04"
-        price_match = re.search(r'Last\s*=\s*\$?([0-9]*\.?[0-9]+)', content)
-        if price_match:
-            price = price_match.group(1)
-        
-        if not price:
+        # Enhanced price detection patterns
+        price_patterns = [
+            # Pattern 1: "Last = .04" or "Last = $0.04"
+            r'Last\s*=\s*\$?([0-9]*\.?[0-9]+)',
             # Pattern 2: "Last is at or above $.04"
-            price_match = re.search(r'Last\s+is\s+at\s+or\s+above\s+\$([0-9]*\.?[0-9]+)', content)
-            if price_match:
-                price = price_match.group(1)
+            r'Last\s+is\s+at\s+or\s+above\s+\$([0-9]*\.?[0-9]+)',
+            # Pattern 3: "trading at $250.75"
+            r'trading\s+at\s+\$([0-9]*\.?[0-9]+)',
+            # Pattern 4: Simple "$price" format
+            r'\$([0-9]*\.?[0-9]+)',
+            # Pattern 5: = $price format
+            r'=\s*\$([0-9]*\.?[0-9]+)',
+            # Pattern 6: price without $ symbol
+            r'=\s*([0-9]*\.?[0-9]+)'
+        ]
         
-        if not price:
-            # Pattern 3: Simple "$price" format
-            price_match = re.search(r'\$([0-9]*\.?[0-9]+)', content)
+        for pattern in price_patterns:
+            price_match = re.search(pattern, content)
             if price_match:
                 price = price_match.group(1)
+                break
         
         if ticker and price:
             # Format price properly
@@ -3218,16 +3230,29 @@ def parse_price_alert(content: str, subject: str = "") -> str:
             # Create formatted message
             formatted = f"🔔 ${ticker} {price_str} 👀"
             
-            logger.info(f"Parsed price alert: ticker={ticker}, price={price_str}, formatted={formatted}")
+            logger.info(f"✅ Parsed price alert: ticker={ticker}, price={price_str}, formatted={formatted}")
             return formatted
         
-        # If parsing fails, try to extract any recognizable info
-        logger.warning(f"Could not parse price alert properly: content='{content[:100]}', subject='{subject}'")
-        logger.warning(f"Debug - ticker found: {ticker}, price found: {price}")
+        # Enhanced fallback - try to extract any meaningful info
+        logger.warning(f"⚠️ Could not parse price alert properly")
+        logger.warning(f"   Content: '{content[:100]}...'")
+        logger.warning(f"   Subject: '{subject}'")
+        logger.warning(f"   Ticker found: {ticker}")
+        logger.warning(f"   Price found: {price}")
+        
+        # Last resort: if we have a ticker but no price, try simpler patterns
+        if ticker and not price:
+            simple_price = re.search(r'([0-9]+\.?[0-9]*)', content)
+            if simple_price:
+                price = simple_price.group(1)
+                formatted = f"🔔 ${ticker} ${price} 👀"
+                logger.info(f"✅ Fallback parse successful: {formatted}")
+                return formatted
+        
         return None
         
     except Exception as e:
-        logger.error(f"Error parsing price alert: {e}")
+        logger.error(f"❌ Error parsing price alert: {e}")
         return None
 
 def extract_tickers(message: str) -> list:
