@@ -328,9 +328,10 @@ const ChatTab = ({
           ))}
           <div ref={messagesEndRef} />
         </div>
-        
-        {/* Reply To Message UI */}
-        {replyToMessage && (
+      </div>
+
+      {/* Reply To Message UI */}
+      {replyToMessage && (
         <div className={`mb-4 p-3 rounded-lg border ${
           isDarkTheme 
             ? 'bg-blue-500/10 border-blue-500/30' 
