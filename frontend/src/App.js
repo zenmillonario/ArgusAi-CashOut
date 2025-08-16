@@ -743,8 +743,11 @@ function App() {
 
   // Add scroll event listener to detect manual scrolling
   useEffect(() => {
-    const chatContainer = document.querySelector('.messages-container, .chat-messages, [class*="message"]')?.parentElement;
-    if (!chatContainer) return;
+    const chatContainer = document.querySelector('.overflow-y-auto[style*="maxHeight"]');
+    if (!chatContainer) {
+      console.log('Chat container not found for scroll listener');
+      return;
+    }
 
     let scrollTimer;
 
@@ -767,12 +770,15 @@ function App() {
       if (!isNearBottom()) {
         setShouldAutoScroll(false);
         setShowScrollButton(true);
+        console.log('User scrolled away, showing scroll button');
       } else {
         setShouldAutoScroll(true);
         setShowScrollButton(false);
+        console.log('User near bottom, hiding scroll button');
       }
     };
 
+    console.log('Adding scroll listener to:', chatContainer);
     chatContainer.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
