@@ -756,11 +756,13 @@ function App() {
         }
       }, 1000); // Reset after 1 second of no scrolling
 
-      // If user scrolled away from bottom, disable auto-scroll
+      // If user scrolled away from bottom, disable auto-scroll and show button
       if (!isNearBottom()) {
         setShouldAutoScroll(false);
+        setShowScrollButton(true);
       } else {
         setShouldAutoScroll(true);
+        setShowScrollButton(false);
       }
     };
 
