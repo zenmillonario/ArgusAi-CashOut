@@ -3351,27 +3351,25 @@ async def email_webhook(request: dict):
         
         logger.info(f"🔧 Preparing message: {debug_content[:100]}...")
         
-        chat_message = {
-            "id": str(uuid.uuid4()),
-            "user_id": bot_user["id"],
-            "username": bot_user["username"],
-            "content": debug_content,
-            "content_type": "text",
-            "is_admin": True,
-            "is_bot": True,
-            "real_name": bot_user["real_name"],
-            "screen_name": bot_user.get("screen_name"),
-            "avatar_url": bot_user.get("avatar_url"),
-            "timestamp": datetime.utcnow(),
-            "highlighted_tickers": [],
-            "reply_to_id": None,
-            "reply_to": None
-        }
+        # Create message using the proper Message model
+        chat_message = Message(
+            user_id=bot_user["id"],
+            username=bot_user["username"],
+            content=debug_content,
+            content_type="text",
+            is_admin=True,
+            real_name=bot_user["real_name"],
+            screen_name=bot_user.get("screen_name"),
+            avatar_url=bot_user.get("avatar_url"),
+            highlighted_tickers=[],
+            reply_to_id=None,
+            reply_to=None
+        )
         
         logger.info("🔧 Inserting message into database...")
         # Insert debug message into database
         try:
-            result = await db.messages.insert_one(chat_message)
+            result = await db.messages.insert_one(chat_message.dict())
             logger.info(f"✅ Debug message inserted with ID: {result.inserted_id}")
         except Exception as db_error:
             logger.error(f"❌ Database insertion failed: {db_error}")
