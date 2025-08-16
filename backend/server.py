@@ -3186,7 +3186,13 @@ async def create_bot_message(message_data: dict):
             # Insert into database
             await db.messages.insert_one(chat_message.dict())
             
-            logger.info(f"Bot message created: {formatted_message}")
+            # Broadcast bot message to all connected users via WebSocket
+            await manager.broadcast(json.dumps({
+                "type": "message",
+                "data": chat_message.dict()
+            }, default=str))
+            
+            logger.info(f"Bot message created and broadcast: {formatted_message}")
             
             return {"message": "Bot message posted successfully", "formatted_content": formatted_message}
         else:
