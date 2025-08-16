@@ -740,54 +740,7 @@ function App() {
 
 
 
-  // TEMPORARILY DISABLED: Complex scroll detection - focusing on basic auto-scroll first
-  /*
-  // Add scroll event listener to detect manual scrolling
-  useEffect(() => {
-    const chatContainer = document.querySelector('.overflow-y-auto.space-y-1');
-    if (!chatContainer) {
-      console.log('Chat container not found for scroll listener');
-      return;
-    }
 
-    let scrollTimer;
-
-    const handleScroll = () => {
-      setIsUserScrolling(true);
-      
-      // Clear existing timer
-      clearTimeout(scrollTimer);
-      
-      // Set timer to reset scrolling state
-      scrollTimer = setTimeout(() => {
-        setIsUserScrolling(false);
-        // Check if user scrolled to bottom manually
-        if (isNearBottom()) {
-          setShouldAutoScroll(true);
-        }
-      }, 1000); // Reset after 1 second of no scrolling
-
-      // If user scrolled away from bottom, disable auto-scroll and show button
-      if (!isNearBottom()) {
-        setShouldAutoScroll(false);
-        setShowScrollButton(true);
-        console.log('User scrolled away, showing scroll button');
-      } else {
-        setShouldAutoScroll(true);
-        setShowScrollButton(false);
-        console.log('User near bottom, hiding scroll button');
-      }
-    };
-
-    console.log('Adding scroll listener to:', chatContainer);
-    chatContainer.addEventListener('scroll', handleScroll, { passive: true });
-
-    return () => {
-      chatContainer.removeEventListener('scroll', handleScroll);
-      clearTimeout(scrollTimer);
-    };
-  }, [activeTab]); // Fixed: Only depend on activeTab, not filteredMessages
-  */
 
   // WebSocket connection
   useEffect(() => {
