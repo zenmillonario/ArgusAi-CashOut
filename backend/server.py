@@ -3339,9 +3339,13 @@ async def email_webhook(request: dict):
         logger.info(f"📧 EXTRACTED DATA - Subject: '{subject}', Content: '{content[:200]}...', Sender: '{sender}'")
         
         # TEMPORARY: Always create a debug message to see what Zapier is sending
+        logger.info("🔧 Creating bot user...")
         bot_user = await get_or_create_bot_user()
+        logger.info(f"✅ Bot user obtained: {bot_user.get('username', 'Unknown')}")
         
         debug_content = f"🔧 ZAPIER TEST DEBUG\n📧 Subject: '{subject}'\n👤 Sender: '{sender}'\n📝 Content: '{content}'\n\n🗂️ RAW FIELDS: {', '.join(request.keys())}"
+        
+        logger.info(f"🔧 Preparing message: {debug_content[:100]}...")
         
         chat_message = {
             "id": str(uuid.uuid4()),
@@ -3360,9 +3364,10 @@ async def email_webhook(request: dict):
             "reply_to": None
         }
         
+        logger.info("🔧 Inserting message into database...")
         # Insert debug message into database
         await db.messages.insert_one(chat_message)
-        logger.info(f"Debug message created: {debug_content}")
+        logger.info(f"✅ Debug message created and inserted: {chat_message['id']}")
         
         return {"message": "Debug message created", "debug_content": debug_content}
         
