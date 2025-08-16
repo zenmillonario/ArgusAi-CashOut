@@ -731,27 +731,44 @@ function App() {
     return () => clearTimeout(debounceTimer);
   }, [tradeForm.symbol]);
 
-  // Auto-scroll when messages change AND on initial load - with mobile optimization
+  // Simple auto-scroll when messages change - with better timing
   useEffect(() => {
-    // Only auto-scroll if user is actively viewing chat tab, app is visible, and mobile user list is closed
-    if (activeTab === 'chat' && !document.hidden && filteredMessages.length > 0 && !mobileUserListOpen) {
-      // Always try to scroll on new messages (the function will check if user is near bottom)
-      scrollToBottom(false);
-    }
-  }, [filteredMessages, activeTab, mobileUserListOpen]);
-
-  // Separate effect for initial scroll after page load/refresh
-  useEffect(() => {
-    if (activeTab === 'chat' && filteredMessages.length > 0) {
-      // Add a delay to ensure DOM is fully rendered
+    if (activeTab === 'chat' && filteredMessages.length > 0 && !mobileUserListOpen) {
+      // Use longer delay to ensure DOM is ready
       const scrollTimer = setTimeout(() => {
-        console.log('Initial scroll to bottom on page load');
-        scrollToBottom(true); // Force scroll on initial load
-      }, 500); // 500ms delay to ensure messages are rendered
+        const chatContainer = document.querySelector('.overflow-y-auto.space-y-1');
+        if (chatContainer && messagesEndRef.current) {
+          console.log('Auto-scrolling to bottom - messages:', filteredMessages.length);
+          messagesEndRef.current.scrollIntoView({ 
+            behavior: "smooth",
+            block: "end"
+          });
+        } else {
+          console.log('Container or ref not found for auto-scroll');
+        }
+      }, 1000); // Increased delay to 1 second
       
       return () => clearTimeout(scrollTimer);
     }
-  }, [activeTab, filteredMessages.length]); // Fixed: Wait for messages to load
+  }, [filteredMessages, activeTab, mobileUserListOpen]);
+
+  // Separate effect for initial page load - runs once when chat becomes active
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      const initialScrollTimer = setTimeout(() => {
+        const chatContainer = document.querySelector('.overflow-y-auto.space-y-1');
+        if (chatContainer && messagesEndRef.current) {
+          console.log('Initial page load - forcing scroll to bottom');
+          messagesEndRef.current.scrollIntoView({ 
+            behavior: "auto", // No smooth animation for initial load
+            block: "end"
+          });
+        }
+      }, 1500); // Even longer delay for initial load
+      
+      return () => clearTimeout(initialScrollTimer);
+    }
+  }, [activeTab]); // Only run when activeTab changes to 'chat'
 
   // Add scroll event listener to detect manual scrolling
   useEffect(() => {
