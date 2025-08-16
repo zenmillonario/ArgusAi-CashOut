@@ -3197,17 +3197,19 @@ def parse_price_alert(content: str, subject: str = "") -> str:
         ticker = None
         price = None
         
-        # Enhanced ticker detection patterns (case insensitive)
+        # Enhanced ticker detection patterns (case insensitive, prioritize standard tickers)
         ticker_patterns = [
-            # Pattern 1: "TICKER price alert" or "TICKER alert" 
-            r'([A-Z]{2,5})\s+(?:price\s+)?alert',
-            # Pattern 2: Start of content/subject
-            r'^([A-Z]{2,5})\s',
-            # Pattern 3: $TICKER format
+            # Pattern 1: (TICKER) format - highest priority for stock symbols
+            r'\(([A-Z]{2,5})\)',
+            # Pattern 2: $TICKER format  
             r'\$([A-Z]{2,5})',
-            # Pattern 4: TICKER followed by any text
-            r'\b([A-Z]{2,5})\b(?=\s+(?:price|alert|Last|trading))',
-            # Pattern 5: Any isolated ticker (fallback)
+            # Pattern 3: "TICKER price alert" or "TICKER alert" 
+            r'([A-Z]{2,5})\s+(?:price\s+)?alert',
+            # Pattern 4: Start of content/subject
+            r'^([A-Z]{2,5})\s',
+            # Pattern 5: TICKER followed by trading keywords
+            r'\b([A-Z]{2,5})\b(?=\s+(?:price|alert|Last|trading|has\s+reached))',
+            # Pattern 6: Any isolated ticker (fallback)
             r'\b([A-Z]{2,5})\b'
         ]
         
