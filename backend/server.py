@@ -3221,7 +3221,13 @@ async def create_bot_message(message_data: dict):
             # Insert debug message into database
             await db.messages.insert_one(debug_message.dict())
             
-            logger.info(f"Debug message created for unparsed content")
+            # Broadcast debug message to all connected users via WebSocket
+            await manager.broadcast(json.dumps({
+                "type": "message",
+                "data": debug_message.dict()
+            }, default=str))
+            
+            logger.info(f"Debug message created and broadcast for unparsed content")
             return {"message": "Debug message posted - parsing failed", "debug_content": debug_content}
             
     except Exception as e:
