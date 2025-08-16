@@ -731,65 +731,10 @@ function App() {
     return () => clearTimeout(debounceTimer);
   }, [tradeForm.symbol]);
 
-  // DEBUG: Check current state values
-  console.log('🔍 DEBUG - Current state:', { 
-    activeTab, 
-    messagesCount: filteredMessages.length, 
-    hasMessagesEndRef: !!messagesEndRef.current 
-  });
-
-  // Simple auto-scroll when messages change - with better timing
+  // Simple auto-scroll to bottom when messages change
   useEffect(() => {
-    console.log('✅ Auto-scroll useEffect RUNNING:', { activeTab, messagesCount: filteredMessages.length });
-    
-    if (activeTab === 'chat') {
-      console.log('✅ activeTab is chat, setting timer...');
-      // Use much longer delay and retry mechanism
-      const scrollTimer = setTimeout(() => {
-        console.log('⏰ Timer fired! Attempting auto-scroll...');
-        
-        // More robust selector approach - try everything
-        let chatContainer = null;
-        const selectors = [
-          '.overflow-y-auto.space-y-1',
-          '.overflow-y-auto', 
-          '[style*="max-height"]',
-          '[class*="overflow-y-auto"]',
-          '[class*="space-y-1"]',
-          '.chat-messages',
-          '[class*="message"]'
-        ];
-        
-        for (let i = 0; i < selectors.length; i++) {
-          chatContainer = document.querySelector(selectors[i]);
-          console.log(`📦 Trying selector ${i+1} (${selectors[i]}):`, !!chatContainer);
-          if (chatContainer) break;
-        }
-        
-        console.log('📍 messagesEndRef exists:', !!messagesEndRef.current);
-        
-        if (chatContainer) {
-          console.log('🔄 Found container! Force scrolling to bottom');
-          // Force scroll to bottom using scrollTop
-          chatContainer.scrollTop = chatContainer.scrollHeight;
-          console.log('📏 Scroll info:', {
-            scrollTop: chatContainer.scrollTop,
-            scrollHeight: chatContainer.scrollHeight,
-            clientHeight: chatContainer.clientHeight
-          });
-        } else {
-          console.log('❌ No chat container found at all - trying window scroll');
-          // Last resort: scroll the entire window
-          window.scrollTo(0, document.body.scrollHeight);
-        }
-      }, 3000); // Much longer delay - 3 seconds
-      
-      return () => {
-        console.log('🧹 Cleaning up auto-scroll timer');
-        clearTimeout(scrollTimer);
-      };
-    } else {
-      console.log('❌ activeTab is not chat, current value:', activeTab);
+    if (activeTab === 'chat' && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [filteredMessages, activeTab]);
 
