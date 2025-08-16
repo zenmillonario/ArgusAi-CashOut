@@ -738,27 +738,7 @@ function App() {
     }
   }, [filteredMessages, activeTab]);
 
-  // Separate effect for initial page load - runs once when chat becomes active
-  useEffect(() => {
-    console.log('Initial load useEffect triggered:', { activeTab });
-    
-    if (activeTab === 'chat') {
-      const initialScrollTimer = setTimeout(() => {
-        console.log('Initial page load - attempting scroll to bottom');
-        if (messagesEndRef.current) {
-          console.log('Initial scroll executing!');
-          messagesEndRef.current.scrollIntoView({ 
-            behavior: "auto",
-            block: "end"
-          });
-        } else {
-          console.log('Initial scroll failed - messagesEndRef.current is null');
-        }
-      }, 1500);
-      
-      return () => clearTimeout(initialScrollTimer);
-    }
-  }, [activeTab]);
+
 
   // TEMPORARILY DISABLED: Complex scroll detection - focusing on basic auto-scroll first
   /*
