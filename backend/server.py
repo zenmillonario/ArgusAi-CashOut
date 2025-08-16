@@ -3340,8 +3340,12 @@ async def email_webhook(request: dict):
         
         # TEMPORARY: Always create a debug message to see what Zapier is sending
         logger.info("🔧 Creating bot user...")
-        bot_user = await get_or_create_bot_user()
-        logger.info(f"✅ Bot user obtained: {bot_user.get('username', 'Unknown')}")
+        try:
+            bot_user = await get_or_create_bot_user()
+            logger.info(f"✅ Bot user obtained: {bot_user.get('username', 'Unknown')}")
+        except Exception as bot_error:
+            logger.error(f"❌ Bot user creation failed: {bot_error}")
+            return {"message": "Bot user creation failed", "error": str(bot_error)}
         
         debug_content = f"🔧 ZAPIER TEST DEBUG\n📧 Subject: '{subject}'\n👤 Sender: '{sender}'\n📝 Content: '{content}'\n\n🗂️ RAW FIELDS: {', '.join(request.keys())}"
         
