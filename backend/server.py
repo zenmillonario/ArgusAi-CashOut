@@ -3201,10 +3201,10 @@ def parse_price_alert(content: str, subject: str = "") -> str:
                 else:
                     logger.info(f"❌ Ticker '{potential_ticker}' filtered out as common word")
         
-        # Enhanced price detection patterns
+        # Enhanced price detection patterns (case insensitive)
         price_patterns = [
             # Pattern 1: "Last = .04" or "Last = $0.04"
-            r'Last\s*=\s*\$?([0-9]*\.?[0-9]+)',
+            r'Last\s*=\s*\$?([0-9]*\.?[0-9]+)',  
             # Pattern 2: "Last is at or above $.04"
             r'Last\s+is\s+at\s+or\s+above\s+\$([0-9]*\.?[0-9]+)',
             # Pattern 3: "trading at $250.75"
@@ -3213,15 +3213,24 @@ def parse_price_alert(content: str, subject: str = "") -> str:
             r'\$([0-9]*\.?[0-9]+)',
             # Pattern 5: = $price format
             r'=\s*\$([0-9]*\.?[0-9]+)',
-            # Pattern 6: price without $ symbol
-            r'=\s*([0-9]*\.?[0-9]+)'
+            # Pattern 6: price without $ symbol followed by common indicators
+            r'price\s*:?\s*([0-9]*\.?[0-9]+)',
+            # Pattern 7: Generic equals pattern
+            r'=\s*([0-9]*\.?[0-9]+)',
+            # Pattern 8: Any decimal number (fallback)
+            r'([0-9]+\.[0-9]+)'
         ]
         
-        for pattern in price_patterns:
-            price_match = re.search(pattern, content)
+        logger.info(f"🔍 SEARCHING FOR PRICE IN: '{content}'")
+        
+        for i, pattern in enumerate(price_patterns):
+            price_match = re.search(pattern, content, re.IGNORECASE)
             if price_match:
                 price = price_match.group(1)
+                logger.info(f"🎯 Pattern {i+1} matched price: '{price}'")
                 break
+        
+        logger.info(f"📊 FINAL EXTRACTION - Ticker: {ticker}, Price: {price}")
         
         if ticker and price:
             # Format price properly
