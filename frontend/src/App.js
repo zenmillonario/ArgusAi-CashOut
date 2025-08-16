@@ -731,32 +731,45 @@ function App() {
     return () => clearTimeout(debounceTimer);
   }, [tradeForm.symbol]);
 
+  // DEBUG: Check current state values
+  console.log('🔍 DEBUG - Current state:', { 
+    activeTab, 
+    messagesCount: filteredMessages.length, 
+    hasMessagesEndRef: !!messagesEndRef.current 
+  });
+
   // Simple auto-scroll when messages change - with better timing
   useEffect(() => {
-    console.log('Auto-scroll useEffect triggered:', { activeTab, messagesCount: filteredMessages.length });
+    console.log('✅ Auto-scroll useEffect RUNNING:', { activeTab, messagesCount: filteredMessages.length });
     
     if (activeTab === 'chat') {
+      console.log('✅ activeTab is chat, setting timer...');
       // Use longer delay to ensure DOM is ready
       const scrollTimer = setTimeout(() => {
-        console.log('Attempting auto-scroll...');
+        console.log('⏰ Timer fired! Attempting auto-scroll...');
         const chatContainer = document.querySelector('.overflow-y-auto.space-y-1');
-        console.log('Chat container found:', !!chatContainer);
-        console.log('messagesEndRef exists:', !!messagesEndRef.current);
+        console.log('📦 Chat container found:', !!chatContainer);
+        console.log('📍 messagesEndRef exists:', !!messagesEndRef.current);
         
         if (messagesEndRef.current) {
-          console.log('Scrolling to bottom now!');
+          console.log('🚀 Scrolling to bottom now!');
           messagesEndRef.current.scrollIntoView({ 
             behavior: "smooth",
             block: "end"
           });
         } else {
-          console.log('messagesEndRef.current is null - cannot scroll');
+          console.log('❌ messagesEndRef.current is null - cannot scroll');
         }
       }, 1000); // 1 second delay
       
-      return () => clearTimeout(scrollTimer);
+      return () => {
+        console.log('🧹 Cleaning up auto-scroll timer');
+        clearTimeout(scrollTimer);
+      };
+    } else {
+      console.log('❌ activeTab is not chat, current value:', activeTab);
     }
-  }, [filteredMessages, activeTab]); // Removed mobileUserListOpen and length conditions
+  }, [filteredMessages, activeTab]);
 
   // Separate effect for initial page load - runs once when chat becomes active
   useEffect(() => {
