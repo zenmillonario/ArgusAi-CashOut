@@ -744,40 +744,45 @@ function App() {
     
     if (activeTab === 'chat') {
       console.log('✅ activeTab is chat, setting timer...');
-      // Use longer delay to ensure DOM is ready
+      // Use much longer delay and retry mechanism
       const scrollTimer = setTimeout(() => {
         console.log('⏰ Timer fired! Attempting auto-scroll...');
         
-        // Try multiple selectors to find the chat container
-        const chatContainer1 = document.querySelector('.overflow-y-auto.space-y-1');
-        const chatContainer2 = document.querySelector('.overflow-y-auto');
-        const chatContainer3 = document.querySelector('[style*="max-height"]');
+        // More robust selector approach - try everything
+        let chatContainer = null;
+        const selectors = [
+          '.overflow-y-auto.space-y-1',
+          '.overflow-y-auto', 
+          '[style*="max-height"]',
+          '[class*="overflow-y-auto"]',
+          '[class*="space-y-1"]',
+          '.chat-messages',
+          '[class*="message"]'
+        ];
         
-        console.log('📦 Selector1 (.overflow-y-auto.space-y-1):', !!chatContainer1);
-        console.log('📦 Selector2 (.overflow-y-auto):', !!chatContainer2);
-        console.log('📦 Selector3 ([style*="max-height"]):', !!chatContainer3);
+        for (let i = 0; i < selectors.length; i++) {
+          chatContainer = document.querySelector(selectors[i]);
+          console.log(`📦 Trying selector ${i+1} (${selectors[i]}):`, !!chatContainer);
+          if (chatContainer) break;
+        }
+        
         console.log('📍 messagesEndRef exists:', !!messagesEndRef.current);
         
-        if (messagesEndRef.current) {
-          console.log('🚀 Scrolling to bottom now!');
-          messagesEndRef.current.scrollIntoView({ 
-            behavior: "smooth",
-            block: "end"
+        if (chatContainer) {
+          console.log('🔄 Found container! Force scrolling to bottom');
+          // Force scroll to bottom using scrollTop
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+          console.log('📏 Scroll info:', {
+            scrollTop: chatContainer.scrollTop,
+            scrollHeight: chatContainer.scrollHeight,
+            clientHeight: chatContainer.clientHeight
           });
         } else {
-          console.log('❌ messagesEndRef.current is null - trying to find it in DOM');
-          // Try to find the messages end element by other means
-          const endDiv = document.querySelector('div[ref]');
-          console.log('🔍 Found div with ref attribute:', !!endDiv);
-          
-          // Fallback: scroll the container directly to bottom
-          const anyContainer = chatContainer1 || chatContainer2 || chatContainer3;
-          if (anyContainer) {
-            console.log('🔄 Fallback: scrolling container to bottom');
-            anyContainer.scrollTop = anyContainer.scrollHeight;
-          }
+          console.log('❌ No chat container found at all - trying window scroll');
+          // Last resort: scroll the entire window
+          window.scrollTo(0, document.body.scrollHeight);
         }
-      }, 1000); // 1 second delay
+      }, 3000); // Much longer delay - 3 seconds
       
       return () => {
         console.log('🧹 Cleaning up auto-scroll timer');
