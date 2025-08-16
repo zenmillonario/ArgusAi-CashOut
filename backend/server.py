@@ -3109,16 +3109,16 @@ async def create_bot_message(message_data: dict):
 
 async def get_or_create_bot_user():
     """Get existing bot user or create one"""
-    bot_user = await db.users.find_one({"username": "pricebot"})
+    bot_user = await db.users.find_one({"username": "cashoutai_bot"})
     
     if not bot_user:
         # Create bot user
         bot_user = {
             "id": str(uuid.uuid4()),
-            "username": "pricebot",
+            "username": "cashoutai_bot",
             "email": "bot@cashoutai.com",
-            "real_name": "Price Alert Bot",
-            "screen_name": "🤖 AlertBot",
+            "real_name": "CashOutAi Bot",
+            "screen_name": "🤖 CashOutAi Bot",
             "membership_plan": "premium",
             "is_admin": True,
             "is_bot": True,
@@ -3141,8 +3141,8 @@ async def get_or_create_bot_user():
             "daily_login_streak": 0,
             "last_login_date": None,
             "profile_banner": None,
-            "bio": "Automated price alert bot 🤖",
-            "trading_style_tags": ["automated", "alerts"],
+            "bio": "Automated price alert bot for CashOutAi trading platform 🤖📈",
+            "trading_style_tags": ["automated", "alerts", "price-tracking"],
             "custom_theme": None,
             "active_theme_name": "dark",
             "achievements": [],
@@ -3156,7 +3156,7 @@ async def get_or_create_bot_user():
         }
         
         await db.users.insert_one(bot_user)
-        logger.info("Price Alert Bot user created")
+        logger.info("CashOutAi Bot user created")
     
     return bot_user
 
