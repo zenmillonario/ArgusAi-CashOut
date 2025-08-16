@@ -770,6 +770,8 @@ function App() {
     }
   }, [activeTab]); // Only run when activeTab changes to 'chat'
 
+  // TEMPORARILY DISABLED: Complex scroll detection - focusing on basic auto-scroll first
+  /*
   // Add scroll event listener to detect manual scrolling
   useEffect(() => {
     const chatContainer = document.querySelector('.overflow-y-auto.space-y-1');
@@ -815,6 +817,7 @@ function App() {
       clearTimeout(scrollTimer);
     };
   }, [activeTab]); // Fixed: Only depend on activeTab, not filteredMessages
+  */
 
   // WebSocket connection
   useEffect(() => {
