@@ -31,6 +31,7 @@ function App() {
   const [showLogin, setShowLogin] = useState(true);
   const [loginForm, setLoginForm] = useState({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
   const [isRegistering, setIsRegistering] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const [mobileUserListOpen, setMobileUserListOpen] = useState(false); // Track mobile user list state
   const [pendingUsers, setPendingUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
