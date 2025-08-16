@@ -686,15 +686,24 @@ function App() {
   useEffect(() => {
     if (activeTab === 'chat') {
       const chatContainer = document.querySelector('.overflow-y-auto');
+      console.log('🔍 Scroll listener setup - container found:', !!chatContainer);
+      
       if (chatContainer) {
         const handleScroll = () => {
           const { scrollTop, scrollHeight, clientHeight } = chatContainer;
           const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100;
+          console.log('📏 Scroll event:', { scrollTop, scrollHeight, clientHeight, isNearBottom });
           setShowScrollButton(!isNearBottom);
+          console.log('🔘 Button should show:', !isNearBottom);
         };
         
-        chatContainer.addEventListener('scroll', handleScroll);
-        return () => chatContainer.removeEventListener('scroll', handleScroll);
+        chatContainer.addEventListener('scroll', handleScroll, { passive: true });
+        console.log('✅ Scroll listener attached');
+        
+        return () => {
+          chatContainer.removeEventListener('scroll', handleScroll);
+          console.log('🧹 Scroll listener removed');
+        };
       }
     }
   }, [activeTab]);
