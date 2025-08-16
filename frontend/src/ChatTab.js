@@ -30,9 +30,7 @@ const ChatTab = ({
   onViewProfile,
   hideMessageInput = false,
   mobileUserListOpen,
-  setMobileUserListOpen,
-  showScrollButton,
-  scrollToBottom
+  setMobileUserListOpen
 }) => {
   const displayMessages = showSearch ? filteredMessages : messages;
   const [followingUsers, setFollowingUsers] = useState([]);
