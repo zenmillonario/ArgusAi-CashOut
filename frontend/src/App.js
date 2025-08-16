@@ -735,11 +735,23 @@ function App() {
   useEffect(() => {
     // Only auto-scroll if user is actively viewing chat tab, app is visible, and mobile user list is closed
     if (activeTab === 'chat' && !document.hidden && filteredMessages.length > 0 && !mobileUserListOpen) {
-      // For initial load, force scroll to bottom
-      const isInitialLoad = messages.length === 0 && filteredMessages.length > 0;
-      scrollToBottom(isInitialLoad);
+      // Always try to scroll on new messages (the function will check if user is near bottom)
+      scrollToBottom(false);
     }
   }, [filteredMessages, activeTab, mobileUserListOpen]);
+
+  // Separate effect for initial scroll after page load/refresh
+  useEffect(() => {
+    if (activeTab === 'chat' && filteredMessages.length > 0) {
+      // Add a delay to ensure DOM is fully rendered
+      const scrollTimer = setTimeout(() => {
+        console.log('Initial scroll to bottom on page load');
+        scrollToBottom(true); // Force scroll on initial load
+      }, 500); // 500ms delay to ensure messages are rendered
+      
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [activeTab]); // Only run when activeTab changes (including initial load)
 
   // Add scroll event listener to detect manual scrolling
   useEffect(() => {
