@@ -637,8 +637,28 @@ function App() {
     });
   };
 
-  const scrollToBottom = () => {
+  // Check if user is near the bottom of the chat
+  const isNearBottom = () => {
     try {
+      const chatContainer = document.querySelector('.messages-container, .chat-messages, [class*="message"]')?.parentElement;
+      if (!chatContainer) return true; // Default to auto-scroll if can't find container
+      
+      const { scrollTop, scrollHeight, clientHeight } = chatContainer;
+      const threshold = 100; // 100px from bottom
+      
+      return scrollTop + clientHeight >= scrollHeight - threshold;
+    } catch (error) {
+      return true; // Default to auto-scroll on error
+    }
+  };
+
+  const scrollToBottom = (force = false) => {
+    try {
+      // Only auto-scroll if user is near bottom, or if forced (like initial load)
+      if (!force && !shouldAutoScroll) return;
+      if (!force && isUserScrolling) return;
+      if (!force && !isNearBottom()) return;
+
       // Don't auto-scroll if mobile user list is open or if we're on mobile
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
@@ -647,7 +667,7 @@ function App() {
           if (messagesEndRef.current && !document.hidden) {
             // Use a gentler scroll approach on mobile
             messagesEndRef.current.scrollIntoView({ 
-              behavior: "auto", // No smooth animation on mobile
+              behavior: "smooth", // Changed to smooth for better UX
               block: "end" // Less intrusive positioning
             });
           }
