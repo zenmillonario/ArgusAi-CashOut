@@ -733,42 +733,52 @@ function App() {
 
   // Simple auto-scroll when messages change - with better timing
   useEffect(() => {
-    if (activeTab === 'chat' && filteredMessages.length > 0 && !mobileUserListOpen) {
+    console.log('Auto-scroll useEffect triggered:', { activeTab, messagesCount: filteredMessages.length });
+    
+    if (activeTab === 'chat') {
       // Use longer delay to ensure DOM is ready
       const scrollTimer = setTimeout(() => {
+        console.log('Attempting auto-scroll...');
         const chatContainer = document.querySelector('.overflow-y-auto.space-y-1');
-        if (chatContainer && messagesEndRef.current) {
-          console.log('Auto-scrolling to bottom - messages:', filteredMessages.length);
+        console.log('Chat container found:', !!chatContainer);
+        console.log('messagesEndRef exists:', !!messagesEndRef.current);
+        
+        if (messagesEndRef.current) {
+          console.log('Scrolling to bottom now!');
           messagesEndRef.current.scrollIntoView({ 
             behavior: "smooth",
             block: "end"
           });
         } else {
-          console.log('Container or ref not found for auto-scroll');
+          console.log('messagesEndRef.current is null - cannot scroll');
         }
-      }, 1000); // Increased delay to 1 second
+      }, 1000); // 1 second delay
       
       return () => clearTimeout(scrollTimer);
     }
-  }, [filteredMessages, activeTab, mobileUserListOpen]);
+  }, [filteredMessages, activeTab]); // Removed mobileUserListOpen and length conditions
 
   // Separate effect for initial page load - runs once when chat becomes active
   useEffect(() => {
+    console.log('Initial load useEffect triggered:', { activeTab });
+    
     if (activeTab === 'chat') {
       const initialScrollTimer = setTimeout(() => {
-        const chatContainer = document.querySelector('.overflow-y-auto.space-y-1');
-        if (chatContainer && messagesEndRef.current) {
-          console.log('Initial page load - forcing scroll to bottom');
+        console.log('Initial page load - attempting scroll to bottom');
+        if (messagesEndRef.current) {
+          console.log('Initial scroll executing!');
           messagesEndRef.current.scrollIntoView({ 
-            behavior: "auto", // No smooth animation for initial load
+            behavior: "auto",
             block: "end"
           });
+        } else {
+          console.log('Initial scroll failed - messagesEndRef.current is null');
         }
-      }, 1500); // Even longer delay for initial load
+      }, 1500);
       
       return () => clearTimeout(initialScrollTimer);
     }
-  }, [activeTab]); // Only run when activeTab changes to 'chat'
+  }, [activeTab]);
 
   // TEMPORARILY DISABLED: Complex scroll detection - focusing on basic auto-scroll first
   /*
