@@ -3100,8 +3100,36 @@ async def create_bot_message(message_data: dict):
             
             return {"message": "Bot message posted successfully", "formatted_content": formatted_message}
         else:
-            logger.warning(f"Could not parse bot message: {raw_content}")
-            return {"message": "Message received but could not be parsed", "raw_content": raw_content}
+            # For debugging: create a message with raw content when parsing fails
+            logger.warning(f"Could not parse bot message, creating debug message")
+            
+            bot_user = await get_or_create_bot_user()
+            
+            # Create debug message showing raw content
+            debug_content = f"🔧 DEBUG: Raw email content\n📧 Subject: {email_subject}\n📝 Content: {raw_content[:500]}{'...' if len(raw_content) > 500 else ''}"
+            
+            chat_message = {
+                "id": str(uuid.uuid4()),
+                "user_id": bot_user["id"],
+                "username": bot_user["username"],
+                "content": debug_content,
+                "content_type": "text",
+                "is_admin": True,
+                "is_bot": True,
+                "real_name": bot_user["real_name"],
+                "screen_name": bot_user.get("screen_name"),
+                "avatar_url": bot_user.get("avatar_url"),
+                "timestamp": datetime.utcnow(),
+                "highlighted_tickers": [],
+                "reply_to_id": None,
+                "reply_to": None
+            }
+            
+            # Insert debug message into database
+            await db.messages.insert_one(chat_message)
+            
+            logger.info(f"Debug message created for unparsed content")
+            return {"message": "Debug message posted - parsing failed", "debug_content": debug_content}
             
     except Exception as e:
         logger.error(f"Error creating bot message: {e}")
