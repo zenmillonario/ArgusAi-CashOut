@@ -3076,26 +3076,23 @@ async def create_bot_message(message_data: dict):
             # Get or create bot user
             bot_user = await get_or_create_bot_user()
             
-            # Create chat message
-            chat_message = {
-                "id": str(uuid.uuid4()),
-                "user_id": bot_user["id"],
-                "username": bot_user["username"],
-                "content": formatted_message,
-                "content_type": "text",
-                "is_admin": True,  # Bot messages appear with admin styling
-                "is_bot": True,    # Special bot flag
-                "real_name": bot_user["real_name"],
-                "screen_name": bot_user.get("screen_name"),
-                "avatar_url": bot_user.get("avatar_url"),
-                "timestamp": datetime.utcnow(),
-                "highlighted_tickers": extract_tickers(formatted_message),
-                "reply_to_id": None,
-                "reply_to": None
-            }
+            # Create chat message using proper Message model
+            chat_message = Message(
+                user_id=bot_user["id"],
+                username=bot_user["username"],
+                content=formatted_message,
+                content_type="text",
+                is_admin=True,
+                real_name=bot_user["real_name"],
+                screen_name=bot_user.get("screen_name"),
+                avatar_url=bot_user.get("avatar_url"),
+                highlighted_tickers=extract_tickers(formatted_message),
+                reply_to_id=None,
+                reply_to=None
+            )
             
             # Insert into database
-            await db.messages.insert_one(chat_message)
+            await db.messages.insert_one(chat_message.dict())
             
             logger.info(f"Bot message created: {formatted_message}")
             
@@ -3109,25 +3106,22 @@ async def create_bot_message(message_data: dict):
             # Create debug message showing raw content
             debug_content = f"🔧 DEBUG: Raw email content\n📧 Subject: {email_subject}\n📝 Content: {raw_content[:500]}{'...' if len(raw_content) > 500 else ''}"
             
-            chat_message = {
-                "id": str(uuid.uuid4()),
-                "user_id": bot_user["id"],
-                "username": bot_user["username"],
-                "content": debug_content,
-                "content_type": "text",
-                "is_admin": True,
-                "is_bot": True,
-                "real_name": bot_user["real_name"],
-                "screen_name": bot_user.get("screen_name"),
-                "avatar_url": bot_user.get("avatar_url"),
-                "timestamp": datetime.utcnow(),
-                "highlighted_tickers": [],
-                "reply_to_id": None,
-                "reply_to": None
-            }
+            debug_message = Message(
+                user_id=bot_user["id"],
+                username=bot_user["username"],
+                content=debug_content,
+                content_type="text",
+                is_admin=True,
+                real_name=bot_user["real_name"],
+                screen_name=bot_user.get("screen_name"),
+                avatar_url=bot_user.get("avatar_url"),
+                highlighted_tickers=[],
+                reply_to_id=None,
+                reply_to=None
+            )
             
             # Insert debug message into database
-            await db.messages.insert_one(chat_message)
+            await db.messages.insert_one(debug_message.dict())
             
             logger.info(f"Debug message created for unparsed content")
             return {"message": "Debug message posted - parsing failed", "debug_content": debug_content}
