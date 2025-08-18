@@ -3455,48 +3455,44 @@ async def email_webhook(request: dict):
         logger.error(f"Error processing email webhook: {e}")
         raise HTTPException(status_code=500, detail="Failed to process email webhook")
 
-def is_price_alert_email(content: str, subject: str = "", sender: str = "") -> bool:
-    """Filter out unrelated emails - only process price alerts"""
-    try:
-        import re
-        
-        # Check for price alert keywords in subject or content
-        alert_keywords = [
-            "price alert", "stock alert", "trading alert",
-            "last =", "last is", "$", "bid", "ask", 
-            "volume", "trading at", "price target"
-        ]
-        
-        combined_text = (content + " " + subject).lower()
-        
-        # Must contain at least one alert keyword
-        has_alert_keywords = any(keyword in combined_text for keyword in alert_keywords)
-        
-        # Must contain a ticker-like pattern (2-5 capital letters)
-        has_ticker = bool(re.search(r'[A-Z]{2,5}', content + " " + subject))
-        
-        # Must contain a price-like pattern
-        has_price = bool(re.search(r'\$?[0-9]+\.?[0-9]*', content))
-        
-        # Filter out obvious spam/unrelated emails
-        spam_keywords = [
-            "unsubscribe", "viagra", "lottery", "winner", "claim",
-            "free money", "urgent", "act now", "limited time"
-        ]
-        
-        is_spam = any(spam in combined_text for spam in spam_keywords)
-        
-        # Email passes filter if it has alert indicators and isn't spam
-        is_valid = has_alert_keywords and has_ticker and has_price and not is_spam
-        
-        logger.info(f"Email filter check: alert_keywords={has_alert_keywords}, ticker={has_ticker}, price={has_price}, spam={is_spam}, valid={is_valid}")
-        
-        return is_valid
-        
-    except Exception as e:
-        logger.error(f"Error filtering email: {e}")
-        # Default to allowing email through if filter fails
-        return True
+def is_price_alert_email(content: str, subject: str, sender: str) -> bool:
+    """Determine if an email is a price alert that should be posted to chat"""
+    
+    # Trusted trading platform domains (case insensitive)
+    trusted_domains = [
+        'thinkorswim.com',
+        'schwab.com', 
+        'tradingview.com',
+        'robinhood.com',
+        'etrade.com',
+        'fidelity.com',
+        'alerts.com',
+        'tradingplatform.com',
+        'stocktrader.com',
+        'alerts@',  # Generic alerts prefix
+    ]
+    
+    # Check if sender is from trusted domain
+    sender_lower = sender.lower()
+    is_trusted_sender = any(domain in sender_lower for domain in trusted_domains)
+    
+    # Look for trading/alert keywords in subject and content
+    alert_keywords = ['alert', 'price', 'target', 'reached', 'trading', 'last', 'bid', 'ask']
+    combined_text = (subject + " " + content).lower()
+    has_alert_keywords = any(keyword in combined_text for keyword in alert_keywords)
+    
+    # Look for ticker symbols (2-5 capital letters)
+    has_ticker = bool(re.search(r'[A-Z]{2,5}', content + " " + subject))
+    
+    # Look for price information
+    has_price = bool(re.search(r'\$[0-9]*\.?[0-9]+|Last\s*=|Bid\s*=|Ask\s*=', content + " " + subject))
+    
+    # Must have ticker, price info, and either trusted sender OR alert keywords
+    is_alert = has_ticker and has_price and (is_trusted_sender or has_alert_keywords)
+    
+    logger.info(f"Email filter check - Sender: {sender}, Trusted: {is_trusted_sender}, Keywords: {has_alert_keywords}, Ticker: {has_ticker}, Price: {has_price}, Result: {is_alert}")
+    
+    return is_alert
 
 @api_router.post("/messages", response_model=Message)
 async def create_message(message_data: MessageCreate):
