@@ -1061,6 +1061,7 @@ function App() {
           password: loginForm.password
         });
         
+        // PERFORMANCE OPTIMIZATION: Show login success immediately
         setCurrentUser(response.data);
         setShowLogin(false);
         setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
@@ -1068,18 +1069,11 @@ function App() {
         // Save user to localStorage for persistence
         localStorage.setItem('cashoutai_user', JSON.stringify(response.data));
         
-        // Initialize Firebase push notifications
-        try {
-          console.log('Initializing Firebase notifications for user:', response.data.id);
-          const notificationSuccess = await notificationService.initializeForUser(response.data.id);
-          if (notificationSuccess) {
-            console.log('✅ Firebase notifications initialized successfully');
-          } else {
-            console.log('⚠️ Firebase notifications failed to initialize (may not be supported)');
-          }
-        } catch (error) {
-          console.error('Error initializing Firebase notifications:', error);
-        }
+        // PERFORMANCE OPTIMIZATION: Initialize Firebase push notifications asynchronously in background
+        // Don't await this - let it run in background so login completes immediately
+        setTimeout(() => {
+          initializeFirebaseAsync(response.data.id);
+        }, 100); // Small delay to ensure UI updates first
       }
     } catch (error) {
       console.error('Authentication error:', error);
