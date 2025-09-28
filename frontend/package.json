@@ -21,6 +21,7 @@
   "scripts": {
     "start": "DANGEROUSLY_DISABLE_HOST_CHECK=true react-scripts start",
     "build": "react-scripts build",
+    "build:render": "yarn install --frozen-lockfile=false && react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
