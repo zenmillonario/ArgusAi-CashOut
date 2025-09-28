@@ -24,6 +24,9 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // PERFORMANCE OPTIMIZATION: Loading states for better UX
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
