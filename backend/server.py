@@ -1692,15 +1692,22 @@ async def login_user(login_data: UserLogin):
         # Notify the old session to logout (but don't close connection yet)
         await manager.send_session_invalidation(user_obj.id, new_session_id)
     
-    # Calculate daily login streak and award XP
+    # PERFORMANCE OPTIMIZATION: Batch all login-related updates into a single operation
     today = datetime.utcnow().strftime('%Y-%m-%d')
     last_login = user.get("last_login_date")
     current_streak = user.get("daily_login_streak", 0)
     
+    # Prepare update operations
+    update_data = {
+        "is_online": True, 
+        "last_seen": datetime.utcnow(),
+        "active_session_id": new_session_id,
+        "session_created_at": datetime.utcnow()
+    }
+    
+    # Calculate XP and streak if it's a new day
+    xp_to_add = 0
     if last_login != today:
-        # Award daily login XP
-        await award_xp(user_obj.id, "daily_login", 10)
-        
         # Calculate streak
         if last_login:
             yesterday = (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d')
@@ -1711,36 +1718,126 @@ async def login_user(login_data: UserLogin):
         else:
             current_streak = 1
         
-        # Update login data
-        await db.users.update_one(
-            {"id": user_obj.id},
-            {"$set": {
-                "last_login_date": today,
-                "daily_login_streak": current_streak
-            }}
-        )
+        # Add to update data
+        update_data.update({
+            "last_login_date": today,
+            "daily_login_streak": current_streak
+        })
         
-        # Award streak XP if applicable
-        await award_xp(user_obj.id, "daily_login", 0, {"streak": current_streak})
+        # Add XP for daily login (but don't process achievements yet)
+        xp_to_add = 10
+        current_xp = user.get("experience_points", 0)
+        new_xp = current_xp + xp_to_add
+        new_level = get_level_from_xp(new_xp)
+        
+        update_data.update({
+            "experience_points": new_xp,
+            "level": new_level
+        })
     
-    # Update user with new session and online status FIRST
+    # SINGLE database update for all login data
     await db.users.update_one(
         {"id": user_obj.id},
-        {"$set": {
-            "is_online": True, 
-            "last_seen": datetime.utcnow(),
-            "active_session_id": new_session_id,
-            "session_created_at": datetime.utcnow()
-        }}
+        {"$set": update_data}
     )
     
-    # Add session_id to user object for frontend
+    # PERFORMANCE OPTIMIZATION: Process XP/achievements asynchronously in background
+    if xp_to_add > 0:
+        # Schedule background task for heavy operations (achievements, notifications, etc.)
+        asyncio.create_task(process_login_rewards_async(user_obj.id, current_streak, xp_to_add))
+    
+    # Add session_id to user object for frontend - update with new values
     user_obj.active_session_id = new_session_id
     user_obj.session_created_at = datetime.utcnow()
+    user_obj.is_online = True
+    user_obj.last_seen = datetime.utcnow()
     
-    print(f"User {user_obj.username} logged in with new session: {new_session_id}, old session: {old_session_id}")
+    # Update XP/level in response if changed
+    if xp_to_add > 0:
+        user_obj.experience_points = update_data["experience_points"]
+        user_obj.level = update_data["level"]
+        user_obj.last_login_date = today
+        user_obj.daily_login_streak = current_streak
+    
+    print(f"🚀 FAST LOGIN: User {user_obj.username} logged in with session: {new_session_id} (XP processing in background)")
     
     return user_obj
+
+async def process_login_rewards_async(user_id: str, streak: int, xp_added: int):
+    """Process heavy login rewards (achievements, notifications) in background"""
+    try:
+        print(f"🔄 Processing login rewards for user {user_id} in background...")
+        
+        # Only check specific login-related achievements to avoid heavy processing
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            return
+            
+        user_achievements = user.get("achievements", [])
+        
+        # Check only login streak achievements (not all achievements)
+        new_achievements = []
+        
+        # Check dedication achievement (30-day streak)
+        if "dedication" not in user_achievements and streak >= 30:
+            new_achievements.append("dedication")
+            await award_xp(user_id, "achievement_unlocked", ACHIEVEMENTS["dedication"]["points_reward"])
+        
+        # Check membership duration achievements only once per week to reduce load
+        if user.get("last_membership_check") != datetime.utcnow().strftime('%Y-%m-%d'):
+            created_at = user.get("created_at")
+            if created_at:
+                if isinstance(created_at, str):
+                    created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                days_since_creation = (datetime.utcnow() - created_at).days
+                
+                # Check membership achievements
+                for achievement_id in ["team_member_3m", "team_member_8m", "team_member_12m"]:
+                    if achievement_id not in user_achievements:
+                        required_days = 90 if "3m" in achievement_id else 240 if "8m" in achievement_id else 365
+                        if days_since_creation >= required_days:
+                            new_achievements.append(achievement_id)
+                            await award_xp(user_id, "achievement_unlocked", ACHIEVEMENTS[achievement_id]["points_reward"])
+            
+            # Update last check date
+            await db.users.update_one(
+                {"id": user_id},
+                {"$set": {"last_membership_check": datetime.utcnow().strftime('%Y-%m-%d')}}
+            )
+        
+        # Update achievements if any new ones were earned
+        if new_achievements:
+            print(f"🏆 Background: User {user_id} earned achievements: {new_achievements}")
+            
+            await db.users.update_one(
+                {"id": user_id},
+                {"$addToSet": {"achievements": {"$each": new_achievements}}}
+            )
+            
+            # Auto-share achievements in chat and create notifications
+            for achievement_id in new_achievements:
+                achievement = ACHIEVEMENTS[achievement_id]
+                await share_achievement_in_chat(user_id, achievement)
+                
+                # Create achievement notification
+                await create_user_notification(
+                    user_id=user_id,
+                    notification_type="achievement",
+                    title="🏆 Achievement Unlocked!",
+                    message=f"Congratulations! You've earned: {achievement['name']}",
+                    data={
+                        "achievement_id": achievement_id,
+                        "achievement_name": achievement["name"],
+                        "points": achievement["points_reward"],
+                        "action": "achievement_unlocked"
+                    }
+                )
+        
+        print(f"✅ Login rewards processing completed for user {user_id}")
+        
+    except Exception as e:
+        logger.error(f"Error processing login rewards: {e}")
+        # Don't let background task errors affect login
 
 @api_router.get("/users/{user_id}/session-status")
 async def check_session_status(user_id: str, session_id: str):
