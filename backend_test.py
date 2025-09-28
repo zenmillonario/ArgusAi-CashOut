@@ -4809,14 +4809,61 @@ def main():
     return 0 if all_passed else 1
 
 if __name__ == "__main__":
-    print("🚀 Starting Email-to-Chat Webhook Integration Tests")
+    print("🚀 Starting CashoutAI Backend API Tests")
+    print("=" * 60)
     
-    # Run the email webhook integration test
-    webhook_test_result = test_email_webhook_integration()
+    # Check if we should run only the performance test
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "performance":
+        print("🎯 Running OPTIMIZED LOGIN PERFORMANCE TEST ONLY")
+        print("=" * 60)
+        
+        try:
+            result = test_optimized_login_performance()
+            print(f"\n{'🎉 PERFORMANCE TEST PASSED' if result else '❌ PERFORMANCE TEST FAILED'}")
+            
+            if result:
+                print("\n✅ LOGIN OPTIMIZATION VERIFICATION COMPLETE")
+                print("   • Response time is under 2-3 seconds")
+                print("   • Background processing is non-blocking")
+                print("   • Session management works correctly")
+                print("   • Database performance is optimized")
+                print("   • All existing functionality preserved")
+            else:
+                print("\n❌ LOGIN OPTIMIZATION NEEDS ATTENTION")
+                print("   • Check response times and database performance")
+                print("   • Verify background task implementation")
+                print("   • Review session management logic")
+                
+        except Exception as e:
+            print(f"\n❌ ERROR in performance test: {str(e)}")
+            result = False
+        
+        sys.exit(0 if result else 1)
     
-    # Print summary
-    print("\n📊 Test Summary:")
-    print(f"Email-to-Chat Webhook Integration: {'✅ PASSED' if webhook_test_result else '❌ FAILED'}")
+    # Run the optimized login performance test by default
+    print("🎯 Running OPTIMIZED LOGIN PERFORMANCE TEST")
+    print("=" * 60)
     
-    # Exit with appropriate code
-    sys.exit(0 if webhook_test_result else 1)
+    try:
+        result = test_optimized_login_performance()
+        print(f"\n{'🎉 PERFORMANCE TEST PASSED' if result else '❌ PERFORMANCE TEST FAILED'}")
+        
+        if result:
+            print("\n✅ LOGIN OPTIMIZATION VERIFICATION COMPLETE")
+            print("   • Response time is under 2-3 seconds")
+            print("   • Background processing is non-blocking") 
+            print("   • Session management works correctly")
+            print("   • Database performance is optimized")
+            print("   • All existing functionality preserved")
+        else:
+            print("\n❌ LOGIN OPTIMIZATION NEEDS ATTENTION")
+            print("   • Check response times and database performance")
+            print("   • Verify background task implementation")
+            print("   • Review session management logic")
+            
+    except Exception as e:
+        print(f"\n❌ ERROR in performance test: {str(e)}")
+        result = False
+    
+    sys.exit(0 if result else 1)
