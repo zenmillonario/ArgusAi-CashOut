@@ -1090,13 +1090,14 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
         
         logger.info(f"Updated progress for {user_id}: {progress}")
         
-        # Check for new achievements
+        # PERFORMANCE OPTIMIZATION: Check only relevant achievements, not ALL achievements
         new_achievements = []
         
-        for achievement_id, achievement in ACHIEVEMENTS.items():
+        for achievement_id in achievements_to_check:
             if achievement_id in user_achievements:
                 continue  # Already earned
                 
+            achievement = ACHIEVEMENTS[achievement_id]
             earned = False
             
             if achievement_id == "chatterbox" and progress.get("chatterbox_count", 0) >= 100:
@@ -1104,47 +1105,8 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
             elif achievement_id == "heart_giver" and progress.get("heart_giver_count", 0) >= 50:
                 earned = True
                 logger.info(f"🏆 HEART_GIVER ACHIEVEMENT EARNED! Count: {progress.get('heart_giver_count', 0)}")
-            elif achievement_id == "dedication" and progress.get("login_streak", 0) >= 30:
-                earned = True
             elif achievement_id == "first_blood" and progress.get("profitable_trades", 0) >= 1:
                 earned = True
-            elif achievement_id == "profit_1k" and user.get("total_profit", 0) >= 1000:
-                earned = True
-            elif achievement_id == "profit_2k" and user.get("total_profit", 0) >= 2000:
-                earned = True
-            elif achievement_id == "profit_3k" and user.get("total_profit", 0) >= 3000:
-                earned = True
-            elif achievement_id == "profit_4k" and user.get("total_profit", 0) >= 4000:
-                earned = True
-            elif achievement_id == "profit_5k" and user.get("total_profit", 0) >= 5000:
-                earned = True
-            elif achievement_id == "team_member_3m":
-                # Check if user has been a member for 3 months (90 days)
-                created_at = user.get("created_at")
-                if created_at:
-                    if isinstance(created_at, str):
-                        created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                    days_since_creation = (datetime.utcnow() - created_at).days
-                    if days_since_creation >= 90:
-                        earned = True
-            elif achievement_id == "team_member_8m":
-                # Check if user has been a member for 8 months (240 days)
-                created_at = user.get("created_at")
-                if created_at:
-                    if isinstance(created_at, str):
-                        created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                    days_since_creation = (datetime.utcnow() - created_at).days
-                    if days_since_creation >= 240:
-                        earned = True
-            elif achievement_id == "team_member_12m":
-                # Check if user has been a member for 12 months (365 days)
-                created_at = user.get("created_at")
-                if created_at:
-                    if isinstance(created_at, str):
-                        created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                    days_since_creation = (datetime.utcnow() - created_at).days
-                    if days_since_creation >= 365:
-                        earned = True
             elif achievement_id == "referral_master":
                 # Check if user has successfully referred someone
                 successful_referrals = user.get("successful_referrals", 0)
