@@ -579,15 +579,18 @@ test_plan:
 
   - task: "Online Users Count Fix"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Fixed critical issue where online user count was always showing a fixed number (9 users) instead of actual count. Identified and cleaned up 61 stale user sessions in database that were marked as 'online' but hadn't been active for months. Implemented automatic stale session cleanup that runs every 10 minutes and immediate cleanup when new WebSocket connections are made. The online users count should now show accurate numbers (1-3 users typically) and update dynamically as users connect/disconnect."
+      - working: true
+        agent: "testing"
+        comment: "✅ ONLINE USERS COUNT FIX TESTING SUCCESSFUL. The fix is working correctly: 1) ACCURATE COUNT: Online users count now shows realistic numbers - observed 'Online Users (1)' instead of the old fixed count of 9 users, 2) WEBSOCKET INTEGRATION: WebSocket connection working properly with logs showing 'WebSocket connected successfully' and 'WebSocket message received: {type: online_users, users: Array(1)}', 3) REAL-TIME UPDATES: System properly receives online user updates via WebSocket messages including 'user_joined' and 'user_left' events, 4) STALE SESSION CLEANUP: Backend logs confirm automatic cleanup is working with periodic cleanup running every 10 minutes and immediate cleanup on new connections, 5) USER LIST ACCURACY: User list sidebar correctly displays only actually online users with proper online/offline status indicators. The online users count is now dynamic and shows accurate real-time data instead of the previous fixed count issue. The fix successfully resolves the reported problem."
 
 agent_communication:
   - agent: "main"
