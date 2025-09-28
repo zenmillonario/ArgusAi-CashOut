@@ -542,7 +542,7 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "Optimized Login Performance"
+    - "Online Users Count Fix"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
