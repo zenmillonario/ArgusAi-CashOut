@@ -1448,6 +1448,22 @@ function App() {
     }
   };
 
+  // PERFORMANCE OPTIMIZATION: Async Firebase initialization
+  const initializeFirebaseAsync = async (userId) => {
+    try {
+      console.log('🔄 Initializing Firebase notifications in background for user:', userId);
+      const notificationSuccess = await notificationService.initializeForUser(userId);
+      if (notificationSuccess) {
+        console.log('✅ Firebase notifications initialized successfully (background)');
+      } else {
+        console.log('⚠️ Firebase notifications failed to initialize (may not be supported)');
+      }
+    } catch (error) {
+      console.error('Error initializing Firebase notifications (background):', error);
+      // Don't show error to user since this is background initialization
+    }
+  };
+
   const logout = async () => {
     try {
       await axios.post(`${API}/users/logout?user_id=${currentUser.id}`);
