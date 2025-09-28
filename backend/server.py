@@ -1885,6 +1885,35 @@ async def process_login_rewards_async(user_id: str, streak: int, xp_added: int):
         logger.error(f"Error processing login rewards: {e}")
         # Don't let background task errors affect login
 
+@api_router.get("/users/online-count")
+async def get_online_count():
+    """Get current online user count for debugging"""
+    try:
+        # Clean up stale sessions first
+        await cleanup_stale_sessions()
+        
+        # Get fresh count
+        online_count = await db.users.count_documents({"is_online": True})
+        online_users = await db.users.find(
+            {"is_online": True}, 
+            {"username": 1, "real_name": 1, "last_seen": 1, "active_session_id": 1}
+        ).to_list(100)
+        
+        return {
+            "online_count": online_count,
+            "online_users": [
+                {
+                    "username": user["username"],
+                    "real_name": user.get("real_name"),
+                    "last_seen": user.get("last_seen"),
+                    "has_session": bool(user.get("active_session_id"))
+                } for user in online_users
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error getting online count: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get online count")
+
 @api_router.get("/users/{user_id}/session-status")
 async def check_session_status(user_id: str, session_id: str):
     """Check if a user's session is still valid"""
