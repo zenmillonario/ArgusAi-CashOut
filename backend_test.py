@@ -1751,6 +1751,243 @@ def test_trade_history():
     print("✅ Trade History with P&L Calculations test passed")
     return True
 
+def test_admin_approval_system():
+    """Test the admin approval system for ArgusAI CashOut"""
+    print("\n🔍 TESTING FEATURE: Admin Approval System for ArgusAI CashOut")
+    
+    tester = CashoutAITester()
+    
+    # Test 1: Registration Flow - New users should be set to PENDING status
+    print("\n📝 Test 1: Registration Flow - New users default to PENDING status")
+    
+    timestamp = datetime.now().strftime("%H%M%S")
+    test_username = f"pending_user_{timestamp}"
+    test_email = f"pending_{timestamp}@example.com"
+    test_real_name = f"Pending User {timestamp}"
+    
+    # Register a new user
+    new_user = tester.test_register_with_membership(
+        username=test_username,
+        email=test_email,
+        real_name=test_real_name,
+        membership_plan="Monthly",
+        password="TestPass123!"
+    )
+    
+    if not new_user:
+        print("❌ Failed to register new user")
+        return False
+    
+    # Verify user status is PENDING
+    if new_user.get('status') != 'pending':
+        print(f"❌ New user status is {new_user.get('status')}, expected 'pending'")
+        return False
+    
+    print(f"✅ New user registered with PENDING status: {new_user.get('status')}")
+    print(f"✅ User ID: {new_user.get('id')}")
+    print(f"✅ Username: {new_user.get('username')}")
+    print(f"✅ Membership Plan: {new_user.get('membership_plan')}")
+    
+    # Test 2: Login Restriction - Pending users should be blocked from login
+    print("\n🚫 Test 2: Login Restriction - Pending users cannot login")
+    
+    # Attempt to login with pending user credentials
+    success, login_response = tester.run_test(
+        "Login attempt with pending user",
+        "POST",
+        "users/login",
+        403,  # Expecting 403 Forbidden
+        data={"username": test_username, "password": "TestPass123!"}
+    )
+    
+    if not success:
+        print("❌ Login restriction test failed - expected 403 status")
+        return False
+    
+    # Check if the error message mentions pending approval
+    error_detail = login_response.get('detail', '')
+    if 'pending' not in error_detail.lower() or 'approval' not in error_detail.lower():
+        print(f"❌ Error message doesn't mention pending approval: {error_detail}")
+        return False
+    
+    print(f"✅ Pending user correctly blocked from login")
+    print(f"✅ Error message: {error_detail}")
+    
+    # Test 3: Admin Endpoints - Verify admin can see pending users
+    print("\n👑 Test 3: Admin Endpoints - Admin can see pending registrations")
+    
+    # Login as admin
+    admin_user = tester.test_login("admin", "admin123", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed, cannot test admin endpoints")
+        return False
+    
+    print(f"✅ Admin logged in successfully: {admin_user.get('username')}")
+    
+    # Get pending users
+    pending_users = tester.test_get_pending_users(tester.session1)
+    if pending_users is None:
+        print("❌ Failed to get pending users")
+        return False
+    
+    # Verify our test user is in the pending list
+    test_user_found = False
+    for user in pending_users:
+        if user.get('id') == new_user.get('id'):
+            test_user_found = True
+            print(f"✅ Test user found in pending list")
+            print(f"   - Username: {user.get('username')}")
+            print(f"   - Real Name: {user.get('real_name')}")
+            print(f"   - Email: {user.get('email')}")
+            print(f"   - Membership Plan: {user.get('membership_plan')}")
+            print(f"   - Status: {user.get('status')}")
+            break
+    
+    if not test_user_found:
+        print("❌ Test user not found in pending users list")
+        return False
+    
+    print(f"✅ Admin can see pending registrations ({len(pending_users)} total)")
+    
+    # Test 4: Approval Process - Verify approval changes user status to APPROVED
+    print("\n✅ Test 4: Approval Process - Admin can approve users")
+    
+    # Approve the test user
+    approval_result = tester.test_user_approval(
+        tester.session1,
+        new_user['id'],
+        admin_user['id'],
+        approved=True,
+        role="member"
+    )
+    
+    if not approval_result:
+        print("❌ Failed to approve user")
+        return False
+    
+    print(f"✅ User approval request successful")
+    
+    # Verify user can now login after approval
+    print("\n🔓 Test 5: Post-Approval Login - Approved user can now login")
+    
+    approved_user = tester.test_login(test_username, "TestPass123!", tester.session2)
+    if not approved_user:
+        print("❌ Approved user still cannot login")
+        return False
+    
+    # Verify user status is now APPROVED
+    if approved_user.get('status') != 'approved':
+        print(f"❌ User status is {approved_user.get('status')}, expected 'approved'")
+        return False
+    
+    print(f"✅ Approved user can now login successfully")
+    print(f"✅ User status: {approved_user.get('status')}")
+    print(f"✅ User role: {approved_user.get('role')}")
+    print(f"✅ Session ID: {approved_user.get('active_session_id')}")
+    
+    # Test 6: Rejection Process - Verify rejection works correctly
+    print("\n❌ Test 6: Rejection Process - Admin can reject users")
+    
+    # Create another test user for rejection
+    reject_timestamp = datetime.now().strftime("%H%M%S")
+    reject_username = f"reject_user_{reject_timestamp}"
+    reject_email = f"reject_{reject_timestamp}@example.com"
+    reject_real_name = f"Reject User {reject_timestamp}"
+    
+    reject_user = tester.test_register_with_membership(
+        username=reject_username,
+        email=reject_email,
+        real_name=reject_real_name,
+        membership_plan="Yearly",
+        password="RejectPass123!"
+    )
+    
+    if not reject_user:
+        print("❌ Failed to register user for rejection test")
+        return False
+    
+    print(f"✅ Created user for rejection test: {reject_user.get('username')}")
+    
+    # Reject the user
+    rejection_result = tester.test_user_approval(
+        tester.session1,
+        reject_user['id'],
+        admin_user['id'],
+        approved=False  # Reject the user
+    )
+    
+    if not rejection_result:
+        print("❌ Failed to reject user")
+        return False
+    
+    print(f"✅ User rejection request successful")
+    
+    # Verify rejected user still cannot login
+    success, reject_login_response = tester.run_test(
+        "Login attempt with rejected user",
+        "POST",
+        "users/login",
+        403,  # Expecting 403 Forbidden
+        data={"username": reject_username, "password": "RejectPass123!"}
+    )
+    
+    if not success:
+        print("❌ Rejected user login restriction test failed")
+        return False
+    
+    # Check if the error message mentions rejection
+    reject_error_detail = reject_login_response.get('detail', '')
+    if 'reject' not in reject_error_detail.lower():
+        print(f"❌ Error message doesn't mention rejection: {reject_error_detail}")
+        return False
+    
+    print(f"✅ Rejected user correctly blocked from login")
+    print(f"✅ Error message: {reject_error_detail}")
+    
+    # Test 7: Verify subscription-gated system protects against unauthorized access
+    print("\n🔒 Test 7: Subscription-Gated System Protection")
+    
+    # Verify that only approved users with membership plans can access the system
+    if approved_user.get('membership_plan') not in ['Monthly', 'Yearly', 'Lifetime']:
+        print(f"❌ Approved user doesn't have valid membership plan: {approved_user.get('membership_plan')}")
+        return False
+    
+    print(f"✅ Approved user has valid membership plan: {approved_user.get('membership_plan')}")
+    
+    # Verify admin controls are working
+    admin_users_list = tester.test_get_all_users(tester.session1)
+    if admin_users_list is None:
+        print("❌ Failed to get all users as admin")
+        return False
+    
+    # Count approved vs pending/rejected users
+    approved_count = sum(1 for user in admin_users_list if user.get('status') == 'approved')
+    total_count = len(admin_users_list)
+    
+    print(f"✅ Admin has proper tools to manage users:")
+    print(f"   - Total approved users: {approved_count}")
+    print(f"   - Total users in system: {total_count}")
+    print(f"   - Can view pending registrations: Yes")
+    print(f"   - Can approve/reject users: Yes")
+    
+    # Final Summary
+    print(f"\n📋 ADMIN APPROVAL SYSTEM TEST SUMMARY:")
+    print(f"   ✅ Registration Flow: New users default to PENDING status")
+    print(f"   ✅ Login Restriction: Pending users cannot login until approved")
+    print(f"   ✅ Admin Endpoints: Admins can see pending registrations")
+    print(f"   ✅ Approval Process: Approval changes user status to APPROVED")
+    print(f"   ✅ Post-Approval Login: Approved users can login normally")
+    print(f"   ✅ Rejection Process: Rejected users remain blocked")
+    print(f"   ✅ Subscription Protection: System protects against unauthorized access")
+    
+    print(f"🎉 ADMIN APPROVAL SYSTEM IS WORKING CORRECTLY")
+    print(f"   - New registrations require admin approval ✅")
+    print(f"   - Pending users cannot login until approved ✅")
+    print(f"   - Admin has proper tools to manage user approvals ✅")
+    print(f"   - System protects against unauthorized access ✅")
+    
+    return True
+
 def test_email_notification_system():
     """Test the email notification system for registration and approval"""
     print("\n🔍 TESTING FEATURE: Email Notification System")
