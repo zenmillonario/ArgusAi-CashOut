@@ -1040,6 +1040,9 @@ function App() {
     e.preventDefault();
     setError(null);
     
+    // PERFORMANCE OPTIMIZATION: Add loading state for better UX
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
+    
     try {
       if (isRegistering) {
         // Registration
