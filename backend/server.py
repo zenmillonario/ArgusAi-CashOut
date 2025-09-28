@@ -62,6 +62,7 @@ import base64
 import httpx
 import asyncio
 import sys
+from contextlib import asynccontextmanager
 from cash_prize import create_pending_cash_prize
 
 # Configure logging
