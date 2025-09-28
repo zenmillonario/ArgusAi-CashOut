@@ -1042,6 +1042,7 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setIsLoggingIn(true); // PERFORMANCE OPTIMIZATION: Show loading state
     
     try {
       if (isRegistering) {
