@@ -155,8 +155,31 @@ except Exception as e:
     email_service = None
     print(f"Warning: Email service not available. Email notifications will be disabled. Error: {e}")
 
+# ONLINE USERS FIX: Background task for periodic cleanup
+async def periodic_cleanup():
+    """Run periodic cleanup of stale sessions every 10 minutes"""
+    while True:
+        try:
+            await asyncio.sleep(600)  # 10 minutes
+            await cleanup_stale_sessions()
+        except Exception as e:
+            logger.error(f"Error in periodic cleanup: {e}")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start background cleanup task
+    cleanup_task = asyncio.create_task(periodic_cleanup())
+    logger.info("🧹 Started periodic stale session cleanup (every 10 minutes)")
+    yield
+    # Clean up on shutdown
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
+
 # Create the main app without a prefix
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
