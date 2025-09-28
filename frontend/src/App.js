@@ -1676,9 +1676,21 @@ function App() {
               
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
+                disabled={isLoggingIn}
+                className={`w-full py-3 rounded-lg font-semibold transition-all duration-200 ${
+                  isLoggingIn 
+                    ? 'bg-gray-400 cursor-not-allowed text-gray-200' 
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700'
+                }`}
               >
-                {isRegistering ? 'Register' : 'Login'}
+                {isLoggingIn ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Signing In...</span>
+                  </div>
+                ) : (
+                  isRegistering ? 'Register' : 'Login'
+                )}
               </button>
 
               {!isRegistering && (
