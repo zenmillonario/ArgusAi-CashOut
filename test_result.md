@@ -592,6 +592,21 @@ test_plan:
         agent: "testing"
         comment: "✅ ONLINE USERS COUNT FIX TESTING SUCCESSFUL. The fix is working correctly: 1) ACCURATE COUNT: Online users count now shows realistic numbers - observed 'Online Users (1)' instead of the old fixed count of 9 users, 2) WEBSOCKET INTEGRATION: WebSocket connection working properly with logs showing 'WebSocket connected successfully' and 'WebSocket message received: {type: online_users, users: Array(1)}', 3) REAL-TIME UPDATES: System properly receives online user updates via WebSocket messages including 'user_joined' and 'user_left' events, 4) STALE SESSION CLEANUP: Backend logs confirm automatic cleanup is working with periodic cleanup running every 10 minutes and immediate cleanup on new connections, 5) USER LIST ACCURACY: User list sidebar correctly displays only actually online users with proper online/offline status indicators. The online users count is now dynamic and shows accurate real-time data instead of the previous fixed count issue. The fix successfully resolves the reported problem."
 
+  - task: "Admin Approval System"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented comprehensive admin approval system with UserStatus enum (PENDING, APPROVED, REJECTED), new users default to PENDING status, login blocks with 'Account pending admin approval' message, admin endpoints for viewing pending users and approving/rejecting registrations. System protects subscription-gated business model by requiring admin approval for all new registrations."
+      - working: true
+        agent: "testing"
+        comment: "✅ ADMIN APPROVAL SYSTEM TESTING COMPLETED SUCCESSFULLY. Comprehensive testing verified all requirements: 1) REGISTRATION FLOW: New users correctly default to PENDING status - tested user registered with status 'pending', 2) LOGIN RESTRICTION: Pending users cannot login until approved - login attempt returned 403 with message 'Account pending admin approval. You will be notified within 5 minutes once approved', 3) ADMIN ENDPOINTS: Admin can see pending registrations via GET /api/users/pending - found test user in pending list with all required fields (username, real_name, email, membership_plan, status), 4) APPROVAL PROCESS: POST /api/users/approve successfully changes user status to APPROVED - approved user can login normally with status 'approved' and role 'member', 5) REJECTION PROCESS: Rejected users remain blocked with 403 error 'Account has been rejected', 6) SUBSCRIPTION PROTECTION: System protects against unauthorized access - only approved users with valid membership plans can access the system. Backend logs show fast login optimization working ('🚀 FAST LOGIN'), email notifications sent successfully, and proper 403 responses for unauthorized users. The subscription-gated admin approval system is working correctly for the user's business model."
+
 agent_communication:
   - agent: "main"
     message: "I've implemented Option 3 (Scroll Container Isolation) to fix the desktop/tablet layout issues. The changes include: 1) ISOLATED SCROLL CONTAINERS: Modified the chat layout to use separate scroll containers for chat messages vs user list, preventing chat auto-scroll from affecting the user list, 2) FIXED HEIGHT CALCULATIONS: Updated UserList height from calc(100vh - 160px) to calc(100vh - 200px) and ChatTab maxHeight to calc(100vh - 300px) to prevent elements from disappearing, 3) HEADER PADDING FIX: Increased header padding from py-4 to py-6 to fix XP info truncation issue, 4) OVERFLOW ISOLATION: Added overflow-hidden to parent containers and overflow-y-auto to specific scroll areas to prevent unwanted scrolling interference. The implementation maintains mobile functionality while fixing the desktop/tablet issues where the user list would disappear when chat auto-scrolled and XP info was truncated. Please test this on desktop/tablet views to verify the user list stays visible and XP info is fully displayed."
