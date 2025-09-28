@@ -101,7 +101,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Test the newly implemented backend for optional location, follow/unfollow functionality, and follower/following counts. Then implement frontend integration for the optional location field and follow/unfollow system, displaying counts on user profiles and lists."
+user_problem_statement: "Test the optimized login performance for ArgusAI CashOut application. I've implemented several performance optimizations to fix the slow login issue including backend optimizations (asynchronous XP/achievement processing, reduced database queries, comprehensive database indexes, background processing for login rewards) and frontend optimizations (asynchronous Firebase initialization, loading states and progress indicators). Please test the login endpoint /api/users/login with credentials admin/admin123 and measure response times, database performance, background processing, and session management."
 
 backend:
   - task: "Email-to-Chat Webhook Integration"
