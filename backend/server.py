@@ -1020,10 +1020,15 @@ async def share_achievement_in_chat(user_id: str, achievement: dict):
         logger.error(f"Error sharing achievement in chat: {e}")
 
 async def check_achievements(user_id: str, action: str, metadata: dict):
-    """Check and award achievements based on user actions"""
+    """Check and award achievements based on user actions - OPTIMIZED VERSION"""
     try:
         logger.info(f"check_achievements called for user {user_id}, action: {action}")
         
+        # PERFORMANCE OPTIMIZATION: Skip heavy achievement checking for login actions
+        # These are now handled in background via process_login_rewards_async
+        if action == "daily_login":
+            return
+            
         # Use atomic operation to increment counters directly in the database
         if action == "chat_message":
             await db.users.update_one(
@@ -1041,19 +1046,41 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
                 {"id": user_id},
                 {"$inc": {"achievement_progress.profitable_trades": 1}}
             )
-        elif action == "daily_login":
-            await db.users.update_one(
-                {"id": user_id},
-                {"$set": {"achievement_progress.login_streak": metadata.get("streak", 0)}}
-            )
         elif action == "referral_success":
             await db.users.update_one(
                 {"id": user_id},
                 {"$inc": {"achievement_progress.successful_referrals": 1}}
             )
         
-        # Now fetch the updated user data
-        user = await db.users.find_one({"id": user_id})
+        # PERFORMANCE OPTIMIZATION: Only check specific achievements based on action
+        # Don't fetch full user data and check ALL achievements every time
+        achievements_to_check = []
+        
+        if action == "chat_message":
+            achievements_to_check = ["chatterbox"]
+        elif action == "heart_reaction":
+            achievements_to_check = ["heart_giver"]  
+        elif action == "profitable_trade":
+            achievements_to_check = ["first_blood"]
+        elif action == "referral_success":
+            achievements_to_check = ["referral_master"]
+        elif action == "achievement_unlocked":
+            # Skip recursive achievement checking
+            return
+        
+        if not achievements_to_check:
+            return
+            
+        # Fetch minimal user data needed for specific achievements
+        user = await db.users.find_one(
+            {"id": user_id}, 
+            {
+                "achievements": 1, 
+                "achievement_progress": 1,
+                "total_profit": 1,
+                "successful_referrals": 1
+            }
+        )
         if not user:
             logger.error(f"User {user_id} not found in check_achievements")
             return
