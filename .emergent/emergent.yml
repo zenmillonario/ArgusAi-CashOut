@@ -1,7 +1,4 @@
 {
-<<<<<<< HEAD
-  "env_image_name": "fastapi_react_mongo_base_image_cloud_arm:v2.8.3"
-=======
-  "env_image_name": "fastapi_react_mongo_base_image_cloud_arm:2.8.0"
->>>>>>> origin/main
+  "job_id": "1a04ac5d-fabc-4b4d-8357-3be11900de79",
+  "created_at": "2025-09-28T20:45:10.049157+00:00Z"
 }
