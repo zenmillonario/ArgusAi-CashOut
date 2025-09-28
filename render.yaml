@@ -1,0 +1,46 @@
+services:
+  # Backend Service
+  - type: web
+    name: argusai-backend
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: |
+      cd backend
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: |
+      cd backend
+      uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.6
+    
+  # Frontend Service  
+  - type: web
+    name: argusai-frontend
+    env: node
+    region: oregon
+    plan: starter
+    buildCommand: |
+      cd frontend
+      yarn install --frozen-lockfile=false
+      yarn build
+    startCommand: |
+      cd frontend
+      yarn global add serve
+      serve -s build -p $PORT
+    envVars:
+      - key: REACT_APP_BACKEND_URL
+        fromService:
+          type: web
+          name: argusai-backend
+          property: host
+      - key: NODE_VERSION
+        value: 18.18.0
