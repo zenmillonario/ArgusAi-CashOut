@@ -5049,58 +5049,86 @@ if __name__ == "__main__":
     print("🚀 Starting CashoutAI Backend API Tests")
     print("=" * 60)
     
-    # Check if we should run only the performance test
+    # Check if we should run specific tests
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "performance":
-        print("🎯 Running OPTIMIZED LOGIN PERFORMANCE TEST ONLY")
-        print("=" * 60)
+    if len(sys.argv) > 1:
+        test_type = sys.argv[1]
         
-        try:
-            result = test_optimized_login_performance()
-            print(f"\n{'🎉 PERFORMANCE TEST PASSED' if result else '❌ PERFORMANCE TEST FAILED'}")
+        if test_type == "performance":
+            print("🎯 Running OPTIMIZED LOGIN PERFORMANCE TEST ONLY")
+            print("=" * 60)
             
-            if result:
-                print("\n✅ LOGIN OPTIMIZATION VERIFICATION COMPLETE")
-                print("   • Response time is under 2-3 seconds")
-                print("   • Background processing is non-blocking")
-                print("   • Session management works correctly")
-                print("   • Database performance is optimized")
-                print("   • All existing functionality preserved")
-            else:
-                print("\n❌ LOGIN OPTIMIZATION NEEDS ATTENTION")
-                print("   • Check response times and database performance")
-                print("   • Verify background task implementation")
-                print("   • Review session management logic")
+            try:
+                result = test_optimized_login_performance()
+                print(f"\n{'🎉 PERFORMANCE TEST PASSED' if result else '❌ PERFORMANCE TEST FAILED'}")
                 
-        except Exception as e:
-            print(f"\n❌ ERROR in performance test: {str(e)}")
-            result = False
+                if result:
+                    print("\n✅ LOGIN OPTIMIZATION VERIFICATION COMPLETE")
+                    print("   • Response time is under 2-3 seconds")
+                    print("   • Background processing is non-blocking")
+                    print("   • Session management works correctly")
+                    print("   • Database performance is optimized")
+                    print("   • All existing functionality preserved")
+                else:
+                    print("\n❌ LOGIN OPTIMIZATION NEEDS ATTENTION")
+                    print("   • Check response times and database performance")
+                    print("   • Verify background task implementation")
+                    print("   • Review session management logic")
+                    
+            except Exception as e:
+                print(f"\n❌ ERROR in performance test: {str(e)}")
+                result = False
+            
+            sys.exit(0 if result else 1)
         
-        sys.exit(0 if result else 1)
+        elif test_type == "admin":
+            print("🎯 Running ADMIN APPROVAL SYSTEM TEST ONLY")
+            print("=" * 60)
+            
+            try:
+                result = test_admin_approval_system()
+                print(f"\n{'🎉 ADMIN APPROVAL TEST PASSED' if result else '❌ ADMIN APPROVAL TEST FAILED'}")
+                
+                if result:
+                    print("\n✅ ADMIN APPROVAL SYSTEM VERIFICATION COMPLETE")
+                    print("   • New registrations require admin approval")
+                    print("   • Pending users cannot login until approved")
+                    print("   • Admin has proper tools to manage user approvals")
+                    print("   • System protects against unauthorized access")
+                else:
+                    print("\n❌ ADMIN APPROVAL SYSTEM NEEDS ATTENTION")
+                    print("   • Check user registration flow")
+                    print("   • Verify login restrictions for pending users")
+                    print("   • Review admin approval endpoints")
+                    
+            except Exception as e:
+                print(f"\n❌ ERROR in admin approval test: {str(e)}")
+                result = False
+            
+            sys.exit(0 if result else 1)
     
-    # Run the optimized login performance test by default
-    print("🎯 Running OPTIMIZED LOGIN PERFORMANCE TEST")
+    # Run the admin approval system test by default (as requested in the review)
+    print("🎯 Running ADMIN APPROVAL SYSTEM TEST")
     print("=" * 60)
     
     try:
-        result = test_optimized_login_performance()
-        print(f"\n{'🎉 PERFORMANCE TEST PASSED' if result else '❌ PERFORMANCE TEST FAILED'}")
+        result = test_admin_approval_system()
+        print(f"\n{'🎉 ADMIN APPROVAL TEST PASSED' if result else '❌ ADMIN APPROVAL TEST FAILED'}")
         
         if result:
-            print("\n✅ LOGIN OPTIMIZATION VERIFICATION COMPLETE")
-            print("   • Response time is under 2-3 seconds")
-            print("   • Background processing is non-blocking") 
-            print("   • Session management works correctly")
-            print("   • Database performance is optimized")
-            print("   • All existing functionality preserved")
+            print("\n✅ ADMIN APPROVAL SYSTEM VERIFICATION COMPLETE")
+            print("   • New registrations require admin approval")
+            print("   • Pending users cannot login until approved") 
+            print("   • Admin has proper tools to manage user approvals")
+            print("   • System protects against unauthorized access")
         else:
-            print("\n❌ LOGIN OPTIMIZATION NEEDS ATTENTION")
-            print("   • Check response times and database performance")
-            print("   • Verify background task implementation")
-            print("   • Review session management logic")
+            print("\n❌ ADMIN APPROVAL SYSTEM NEEDS ATTENTION")
+            print("   • Check user registration flow")
+            print("   • Verify login restrictions for pending users")
+            print("   • Review admin approval endpoints")
             
     except Exception as e:
-        print(f"\n❌ ERROR in performance test: {str(e)}")
+        print(f"\n❌ ERROR in admin approval test: {str(e)}")
         result = False
     
     sys.exit(0 if result else 1)
