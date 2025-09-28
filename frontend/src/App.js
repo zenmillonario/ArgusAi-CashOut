@@ -1083,6 +1083,8 @@ function App() {
       console.error('Authentication error:', error);
       const errorMessage = error.response?.data?.detail || 'An error occurred during authentication';
       setError(errorMessage);
+    } finally {
+      setIsLoggingIn(false); // PERFORMANCE OPTIMIZATION: Clear loading state
     }
   };
 
