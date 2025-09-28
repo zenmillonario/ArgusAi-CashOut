@@ -13,6 +13,10 @@
     "react-scripts": "5.0.1",
     "recharts": "^3.1.0"
   },
+  "engines": {
+    "node": ">=18.0.0",
+    "yarn": ">=1.22.0"
+  },
   "proxy": "http://localhost:8001",
   "scripts": {
     "start": "DANGEROUSLY_DISABLE_HOST_CHECK=true react-scripts start",
