@@ -577,6 +577,18 @@ test_plan:
         agent: "testing"
         comment: "✅ SCROLL CONTAINER ISOLATION FIX TESTING COMPLETED SUCCESSFULLY. Comprehensive testing on desktop (1920x1080) and tablet (1024x768) viewports confirmed all requirements are working correctly: 1) DESKTOP LAYOUT: User list stays visible with fixed width (256px w-64 class), XP progress bar fully visible in header with increased padding (191px height), auto-scroll tested with 5 messages - user list remained stable and visible throughout, 2) TABLET LAYOUT: Responsive behavior working correctly, mobile user list toggle functionality present, layout adapts properly for tablet viewport, 3) SCROLL CONTAINER ISOLATION: Found multiple scroll containers with overflow-y-auto (proper isolation), chat messages and user list have separate scroll areas, user list position remained stable during chat scrolling, 4) LAYOUT ELEMENTS: Fixed width elements (w-64) properly implemented, height calculations with calc() detected, overflow properties correctly applied. The scroll container isolation fix successfully prevents the user list from disappearing when chat auto-scrolls, and the XP info is fully displayed in the header. All test scenarios passed successfully."
 
+  - task: "Online Users Count Fix"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Fixed critical issue where online user count was always showing a fixed number (9 users) instead of actual count. Identified and cleaned up 61 stale user sessions in database that were marked as 'online' but hadn't been active for months. Implemented automatic stale session cleanup that runs every 10 minutes and immediate cleanup when new WebSocket connections are made. The online users count should now show accurate numbers (1-3 users typically) and update dynamically as users connect/disconnect."
+
 agent_communication:
   - agent: "main"
     message: "I've implemented Option 3 (Scroll Container Isolation) to fix the desktop/tablet layout issues. The changes include: 1) ISOLATED SCROLL CONTAINERS: Modified the chat layout to use separate scroll containers for chat messages vs user list, preventing chat auto-scroll from affecting the user list, 2) FIXED HEIGHT CALCULATIONS: Updated UserList height from calc(100vh - 160px) to calc(100vh - 200px) and ChatTab maxHeight to calc(100vh - 300px) to prevent elements from disappearing, 3) HEADER PADDING FIX: Increased header padding from py-4 to py-6 to fix XP info truncation issue, 4) OVERFLOW ISOLATION: Added overflow-hidden to parent containers and overflow-y-auto to specific scroll areas to prevent unwanted scrolling interference. The implementation maintains mobile functionality while fixing the desktop/tablet issues where the user list would disappear when chat auto-scrolled and XP info was truncated. Please test this on desktop/tablet views to verify the user list stays visible and XP info is fully displayed."
