@@ -363,9 +363,42 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# ONLINE USERS FIX: Add automatic stale session cleanup
+async def cleanup_stale_sessions():
+    """Clean up stale sessions (users marked online but inactive for >30 minutes)"""
+    try:
+        thirty_minutes_ago = datetime.utcnow() - timedelta(minutes=30)
+        
+        # Find stale sessions
+        stale_sessions = await db.users.find({
+            "is_online": True,
+            "last_seen": {"$lt": thirty_minutes_ago}
+        }).to_list(1000)
+        
+        if stale_sessions:
+            stale_ids = [user['id'] for user in stale_sessions]
+            result = await db.users.update_many(
+                {"id": {"$in": stale_ids}},
+                {"$set": {"is_online": False}}
+            )
+            logger.info(f"🧹 Cleaned up {result.modified_count} stale sessions")
+            
+            # Broadcast user_left for each stale session
+            for user in stale_sessions:
+                await manager.broadcast(json.dumps({
+                    "type": "user_left",
+                    "user_id": user['id']
+                }, default=str))
+                
+    except Exception as e:
+        logger.error(f"Error cleaning up stale sessions: {e}")
+
 # WebSocket endpoint for real-time chat
 @app.websocket("/api/ws/{user_id}/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str):
+    # ONLINE USERS FIX: Clean up stale sessions before connecting
+    await cleanup_stale_sessions()
+    
     # Validate user and session
     user = await db.users.find_one({"id": user_id, "active_session_id": session_id})
     if not user:
