@@ -3745,8 +3745,14 @@ async def create_message(message_data: MessageCreate):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Check if user is approved
-    if user.get("status") != UserStatus.APPROVED:
+    # Check user status for chat access
+    user_status = user.get("status")
+    if user_status == UserStatus.TRIAL_EXPIRED:
+        raise HTTPException(
+            status_code=403, 
+            detail="Chat access restricted. Your trial has expired. Upgrade your account to continue chatting with other traders."
+        )
+    elif user_status not in [UserStatus.APPROVED, UserStatus.TRIAL]:
         raise HTTPException(status_code=403, detail="Only approved users can send messages")
     
     # Extract stock tickers only for text messages
