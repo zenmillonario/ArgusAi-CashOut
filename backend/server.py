@@ -3897,7 +3897,16 @@ async def create_message(message_data: MessageCreate):
     return message
 
 @api_router.get("/messages", response_model=List[Message])
-async def get_messages(limit: int = 50):
+async def get_messages(limit: int = 50, user_id: Optional[str] = None):
+    # TRIAL SYSTEM: Check user access for chat viewing
+    if user_id:
+        user = await db.users.find_one({"id": user_id})
+        if user and user.get("status") == UserStatus.TRIAL_EXPIRED:
+            raise HTTPException(
+                status_code=403, 
+                detail="Chat viewing restricted. Your trial has expired. Upgrade your account to view trader discussions."
+            )
+    
     messages = await db.messages.find().sort("timestamp", -1).limit(limit).to_list(limit)
     
     # Clean up messages for compatibility
