@@ -654,7 +654,7 @@ The ArgusAI CashOut Team
             
             <div class="pricing-box">
                 <h3>💰 Exclusive Trial Member Discount</h3>
-                <p>After your trial, use this code for <strong>20% OFF</strong> any membership plan:</p>
+                <p>Use this code <strong>anytime</strong> for <strong>20% OFF</strong> any membership plan:</p>
                 <div style="text-align: center;">
                     <div class="discount-code">ARGUS20</div>
                 </div>
