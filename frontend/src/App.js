@@ -1673,12 +1673,19 @@ function App() {
               
               {isRegistering && (
                 <div className={`p-3 rounded-lg border ${
-                  isDarkTheme 
-                    ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
-                    : 'bg-blue-50 border-blue-200 text-blue-600'
+                  loginForm.membership_plan === "14-Day Trial"
+                    ? isDarkTheme 
+                      ? 'bg-green-500/10 border-green-500/30 text-green-400' 
+                      : 'bg-green-50 border-green-200 text-green-600'
+                    : isDarkTheme 
+                      ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
+                      : 'bg-blue-50 border-blue-200 text-blue-600'
                 }`}>
                   <p className="text-sm">
-                    📝 Your account will be approved within 5 minutes after registration.
+                    {loginForm.membership_plan === "14-Day Trial" 
+                      ? '🎯 Trial accounts are approved instantly! Start trading immediately after registration.' 
+                      : '📝 Your account will be approved within 5 minutes after registration.'
+                    }
                   </p>
                 </div>
               )}
