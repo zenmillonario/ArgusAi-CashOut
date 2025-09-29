@@ -1,5 +1,28 @@
 {
   "appId": "com.argusai.cashout",
   "appName": "ArgusAI CashOut",
-  "webDir": "build"
+  "webDir": "build",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#1f2937",
+      "showSpinner": true,
+      "spinnerColor": "#ffffff"
+    },
+    "StatusBar": {
+      "style": "DARK"
+    },
+    "Keyboard": {
+      "resize": "body"
+    }
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  }
 }
