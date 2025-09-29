@@ -396,12 +396,21 @@ Your 14-day trial with ArgusAI CashOut has ended, but we have an exclusive offer
 
 🎉 SPECIAL OFFER: 20% OFF any membership plan with code ARGUS20!
 
-💰 CHOOSE YOUR PLAN:
-• Monthly Plan ($199/month) - https://square.link/u/dhjuwn84
-• Yearly Plan ($1,296/year) - https://square.link/u/kKmNauCe  
-• Lifetime Plan ($3,969 one-time) - https://square.link/u/dRSryNkx
+💰 CHOOSE YOUR PLAN - ONE CLICK PAYMENT:
 
-💡 Don't forget to enter ARGUS20 at checkout for your 20% discount!
+💳 MONTHLY PLAN: $199/month → $159.20/month (Save $39.80)
+   ► PAYMENT LINK: https://square.link/u/dhjuwn84
+
+🏆 YEARLY PLAN: $1,296/year → $1,036.80/year (Save $259.20) [BEST VALUE]
+   ► PAYMENT LINK: https://square.link/u/kKmNauCe
+
+💎 LIFETIME PLAN: $3,969 → $3,175.20 (Save $793.80) [NEVER PAY AGAIN]
+   ► PAYMENT LINK: https://square.link/u/dRSryNkx
+
+💡 CHECKOUT INSTRUCTIONS:
+1. Click your preferred payment link above
+2. Enter discount code: ARGUS20 (in "Add Coupon" field)
+3. Complete payment and regain full access instantly!
 
 🚀 UPGRADE BENEFITS:
 • Unlimited real-time chat with successful traders
