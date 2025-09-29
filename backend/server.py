@@ -3249,6 +3249,40 @@ async def bulk_remove_trial_users(admin_id: str, user_ids: list):
         }
     }
 
+@api_router.post("/admin/allow-reregistration")
+async def allow_rejected_user_reregistration(user_id: str, admin_id: str):
+    """Allow a rejected user to register again by removing their rejected account"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Find the rejected user
+    rejected_user = await db.users.find_one({"id": user_id})
+    if not rejected_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if rejected_user.get("status") != UserStatus.REJECTED:
+        raise HTTPException(status_code=400, detail="User is not in rejected status")
+    
+    username = rejected_user.get("username")
+    email = rejected_user.get("email")
+    
+    # Remove the rejected user account to allow re-registration
+    await db.users.delete_one({"id": user_id})
+    await db.messages.delete_many({"user_id": user_id})
+    await db.notifications.delete_many({"user_id": user_id})
+    
+    logger.info(f"🔓 ADMIN ALLOWED RE-REGISTRATION: {username} by admin {admin['username']}")
+    
+    return {
+        "message": f"User {username} can now register again",
+        "username": username,
+        "email": email,
+        "action_by": admin["username"],
+        "note": "The user's rejected account has been removed and they can now register with the same username/email"
+    }
+
 @api_router.get("/users/{user_id}/referrals")
 async def get_user_referrals(user_id: str):
     """Get user's referral information"""
