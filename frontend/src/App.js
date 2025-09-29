@@ -1021,17 +1021,27 @@ function App() {
       const url = currentUser ? `${API}/messages/welcome?user_id=${currentUser.id}` : `${API}/messages?limit=200`;
       const response = await axios.get(url);
       setMessages(response.data);
-      console.log(`✅ NEW USER WELCOME: Loaded ${response.data.length} historical messages for ${currentUser?.username || 'user'}`);
+      
+      // CRITICAL UX FIX: Handle empty message state
+      if (response.data.length === 0) {
+        console.log('📭 No messages in database - showing empty state');
+        setMessages([]); // Ensure empty array to trigger empty state UI
+      } else {
+        console.log(`✅ NEW USER WELCOME: Loaded ${response.data.length} historical messages for ${currentUser?.username || 'user'}`);
+      }
     } catch (error) {
       console.error('Error loading messages:', error);
+      setMessages([]); // Set empty array on error to avoid infinite loading
+      
       // If there's an access error, try the regular endpoint
       if (error.response?.status === 403) {
         try {
           const response = await axios.get(`${API}/messages?limit=100`);
-          setMessages(response.data);
-          console.log(`✅ Loaded ${response.data.length} messages (fallback)`);
+          setMessages(response.data || []);
+          console.log(`✅ Loaded ${response.data?.length || 0} messages (fallback)`);
         } catch (fallbackError) {
           console.error('Fallback message loading failed:', fallbackError);
+          setMessages([]); // Ensure empty state on complete failure
         }
       }
     }
