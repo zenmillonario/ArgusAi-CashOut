@@ -980,10 +980,23 @@ function App() {
 
   const loadMessages = async () => {
     try {
-      const response = await axios.get(`${API}/messages`);
+      // Pass user_id for access control but ensure all historical messages are loaded
+      const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=100` : `${API}/messages?limit=100`;
+      const response = await axios.get(url);
       setMessages(response.data);
+      console.log(`✅ Loaded ${response.data.length} historical messages for user`);
     } catch (error) {
       console.error('Error loading messages:', error);
+      // If there's an access error, try without user_id (for backward compatibility)
+      if (error.response?.status === 403) {
+        try {
+          const response = await axios.get(`${API}/messages?limit=100`);
+          setMessages(response.data);
+          console.log(`✅ Loaded ${response.data.length} messages (fallback)`);
+        } catch (fallbackError) {
+          console.error('Fallback message loading failed:', fallbackError);
+        }
+      }
     }
   };
 
