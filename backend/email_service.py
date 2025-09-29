@@ -475,8 +475,8 @@ ArgusAI CashOut Team
             <div class="plan-card">
                 <h4>Monthly Plan</h4>
                 <div class="plan-price">
-                    <span class="plan-original">$47/month</span><br>
-                    <span class="plan-discounted">$37.60/month with ARGUS20</span>
+                    <span class="plan-original">$199/month</span><br>
+                    <span class="plan-discounted">$159.20/month with ARGUS20</span>
                 </div>
                 <p>Perfect for getting started</p>
                 <a href="https://square.link/u/dhjuwn84" class="plan-button">Choose Monthly Plan</a>
