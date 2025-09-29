@@ -386,31 +386,37 @@ ArgusAI CashOut Team
         user_email: str, 
         user_name: str
     ) -> bool:
-        """Send trial upgrade email with Argus20 discount code"""
+        """Send trial upgrade email with Square payment links and ARGUS20 discount code"""
         subject = "🎯 Your ArgusAI Trial Expired - 20% OFF with ARGUS20!"
         
         plain_body = f"""
 Hi {user_name},
 
-Your 14-day trial with ArgusAI CashOut has ended, but don't worry - we have a special offer for you!
+Your 14-day trial with ArgusAI CashOut has ended, but we have an exclusive offer just for you!
 
-🎉 EXCLUSIVE OFFER: Use code ARGUS20 for 20% OFF any membership plan!
+🎉 SPECIAL OFFER: 20% OFF any membership plan with code ARGUS20!
 
-What You're Missing:
-• Real-time chat with traders (RESTRICTED)
-• Full access to all premium features
-• Advanced portfolio analytics
-• Priority support
+💰 CHOOSE YOUR PLAN:
+• Monthly Plan ($47/month) - https://square.link/u/dhjuwn84
+• Yearly Plan ($470/year) - https://square.link/u/kKmNauCe  
+• Lifetime Plan ($997 one-time) - https://square.link/u/dRSryNkx
+
+💡 Don't forget to enter ARGUS20 at checkout for your 20% discount!
+
+🚀 UPGRADE BENEFITS:
+• Unlimited real-time chat with successful traders
+• Advanced portfolio analytics and insights
+• Priority customer support
+• Exclusive trading signals and alerts
+• Access to premium educational content
 
 Your account is now in LIMITED ACCESS mode:
-✅ You can still view your portfolio
-✅ Access paper trading
-✅ View market data
-❌ Chat access is restricted
+✅ Portfolio management available
+✅ Paper trading accessible
+✅ Market data viewing
+❌ Chat access restricted (upgrade to unlock)
 
-Ready to upgrade? Use discount code: ARGUS20
-
-Upgrade now to get back full access with 20% savings!
+Ready to rejoin our trading community? Choose your plan and save 20%!
 
 --
 ArgusAI CashOut Team
