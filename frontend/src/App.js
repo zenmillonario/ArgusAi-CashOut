@@ -1017,30 +1017,45 @@ function App() {
 
   const loadMessages = async () => {
     try {
-      // NEW USER HISTORY: Load comprehensive message history for all users including new members
-      const url = currentUser ? `${API}/messages/welcome?user_id=${currentUser.id}` : `${API}/messages?limit=200`;
+      console.log('🔄 Starting message load...', new Date().toISOString());
+      const startTime = performance.now();
+      
+      // PERFORMANCE OPTIMIZATION: Start with smaller limit for faster initial load
+      const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=50` : `${API}/messages?limit=50`;
       const response = await axios.get(url);
-      setMessages(response.data);
+      
+      const loadTime = performance.now() - startTime;
+      console.log(`⚡ API Response received in ${loadTime.toFixed(2)}ms`);
+      
+      // Process messages immediately
+      const processStart = performance.now();
+      setMessages(response.data || []);
+      const processTime = performance.now() - processStart;
+      console.log(`📊 Messages processed in ${processTime.toFixed(2)}ms`);
       
       // CRITICAL UX FIX: Handle empty message state
-      if (response.data.length === 0) {
+      if (!response.data || response.data.length === 0) {
         console.log('📭 No messages in database - showing empty state');
         setMessages([]); // Ensure empty array to trigger empty state UI
       } else {
-        console.log(`✅ NEW USER WELCOME: Loaded ${response.data.length} historical messages for ${currentUser?.username || 'user'}`);
+        console.log(`✅ FAST LOAD: ${response.data.length} messages loaded in ${loadTime.toFixed(2)}ms for ${currentUser?.username || 'user'}`);
       }
+      
+      console.log(`🏁 Total load time: ${(performance.now() - startTime).toFixed(2)}ms`);
+      
     } catch (error) {
-      console.error('Error loading messages:', error);
+      console.error('❌ Error loading messages:', error);
       setMessages([]); // Set empty array on error to avoid infinite loading
       
       // If there's an access error, try the regular endpoint
       if (error.response?.status === 403) {
         try {
-          const response = await axios.get(`${API}/messages?limit=100`);
+          console.log('🔄 Trying fallback endpoint...');
+          const response = await axios.get(`${API}/messages?limit=50`);
           setMessages(response.data || []);
-          console.log(`✅ Loaded ${response.data?.length || 0} messages (fallback)`);
+          console.log(`✅ Fallback loaded ${response.data?.length || 0} messages`);
         } catch (fallbackError) {
-          console.error('Fallback message loading failed:', fallbackError);
+          console.error('❌ Fallback message loading failed:', fallbackError);
           setMessages([]); // Ensure empty state on complete failure
         }
       }
