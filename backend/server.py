@@ -4056,6 +4056,9 @@ async def get_messages(limit: int = 100, user_id: Optional[str] = None):
     
     try:
         return [Message(**message) for message in cleaned_messages]
+    except Exception as e:
+        logger.error(f"Error creating Message objects: {e}")
+        return []
 
 @api_router.get("/messages/welcome", response_model=List[Message])
 async def get_welcome_messages(user_id: Optional[str] = None):
