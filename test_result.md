@@ -592,6 +592,21 @@ test_plan:
         agent: "testing"
         comment: "✅ ONLINE USERS COUNT FIX TESTING SUCCESSFUL. The fix is working correctly: 1) ACCURATE COUNT: Online users count now shows realistic numbers - observed 'Online Users (1)' instead of the old fixed count of 9 users, 2) WEBSOCKET INTEGRATION: WebSocket connection working properly with logs showing 'WebSocket connected successfully' and 'WebSocket message received: {type: online_users, users: Array(1)}', 3) REAL-TIME UPDATES: System properly receives online user updates via WebSocket messages including 'user_joined' and 'user_left' events, 4) STALE SESSION CLEANUP: Backend logs confirm automatic cleanup is working with periodic cleanup running every 10 minutes and immediate cleanup on new connections, 5) USER LIST ACCURACY: User list sidebar correctly displays only actually online users with proper online/offline status indicators. The online users count is now dynamic and shows accurate real-time data instead of the previous fixed count issue. The fix successfully resolves the reported problem."
 
+  - task: "2-Week Trial System"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented comprehensive 2-week trial system with trial registration (is_trial: true), auto-approval for trial users, trial status management (TRIAL, TRIAL_EXPIRED), trial expiration logic during login, access restrictions for expired trials (chat blocked, other features accessible), background trial management with periodic cleanup, and email integration for trial welcome and upgrade emails with ARGUS20 discount code."
+      - working: true
+        agent: "testing"
+        comment: "✅ 2-WEEK TRIAL SYSTEM TESTING COMPLETED SUCCESSFULLY. Comprehensive testing verified all requirements: 1) TRIAL REGISTRATION FLOW: POST /api/users/register with is_trial: true creates users with status 'trial', membership_plan '14-Day Trial', and proper trial_start_date/trial_end_date (14 days). Auto-approval works - no admin approval needed. Trial welcome emails sent successfully. 2) TRIAL USER LOGIN: POST /api/users/login works for trial users with status 'trial'. Trial expiration logic correctly converts expired trials to 'trial_expired' status during login. 3) TRIAL ACCESS PERMISSIONS: Trial users have full chat access - POST /api/messages and GET /api/messages work correctly during trial period. Same access as approved users. 4) TRIAL EXPIRATION LOGIC: Users past expiration date automatically change from 'trial' to 'trial_expired' status. Upgrade emails with ARGUS20 discount code sent automatically. trial_upgrade_email_sent flag properly set. 5) TRIAL EXPIRED ACCESS RESTRICTIONS: POST /api/messages returns 403 with upgrade message 'Chat access restricted. Your trial has expired. Upgrade your account to continue chatting with other traders.' GET /api/messages returns 403 with upgrade message. Other features (portfolio, practice trading) remain accessible. 6) BACKGROUND TRIAL MANAGEMENT: Periodic cleanup function ready to process expired trials. Database consistency verified with proper trial user counts. Backend logs confirm all functionality: trial registration ('✨ TRIAL USER REGISTERED'), trial expiration ('⏰ TRIAL EXPIRED'), email notifications, and proper access restrictions. The complete trial system works correctly for the business model."
+
   - task: "Admin Approval System"
     implemented: true
     working: true
