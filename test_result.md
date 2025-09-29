@@ -542,7 +542,7 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "2-Week Trial System"
+    - "Admin Login Authentication Debug"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
