@@ -470,36 +470,40 @@ ArgusAI CashOut Team
         </div>
         
         <div class="plans-section">
-            <h3 style="text-align: center; margin-bottom: 20px;">💰 Choose Your Plan:</h3>
+            <h3 style="text-align: center; margin-bottom: 20px;">💰 Choose Your Plan - One Click Payment:</h3>
             
-            <div class="plan-card">
-                <h4>Monthly Plan</h4>
+            <div class="plan-card" style="border: 2px solid #3b82f6;">
+                <h4>📅 Monthly Plan</h4>
                 <div class="plan-price">
                     <span class="plan-original">$199/month</span><br>
                     <span class="plan-discounted">$159.20/month with ARGUS20</span>
                 </div>
                 <p>Perfect for getting started</p>
-                <a href="https://square.link/u/dhjuwn84" class="plan-button">Choose Monthly Plan</a>
+                <a href="https://square.link/u/dhjuwn84" class="plan-button" style="background: #3b82f6;">💳 Pay Now - $159.20/month</a>
+                <p style="font-size: 12px; margin-top: 10px; color: #6b7280;">Click → Enter ARGUS20 at checkout → Save 20%</p>
             </div>
             
-            <div class="plan-card featured">
+            <div class="plan-card featured" style="border: 3px solid #f59e0b; position: relative;">
+                <div style="position: absolute; top: -15px; left: 50%; transform: translateX(-50%); background: #ef4444; color: white; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: bold;">🏆 BEST VALUE</div>
                 <h4>🌟 Yearly Plan (Most Popular)</h4>
                 <div class="plan-price">
                     <span class="plan-original">$1,296/year</span><br>
                     <span class="plan-discounted">$1,036.80/year with ARGUS20</span>
                 </div>
-                <p>Save $188 compared to monthly + extra 20% OFF!</p>
-                <a href="https://square.link/u/kKmNauCe" class="plan-button">Choose Yearly Plan</a>
+                <p>Save $259.20/year + 2 months FREE!</p>
+                <a href="https://square.link/u/kKmNauCe" class="plan-button" style="background: #f59e0b;">🏆 Pay Now - $1,036.80/year</a>
+                <p style="font-size: 12px; margin-top: 10px; color: #6b7280;">Click → Enter ARGUS20 at checkout → Save $259.20</p>
             </div>
             
-            <div class="plan-card">
-                <h4>Lifetime Plan</h4>
+            <div class="plan-card" style="border: 2px solid #8b5cf6;">
+                <h4>♾️ Lifetime Plan</h4>
                 <div class="plan-price">
                     <span class="plan-original">$3,969 one-time</span><br>
                     <span class="plan-discounted">$3,175.20 with ARGUS20</span>
                 </div>
                 <p>Never pay again - lifetime access</p>
-                <a href="https://square.link/u/dRSryNkx" class="plan-button">Choose Lifetime Plan</a>
+                <a href="https://square.link/u/dRSryNkx" class="plan-button" style="background: #8b5cf6;">💎 Pay Now - $3,175.20</a>
+                <p style="font-size: 12px; margin-top: 10px; color: #6b7280;">Click → Enter ARGUS20 at checkout → Save $793.80</p>
             </div>
         </div>
         
