@@ -980,14 +980,14 @@ function App() {
 
   const loadMessages = async () => {
     try {
-      // Pass user_id for access control but ensure all historical messages are loaded
-      const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=100` : `${API}/messages?limit=100`;
+      // NEW USER HISTORY: Load comprehensive message history for all users including new members
+      const url = currentUser ? `${API}/messages/welcome?user_id=${currentUser.id}` : `${API}/messages?limit=200`;
       const response = await axios.get(url);
       setMessages(response.data);
-      console.log(`✅ Loaded ${response.data.length} historical messages for user`);
+      console.log(`✅ NEW USER WELCOME: Loaded ${response.data.length} historical messages for ${currentUser?.username || 'user'}`);
     } catch (error) {
       console.error('Error loading messages:', error);
-      // If there's an access error, try without user_id (for backward compatibility)
+      // If there's an access error, try the regular endpoint
       if (error.response?.status === 403) {
         try {
           const response = await axios.get(`${API}/messages?limit=100`);
