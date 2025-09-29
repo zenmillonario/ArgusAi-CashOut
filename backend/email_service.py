@@ -495,8 +495,8 @@ ArgusAI CashOut Team
             <div class="plan-card">
                 <h4>Lifetime Plan</h4>
                 <div class="plan-price">
-                    <span class="plan-original">$997 one-time</span><br>
-                    <span class="plan-discounted">$797.60 with ARGUS20</span>
+                    <span class="plan-original">$3,969 one-time</span><br>
+                    <span class="plan-discounted">$3,175.20 with ARGUS20</span>
                 </div>
                 <p>Never pay again - lifetime access</p>
                 <a href="https://square.link/u/dRSryNkx" class="plan-button">Choose Lifetime Plan</a>
