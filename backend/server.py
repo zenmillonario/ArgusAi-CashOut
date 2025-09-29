@@ -614,7 +614,8 @@ class UserCreate(BaseModel):
     username: str
     email: str
     real_name: str  # NEW: Required real name
-    membership_plan: str  # NEW: Required membership plan
+    membership_plan: str
+    is_trial: Optional[bool] = False  # NEW: Trial registration option  # NEW: Required membership plan
     password: str
     referral_code: Optional[str] = None  # Optional referral code of referring user
 
