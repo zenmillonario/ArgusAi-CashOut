@@ -532,6 +532,307 @@ ArgusAI CashOut Team
 """
         
         return await self.send_email(user_email, subject, plain_body, html_body)
+    
+    async def send_trial_welcome_email(
+        self, 
+        user_email: str, 
+        user_name: str,
+        trial_end_date
+    ) -> bool:
+        """Send comprehensive trial welcome email with login info and upgrade incentives"""
+        subject = "🎉 Welcome to ArgusAI CashOut - Your 14-Day FREE Trial Starts Now!"
+        
+        trial_end_formatted = trial_end_date.strftime('%B %d, %Y at %I:%M %p UTC')
+        
+        plain_body = f"""
+🎉 Welcome to ArgusAI CashOut, {user_name}!
+
+Congratulations! Your 14-day FREE trial has started and you now have FULL ACCESS to our premium trading platform.
+
+🔑 YOUR LOGIN CREDENTIALS:
+• Website: https://argus-trader-hub.preview.emergentagent.com
+• Email: {user_email}
+• Password: [The password you created during registration]
+
+✨ WHAT YOU GET DURING YOUR TRIAL:
+• Unlimited real-time chat with successful traders
+• Complete message history and trading discussions
+• Advanced portfolio management tools  
+• Paper trading practice mode
+• Real-time market data and alerts
+• Achievement system and XP rewards
+• Priority support
+
+⏰ TRIAL DETAILS:
+• Trial Started: Now
+• Trial Ends: {trial_end_formatted}
+• Full Access: 14 days of unlimited features
+
+💰 EXCLUSIVE TRIAL MEMBER DISCOUNT:
+After your trial, use code ARGUS20 for 20% OFF any membership plan:
+
+MONTHLY PLAN: $47/month → $37.60/month (Save $9.40)
+YEARLY PLAN: $470/year → $376/year (Save $94) 
+LIFETIME PLAN: $997 → $797.60 (Save $199.40)
+
+🚀 GET STARTED:
+1. Login at: https://argus-trader-hub.preview.emergentagent.com
+2. Join the live trading chat
+3. Connect with our community of traders
+4. Start building your portfolio
+
+Questions? Reply to this email for instant support!
+
+Welcome to the ArgusAI trading family! 🎯
+
+--
+The ArgusAI CashOut Team
+"""
+        
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f4f4f4; margin: 0; padding: 20px; }}
+        .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.1); }}
+        .header {{ background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; }}
+        .header h1 {{ margin: 0; font-size: 28px; }}
+        .content {{ padding: 30px; }}
+        .login-box {{ background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #8b5cf6; }}
+        .features-box {{ background: #e0f2fe; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+        .pricing-box {{ background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800; }}
+        .discount-code {{ background: #1f2937; color: #fbbf24; padding: 10px 20px; font-size: 20px; font-weight: bold; border-radius: 6px; display: inline-block; margin: 10px 0; }}
+        .cta-button {{ background: #8b5cf6; color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; display: inline-block; margin: 20px 0; font-weight: bold; }}
+        .trial-timer {{ background: #fee; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444; margin: 20px 0; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 14px; background: #f8f9fa; }}
+        .feature-list {{ margin: 15px 0; }}
+        .feature-list li {{ margin: 5px 0; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 Welcome to ArgusAI CashOut!</h1>
+            <p>Your 14-Day FREE Trial Starts Now</p>
+        </div>
+        
+        <div class="content">
+            <h2>Congratulations, {user_name}! 🚀</h2>
+            <p>You now have <strong>FULL ACCESS</strong> to our premium trading platform for the next 14 days!</p>
+            
+            <div class="login-box">
+                <h3>🔑 Your Login Credentials</h3>
+                <p><strong>Website:</strong> <a href="https://argus-trader-hub.preview.emergentagent.com">https://argus-trader-hub.preview.emergentagent.com</a></p>
+                <p><strong>Email:</strong> {user_email}</p>
+                <p><strong>Password:</strong> [The password you created during registration]</p>
+                <div style="text-align: center; margin: 20px 0;">
+                    <a href="https://argus-trader-hub.preview.emergentagent.com" class="cta-button">🚀 Start Trading Now</a>
+                </div>
+            </div>
+            
+            <div class="trial-timer">
+                <h3>⏰ Trial Information</h3>
+                <p><strong>Trial Started:</strong> Right Now!</p>
+                <p><strong>Trial Ends:</strong> {trial_end_formatted}</p>
+                <p><strong>Access Level:</strong> FULL Premium Access</p>
+            </div>
+            
+            <div class="features-box">
+                <h3>✨ What You Get During Your Trial</h3>
+                <ul class="feature-list">
+                    <li>💬 <strong>Unlimited real-time chat</strong> with successful traders</li>
+                    <li>📚 <strong>Complete message history</strong> and trading discussions</li>
+                    <li>📊 <strong>Advanced portfolio management</strong> tools</li>
+                    <li>📈 <strong>Paper trading practice</strong> mode</li>
+                    <li>🔔 <strong>Real-time market data</strong> and alerts</li>
+                    <li>🏆 <strong>Achievement system</strong> and XP rewards</li>
+                    <li>⭐ <strong>Priority customer support</strong></li>
+                </ul>
+            </div>
+            
+            <div class="pricing-box">
+                <h3>💰 Exclusive Trial Member Discount</h3>
+                <p>After your trial, use this code for <strong>20% OFF</strong> any membership plan:</p>
+                <div style="text-align: center;">
+                    <div class="discount-code">ARGUS20</div>
+                </div>
+                
+                <h4>💎 Membership Plans (with your discount):</h4>
+                <p>🗓️ <strong>Monthly:</strong> $47/month → <strong>$37.60/month</strong> (Save $9.40)</p>
+                <p>📅 <strong>Yearly:</strong> $470/year → <strong>$376/year</strong> (Save $94)</p>
+                <p>♾️ <strong>Lifetime:</strong> $997 → <strong>$797.60</strong> (Save $199.40)</p>
+            </div>
+            
+            <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+                <h3>🚀 Ready to Get Started?</h3>
+                <p>Join our community of successful traders and start building your portfolio today!</p>
+                <a href="https://argus-trader-hub.preview.emergentagent.com" class="cta-button">Login & Start Trading</a>
+            </div>
+            
+            <p>Questions? Simply reply to this email for instant support from our team!</p>
+            <p><strong>Welcome to the ArgusAI trading family!</strong> 🎯</p>
+        </div>
+        
+        <div class="footer">
+            <p>The ArgusAI CashOut Team</p>
+            <p>This trial gives you full access to our premium features for 14 days.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        return await self.send_email(user_email, subject, plain_body, html_body)
+    
+    async def send_general_welcome_email(
+        self, 
+        user_email: str, 
+        user_name: str,
+        username: str,
+        membership_plan: str
+    ) -> bool:
+        """Send general welcome email for approved users with login info"""
+        subject = "🎉 Welcome to ArgusAI CashOut - Account Approved!"
+        
+        plain_body = f"""
+🎉 Welcome to ArgusAI CashOut, {user_name}!
+
+Great news! Your account has been approved and you now have full access to our premium trading platform.
+
+🔑 YOUR LOGIN CREDENTIALS:
+• Website: https://argus-trader-hub.preview.emergentagent.com
+• Username: {username}
+• Email: {user_email}
+• Password: [The password you created during registration]
+• Membership Plan: {membership_plan}
+
+🚀 PREMIUM FEATURES YOU NOW HAVE ACCESS TO:
+• Unlimited real-time chat with successful traders
+• Complete trading discussion history
+• Advanced portfolio management tools
+• Paper trading practice mode
+• Real-time market data and alerts
+• Achievement system and XP rewards
+• Priority customer support
+• Email-to-chat price alerts
+• WhatsApp trading alerts
+
+💡 GET STARTED:
+1. Login at: https://argus-trader-hub.preview.emergentagent.com
+2. Join the live trading chat
+3. Connect with our community of traders
+4. Start building and tracking your portfolio
+5. Practice with paper trading
+
+🎯 COMMUNITY GUIDELINES:
+• Share your trades and insights
+• Help fellow traders learn and grow
+• Ask questions - our community loves to help
+• Stay respectful and professional
+
+Questions or need help getting started? Reply to this email!
+
+Welcome to the ArgusAI trading family! 🎯
+
+--
+The ArgusAI CashOut Team
+"""
+        
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f4f4f4; margin: 0; padding: 20px; }}
+        .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.1); }}
+        .header {{ background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; }}
+        .header h1 {{ margin: 0; font-size: 28px; }}
+        .content {{ padding: 30px; }}
+        .login-box {{ background: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #0ea5e9; }}
+        .features-box {{ background: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+        .cta-button {{ background: #059669; color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; display: inline-block; margin: 20px 0; font-weight: bold; }}
+        .approved-badge {{ background: #dcfce7; color: #166534; padding: 10px 20px; border-radius: 20px; display: inline-block; font-weight: bold; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 14px; background: #f8f9fa; }}
+        .feature-list {{ margin: 15px 0; }}
+        .feature-list li {{ margin: 5px 0; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 Account Approved!</h1>
+            <p>Welcome to ArgusAI CashOut Premium</p>
+        </div>
+        
+        <div class="content">
+            <div style="text-align: center; margin: 20px 0;">
+                <div class="approved-badge">✅ APPROVED - FULL ACCESS GRANTED</div>
+            </div>
+            
+            <h2>Welcome, {user_name}! 🚀</h2>
+            <p>Congratulations! Your <strong>{membership_plan}</strong> membership has been approved and you now have full access to our premium trading platform.</p>
+            
+            <div class="login-box">
+                <h3>🔑 Your Login Credentials</h3>
+                <p><strong>Website:</strong> <a href="https://argus-trader-hub.preview.emergentagent.com">https://argus-trader-hub.preview.emergentagent.com</a></p>
+                <p><strong>Username:</strong> {username}</p>
+                <p><strong>Email:</strong> {user_email}</p>
+                <p><strong>Password:</strong> [Your registration password]</p>
+                <p><strong>Membership:</strong> {membership_plan}</p>
+                <div style="text-align: center; margin: 20px 0;">
+                    <a href="https://argus-trader-hub.preview.emergentagent.com" class="cta-button">🚀 Login & Start Trading</a>
+                </div>
+            </div>
+            
+            <div class="features-box">
+                <h3>🚀 Your Premium Features</h3>
+                <ul class="feature-list">
+                    <li>💬 <strong>Unlimited real-time chat</strong> with successful traders</li>
+                    <li>📚 <strong>Complete trading history</strong> and discussions</li>
+                    <li>📊 <strong>Advanced portfolio management</strong></li>
+                    <li>📈 <strong>Paper trading practice</strong> mode</li>
+                    <li>🔔 <strong>Real-time alerts</strong> and notifications</li>
+                    <li>🏆 <strong>Achievement system</strong> and XP rewards</li>
+                    <li>⭐ <strong>Priority support</strong></li>
+                    <li>📧 <strong>Email-to-chat</strong> price alerts</li>
+                    <li>📱 <strong>WhatsApp</strong> trading alerts</li>
+                </ul>
+            </div>
+            
+            <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3>💡 Getting Started</h3>
+                <p><strong>1.</strong> Login to your account</p>
+                <p><strong>2.</strong> Join the live trading chat</p>
+                <p><strong>3.</strong> Connect with our trader community</p>
+                <p><strong>4.</strong> Start building your portfolio</p>
+                <p><strong>5.</strong> Practice with paper trading</p>
+            </div>
+            
+            <div style="background: #e0e7ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3>🎯 Community Guidelines</h3>
+                <p>• Share trades and insights with the community</p>
+                <p>• Help fellow traders learn and grow</p>
+                <p>• Ask questions - we love helping members succeed</p>
+                <p>• Maintain respectful and professional discussions</p>
+            </div>
+            
+            <p>Questions or need help getting started? Simply reply to this email for instant support!</p>
+            <p><strong>Welcome to the ArgusAI trading family!</strong> 🎯</p>
+        </div>
+        
+        <div class="footer">
+            <p>The ArgusAI CashOut Team</p>
+            <p>Your premium membership gives you access to all our trading features and community.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        return await self.send_email(user_email, subject, plain_body, html_body)
 
 # Create global email service instance
 email_service = EmailService()
