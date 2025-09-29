@@ -3142,6 +3142,98 @@ async def get_all_trial_users():
         "total_trials": len(active_trials) + len(expired_trials)
     }
 
+@api_router.delete("/admin/trial-users/bulk")
+async def bulk_remove_trial_users(admin_id: str, user_ids: list):
+    """Bulk remove multiple trial users - admin only"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if not user_ids or len(user_ids) == 0:
+        raise HTTPException(status_code=400, detail="No user IDs provided")
+    
+    # Limit bulk operations to prevent abuse
+    if len(user_ids) > 50:
+        raise HTTPException(status_code=400, detail="Maximum 50 users can be removed at once")
+    
+    removed_users = []
+    failed_removals = []
+    
+    for user_id in user_ids:
+        try:
+            # Get user details
+            user = await db.users.find_one({"id": user_id})
+            if not user:
+                failed_removals.append({"user_id": user_id, "reason": "User not found"})
+                continue
+                
+            # Only allow removal of trial and trial_expired users in bulk
+            if user.get("status") not in [UserStatus.TRIAL, UserStatus.TRIAL_EXPIRED]:
+                failed_removals.append({
+                    "user_id": user_id, 
+                    "username": user.get("username"),
+                    "reason": f"Can only bulk remove trial users, found status: {user.get('status')}"
+                })
+                continue
+                
+            # Don't allow removing admins
+            if user.get("is_admin"):
+                failed_removals.append({
+                    "user_id": user_id,
+                    "username": user.get("username"), 
+                    "reason": "Cannot remove admin users"
+                })
+                continue
+            
+            # Perform the removal (simplified cleanup for bulk operation)
+            await db.messages.delete_many({"user_id": user_id})
+            await db.notifications.delete_many({"user_id": user_id})
+            await db.fcm_tokens.delete_many({"user_id": user_id})
+            result = await db.users.delete_one({"id": user_id})
+            
+            if result.deleted_count > 0:
+                removed_users.append({
+                    "user_id": user_id,
+                    "username": user.get("username"),
+                    "status": user.get("status"),
+                    "membership_plan": user.get("membership_plan")
+                })
+                logger.info(f"🗑️ BULK REMOVAL: {user.get('username')} removed by {admin['username']}")
+            else:
+                failed_removals.append({
+                    "user_id": user_id,
+                    "username": user.get("username"),
+                    "reason": "Deletion failed"
+                })
+                
+        except Exception as e:
+            failed_removals.append({
+                "user_id": user_id,
+                "reason": f"Error: {str(e)}"
+            })
+    
+    # Notify admins about bulk removal
+    if removed_users:
+        await manager.send_admin_notification(json.dumps({
+            "type": "bulk_user_removal",
+            "message": f"{len(removed_users)} trial users bulk removed by {admin['username']}",
+            "admin_action": "bulk_removal",
+            "removed_count": len(removed_users),
+            "removed_by": admin['username']
+        }, default=str))
+    
+    return {
+        "message": f"Bulk removal completed: {len(removed_users)} removed, {len(failed_removals)} failed",
+        "removed_users": removed_users,
+        "failed_removals": failed_removals,
+        "summary": {
+            "total_requested": len(user_ids),
+            "successfully_removed": len(removed_users),
+            "failed_removals": len(failed_removals)
+        }
+    }
+
 @api_router.get("/users/{user_id}/referrals")
 async def get_user_referrals(user_id: str):
     """Get user's referral information"""
