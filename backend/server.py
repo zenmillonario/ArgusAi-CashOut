@@ -1688,15 +1688,30 @@ async def root():
 
 @api_router.post("/users/register", response_model=User)
 async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks):
-    # Check if username already exists
+    # Check if username already exists (allow rejected users to register again)
     existing_user = await db.users.find_one({"username": user_data.username})
-    if existing_user:
+    if existing_user and existing_user.get("status") != UserStatus.REJECTED:
         raise HTTPException(status_code=400, detail="Username already exists")
     
-    # Check if email already exists
+    # Check if email already exists (allow rejected users to register again)
     existing_email = await db.users.find_one({"email": user_data.email})
-    if existing_email:
+    if existing_email and existing_email.get("status") != UserStatus.REJECTED:
         raise HTTPException(status_code=400, detail="Email already exists")
+    
+    # If user was previously rejected, remove the old account to allow fresh registration
+    if existing_user and existing_user.get("status") == UserStatus.REJECTED:
+        logger.info(f"🔄 REJECTED USER RE-REGISTERING: {user_data.username} - Removing old rejected account")
+        # Clean up old rejected user data
+        await db.users.delete_one({"username": user_data.username})
+        await db.messages.delete_many({"user_id": existing_user["id"]})
+        await db.notifications.delete_many({"user_id": existing_user["id"]})
+        
+    if existing_email and existing_email.get("status") == UserStatus.REJECTED and existing_email["id"] != existing_user.get("id", ""):
+        logger.info(f"🔄 REJECTED EMAIL RE-REGISTERING: {user_data.email} - Removing old rejected account")
+        # Clean up old rejected user data by email
+        await db.users.delete_one({"email": user_data.email})
+        await db.messages.delete_many({"user_id": existing_email["id"]})
+        await db.notifications.delete_many({"user_id": existing_email["id"]})
     
     # Create new user with pending status (in production, hash the password!)
     user_dict = user_data.dict()
