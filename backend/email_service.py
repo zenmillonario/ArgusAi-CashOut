@@ -702,7 +702,7 @@ The ArgusAI CashOut Team
 Great news! Your account has been approved and you now have full access to our premium trading platform.
 
 🔑 YOUR LOGIN CREDENTIALS:
-• Website: https://argus-trader-hub.preview.emergentagent.com
+• Website: https://cashoutai-frontend.onrender.com/
 • Username: {username}
 • Email: {user_email}
 • Password: [The password you created during registration]
