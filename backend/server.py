@@ -2933,6 +2933,61 @@ async def review_cash_prize(review: CashPrizeReview, admin_id: str):
     
     return {"message": f"Cash prize {review.status} successfully"}
 
+@api_router.post("/admin/convert-trial")
+async def convert_trial_to_member(user_id: str, admin_id: str):
+    """Admin endpoint to convert trial_expired users to member status after payment"""
+    # Verify admin
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Find the trial expired user
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.get("status") != UserStatus.TRIAL_EXPIRED:
+        raise HTTPException(status_code=400, detail="User is not in trial_expired status")
+    
+    # Convert to approved member
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {
+            "status": UserStatus.APPROVED,
+            "role": UserRole.MEMBER,
+            "approved_by": admin["username"],
+            "approved_at": datetime.utcnow()
+        }}
+    )
+    
+    logger.info(f"🎉 TRIAL CONVERTED TO MEMBER: {user['username']} by admin {admin['username']}")
+    
+    # Send confirmation email to user
+    if email_service:
+        try:
+            await email_service.send_approval_confirmation(
+                user["email"], 
+                user.get("real_name", user["username"]), 
+                True
+            )
+        except Exception as e:
+            logger.error(f"Error sending approval email: {e}")
+    
+    return {"message": f"User {user['username']} successfully converted to member status"}
+
+@api_router.get("/admin/trial-expired-users")
+async def get_trial_expired_users():
+    """Get list of trial expired users for admin review"""
+    trial_expired_users = await db.users.find(
+        {"status": UserStatus.TRIAL_EXPIRED},
+        {"username": 1, "real_name": 1, "email": 1, "trial_end_date": 1, "membership_plan": 1}
+    ).to_list(100)
+    
+    return {
+        "trial_expired_users": trial_expired_users,
+        "count": len(trial_expired_users)
+    }
+
 @api_router.get("/users/{user_id}/referrals")
 async def get_user_referrals(user_id: str):
     """Get user's referral information"""
