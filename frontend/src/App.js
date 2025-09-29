@@ -1045,6 +1045,13 @@ function App() {
       
     } catch (error) {
       console.error('❌ Error loading messages:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        url: error.config?.url,
+        timeout: error.code === 'ECONNABORTED' ? 'Request timeout' : 'No timeout'
+      });
       setMessages([]); // Set empty array on error to avoid infinite loading
       
       // If there's an access error, try the regular endpoint
