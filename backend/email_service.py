@@ -286,6 +286,99 @@ ArgusAI CashOut Team
 """
         
         return await self.send_email(user_email, subject, plain_body, html_body)
+    
+    async def send_trial_welcome_email(
+        self, 
+        user_email: str, 
+        user_name: str,
+        trial_end_date: datetime
+    ) -> bool:
+        """Send welcome email to trial users"""
+        subject = "🎉 Welcome to ArgusAI CashOut - 14-Day Trial Started!"
+        
+        trial_end_str = trial_end_date.strftime('%B %d, %Y at %I:%M %p UTC')
+        
+        plain_body = f"""
+Hi {user_name},
+
+Welcome to ArgusAI CashOut! 🚀
+
+Your 14-day trial has started and you now have full access to our platform:
+
+• Real-time chat with traders
+• Paper trading practice
+• Portfolio management
+• Stock quotes and analysis
+• Achievement system and rewards
+
+Your trial period ends on: {trial_end_str}
+
+Before your trial expires, you'll receive information about upgrading to a full membership to continue enjoying all features.
+
+Start exploring and happy trading!
+
+--
+ArgusAI CashOut Team
+"""
+        
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .header {{ background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background: #f9f9f9; }}
+        .welcome-box {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #8b5cf6; }}
+        .features {{ background: white; padding: 15px; border-radius: 8px; margin: 15px 0; }}
+        .feature-item {{ margin: 8px 0; }}
+        .trial-info {{ background: #fef3c7; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #f59e0b; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎉 Welcome to ArgusAI CashOut!</h1>
+        <p>Your 14-Day Trial Has Started</p>
+    </div>
+    
+    <div class="content">
+        <div class="welcome-box">
+            <h2>Hi {user_name},</h2>
+            <p>Welcome to ArgusAI CashOut! Your trial account is now active and ready to use.</p>
+        </div>
+        
+        <div class="features">
+            <h3>You now have access to:</h3>
+            <div class="feature-item">💬 Real-time chat with other traders</div>
+            <div class="feature-item">📈 Paper trading practice</div>
+            <div class="feature-item">💼 Portfolio management tools</div>
+            <div class="feature-item">📊 Real-time stock quotes and data</div>
+            <div class="feature-item">🏆 Achievement system and rewards</div>
+            <div class="feature-item">⭐ Favorites and watchlists</div>
+        </div>
+        
+        <div class="trial-info">
+            <h3>⏰ Trial Information</h3>
+            <p><strong>Trial Period:</strong> 14 days</p>
+            <p><strong>Trial Ends:</strong> {trial_end_str}</p>
+            <p>Before your trial expires, you'll receive information about upgrading to continue enjoying all features.</p>
+        </div>
+        
+        <p><strong>Ready to start?</strong> Log in to your account and start exploring!</p>
+        
+        <p>Happy trading! 🚀</p>
+    </div>
+    
+    <div class="footer">
+        <p>ArgusAI CashOut Team</p>
+    </div>
+</body>
+</html>
+"""
+        
+        return await self.send_email(user_email, subject, plain_body, html_body)
 
 # Create global email service instance
 email_service = EmailService()
