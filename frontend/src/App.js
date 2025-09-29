@@ -1637,6 +1637,7 @@ function App() {
                       required
                     >
                       <option value="">Select Membership Plan</option>
+                      <option value="14-Day Trial">🎯 14-Day FREE Trial (Auto-Approved)</option>
                       <option value="Monthly">Monthly</option>
                       <option value="Yearly">Yearly</option>
                       <option value="Lifetime">Lifetime</option>
