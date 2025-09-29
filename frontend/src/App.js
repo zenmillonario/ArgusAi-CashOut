@@ -1058,7 +1058,12 @@ function App() {
           is_trial: isTrialUser  // NEW: Trial system support
         });
         
-        alert('Registration successful! Please wait for admin approval. You will be approved within 5 minutes.');
+        if (isTrialUser) {
+          alert('🎉 Trial registration successful! You can login immediately and start your 14-day free trial. Welcome to ArgusAI CashOut!');
+        } else {
+          alert('Registration successful! Please wait for admin approval. You will be approved within 5 minutes.');
+        }
+        
         setIsRegistering(false);
         setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
       } else {
