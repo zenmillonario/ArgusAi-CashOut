@@ -137,6 +137,14 @@ ArgusAI CashOut Team
     
     await email_service.send_email(email, subject, plain_body, html_body)
 
+async def send_trial_welcome_email(email: str, name: str, trial_end_date: datetime):
+    """Send trial welcome email to user"""
+    if not email_service:
+        print(f"Email service unavailable. Would send trial welcome email to {email}")
+        return
+        
+    await email_service.send_trial_welcome_email(email, name, trial_end_date)
+
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
