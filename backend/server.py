@@ -1754,12 +1754,18 @@ async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks
             logger.info(f"✨ TRIAL USER REGISTERED: {user.username} - Trial ends: {trial_end}")
             
             # Send welcome email to trial user
+            logger.info(f"📧 EMAIL SERVICE CHECK: email_service is {'available' if email_service else 'None'}")
             if email_service:
                 try:
-                    await email_service.send_trial_welcome_email(user_data.email, user_dict.get('real_name', user_data.username), trial_end)
-                    logger.info(f"✅ Trial welcome email sent to {user_data.email}")
+                    logger.info(f"📧 Attempting to send trial welcome email to {user_data.email}")
+                    result = await email_service.send_trial_welcome_email(user_data.email, user_dict.get('real_name', user_data.username), trial_end)
+                    logger.info(f"✅ Trial welcome email result: {result} - sent to {user_data.email}")
                 except Exception as e:
-                    logger.error(f"❌ Failed to send trial welcome email: {e}")
+                    logger.error(f"❌ Failed to send trial welcome email to {user_data.email}: {e}")
+                    import traceback
+                    logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+            else:
+                logger.error(f"❌ Email service not available - cannot send welcome email to {user_data.email}")
             
         else:
             # Regular registration - requires admin approval
