@@ -668,7 +668,7 @@ The ArgusAI CashOut Team
             <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
                 <h3>🚀 Ready to Get Started?</h3>
                 <p>Join our community of successful traders and start building your portfolio today!</p>
-                <a href="https://argus-trader-hub.preview.emergentagent.com" class="cta-button">Login & Start Trading</a>
+                <a href="https://cashoutai-frontend.onrender.com/" class="cta-button">Login & Start Trading</a>
             </div>
             
             <p>Questions? Simply reply to this email for instant support from our team!</p>
