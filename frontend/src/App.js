@@ -508,6 +508,35 @@ function App() {
     }
   }, []);
 
+  // Mobile app initialization
+  useEffect(() => {
+    const initializeMobileApp = async () => {
+      try {
+        await capacitorManager.initializeApp();
+        
+        // Set up mobile-specific event listeners
+        capacitorManager.addAppStateListeners({
+          onResume: () => {
+            console.log('🔄 App resumed - refreshing data...');
+            if (currentUser) {
+              loadMessages();
+              loadUserData();
+            }
+          },
+          onPause: () => {
+            console.log('⏸️ App paused');
+          }
+        });
+        
+        console.log('✅ Mobile app initialization complete');
+      } catch (error) {
+        console.error('❌ Mobile app initialization error:', error);
+      }
+    };
+    
+    initializeMobileApp();
+  }, []);
+
   // Service Worker registration and push notification setup
   useEffect(() => {
     const registerServiceWorker = async () => {
