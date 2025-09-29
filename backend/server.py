@@ -1765,12 +1765,31 @@ async def login_user(login_data: UserLogin):
     
     user_obj = User(**user)
     
-    # Check if user is approved
-    if user_obj.status != UserStatus.APPROVED:
-        if user_obj.status == UserStatus.PENDING:
-            raise HTTPException(status_code=403, detail="Account pending admin approval. You will be notified within 5 minutes once approved.")
-        elif user_obj.status == UserStatus.REJECTED:
-            raise HTTPException(status_code=403, detail="Account has been rejected")
+    # Check user status including trial system
+    if user_obj.status == UserStatus.PENDING:
+        raise HTTPException(status_code=403, detail="Account pending admin approval. You will be notified within 5 minutes once approved.")
+    elif user_obj.status == UserStatus.REJECTED:
+        raise HTTPException(status_code=403, detail="Account has been rejected")
+    elif user_obj.status == UserStatus.TRIAL:
+        # Check if trial has expired
+        if user_obj.trial_end_date and datetime.utcnow() > user_obj.trial_end_date:
+            # Convert to trial_expired status
+            await db.users.update_one(
+                {"id": user_obj.id},
+                {"$set": {"status": UserStatus.TRIAL_EXPIRED.value}}
+            )
+            user_obj.status = UserStatus.TRIAL_EXPIRED
+            logger.info(f"⏰ TRIAL EXPIRED: {user_obj.username} - Converting to limited access")
+            
+            # Schedule upgrade email if not sent
+            if not user_obj.trial_upgrade_email_sent:
+                asyncio.create_task(send_trial_upgrade_email(user_obj.email, user_obj.real_name))
+                await db.users.update_one(
+                    {"id": user_obj.id},
+                    {"$set": {"trial_upgrade_email_sent": True}}
+                )
+    elif user_obj.status not in [UserStatus.APPROVED, UserStatus.TRIAL_EXPIRED]:
+        raise HTTPException(status_code=403, detail="Account access denied")
     
     # Store the old session ID before generating new one
     old_session_id = user.get("active_session_id")
