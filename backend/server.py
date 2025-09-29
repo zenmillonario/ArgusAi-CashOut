@@ -2056,9 +2056,20 @@ async def get_users():
 
 @api_router.get("/users/pending", response_model=List[User])
 async def get_pending_users():
-    """Get all users pending approval - admin only"""
-    users = await db.users.find({"status": UserStatus.PENDING}).to_list(1000)
-    return [User(**user) for user in users]
+    """Get all users pending approval and trial expired users"""
+    pending_users = await db.users.find({"status": UserStatus.PENDING}).to_list(1000)
+    trial_expired_users = await db.users.find({"status": UserStatus.TRIAL_EXPIRED}).to_list(1000)
+    
+    # Add indicator for trial expired users
+    for user in trial_expired_users:
+        user["is_trial_expired"] = True
+        user["admin_note"] = f"⏰ TRIAL EXPIRED: User paid for membership plan '{user.get('membership_plan', 'Unknown')}' - Convert to Member after payment verification"
+    
+    # Combine and sort by creation date
+    all_users = pending_users + trial_expired_users
+    all_users.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
+    
+    return [User(**user) for user in all_users]
 
 @api_router.post("/users/approve")
 async def approve_user(approval: UserApproval, background_tasks: BackgroundTasks):
