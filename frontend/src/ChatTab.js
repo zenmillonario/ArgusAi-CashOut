@@ -178,6 +178,22 @@ const ChatTab = ({
         
         {/* Messages container with isolated scroll */}
         <div className="overflow-y-auto space-y-1" style={{ maxHeight: 'calc(100vh - 360px)' }}>
+          {/* CRITICAL UX FIX: Empty State UI */}
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-center py-8">
+              <div className={`text-6xl mb-4 ${isDarkTheme ? 'text-gray-600' : 'text-gray-400'}`}>
+                💬
+              </div>
+              <h3 className={`text-xl font-semibold mb-2 ${
+                isDarkTheme ? 'text-gray-300' : 'text-gray-600'
+              }`}>
+                Welcome to ArgusAI CashOut!
+              </h3>
+              <p className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                Start the conversation! Share your trading insights and connect with the community.
+              </p>
+            </div>
+          )}
           {displayMessages.map((message) => (
             <div key={message.id} className="group">
               {/* STREAMLINED FORMAT: Username: Message on same line */}
