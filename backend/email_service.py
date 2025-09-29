@@ -624,7 +624,7 @@ The ArgusAI CashOut Team
             
             <div class="login-box">
                 <h3>🔑 Your Login Credentials</h3>
-                <p><strong>Website:</strong> <a href="https://argus-trader-hub.preview.emergentagent.com">https://argus-trader-hub.preview.emergentagent.com</a></p>
+                <p><strong>Website:</strong> <a href="https://cashoutai-frontend.onrender.com/">https://cashoutai-frontend.onrender.com/</a></p>
                 <p><strong>Email:</strong> {user_email}</p>
                 <p><strong>Password:</strong> [The password you created during registration]</p>
                 <div style="text-align: center; margin: 20px 0;">
@@ -777,7 +777,7 @@ The ArgusAI CashOut Team
             
             <div class="login-box">
                 <h3>🔑 Your Login Credentials</h3>
-                <p><strong>Website:</strong> <a href="https://argus-trader-hub.preview.emergentagent.com">https://argus-trader-hub.preview.emergentagent.com</a></p>
+                <p><strong>Website:</strong> <a href="https://cashoutai-frontend.onrender.com/">https://cashoutai-frontend.onrender.com/</a></p>
                 <p><strong>Username:</strong> {username}</p>
                 <p><strong>Email:</strong> {user_email}</p>
                 <p><strong>Password:</strong> [Your registration password]</p>
