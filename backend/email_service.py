@@ -575,9 +575,19 @@ Congratulations! Your 14-day FREE trial has started and you now have FULL ACCESS
 💰 EXCLUSIVE TRIAL MEMBER DISCOUNT:
 Use code ARGUS20 for 20% OFF any membership plan (available anytime):
 
-MONTHLY PLAN: $199/month → $159.20/month (Save $39.80)
-YEARLY PLAN: $1,296/year → $1,036.80/year (Save $259.20) 
-LIFETIME PLAN: $3,969 → $3,175.20 (Save $793.80)
+💳 MONTHLY PLAN: $199/month → $159.20/month (Save $39.80)
+   Payment Link: https://square.link/u/dhjuwn84
+
+🏆 YEARLY PLAN: $1,296/year → $1,036.80/year (Save $259.20) [MOST POPULAR]
+   Payment Link: https://square.link/u/kKmNauCe
+
+💎 LIFETIME PLAN: $3,969 → $3,175.20 (Save $793.80)
+   Payment Link: https://square.link/u/dRSryNkx
+
+💡 HOW TO GET DISCOUNT:
+1. Click any payment link above
+2. Enter ARGUS20 in the "Add Coupon" field at checkout  
+3. Complete payment and enjoy 20% savings!
 
 🚀 GET STARTED:
 1. Login at: https://cashoutai-frontend.onrender.com/
