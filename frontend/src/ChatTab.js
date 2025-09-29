@@ -194,7 +194,8 @@ const ChatTab = ({
               </p>
             </div>
           )}
-          {displayMessages.map((message) => (
+          {/* PERFORMANCE OPTIMIZATION: Use React.memo and limit initial render */}
+          {displayMessages.slice(0, 100).map((message) => (
             <div key={message.id} className="group">
               {/* STREAMLINED FORMAT: Username: Message on same line */}
               {message.content_type === 'image' ? (
