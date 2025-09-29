@@ -2972,16 +2972,27 @@ async def convert_trial_to_member(user_id: str, admin_id: str):
     
     logger.info(f"🎉 TRIAL CONVERTED TO MEMBER: {user['username']} by admin {admin['username']}")
     
-    # Send confirmation email to user
+    # Send approval confirmation and welcome email
     if email_service:
         try:
+            # Send approval confirmation
             await email_service.send_approval_confirmation(
                 user["email"], 
                 user.get("real_name", user["username"]), 
                 True
             )
+            
+            # Send comprehensive welcome email for approved users
+            await email_service.send_general_welcome_email(
+                user["email"],
+                user.get("real_name", user["username"]), 
+                user["username"],
+                user.get("membership_plan", "Premium")
+            )
+            logger.info(f"✅ Welcome email sent to approved user {user['email']}")
+            
         except Exception as e:
-            logger.error(f"Error sending approval email: {e}")
+            logger.error(f"Error sending approval/welcome emails: {e}")
     
     return {"message": f"User {user['username']} successfully converted to member status"}
 
