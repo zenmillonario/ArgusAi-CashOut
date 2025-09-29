@@ -5416,29 +5416,57 @@ if __name__ == "__main__":
                 result = False
             
             sys.exit(0 if result else 1)
+        
+        elif test_type == "trial":
+            print("🎯 Running 2-WEEK TRIAL SYSTEM TEST ONLY")
+            print("=" * 60)
+            
+            try:
+                result = test_2_week_trial_system()
+                print(f"\n{'🎉 TRIAL SYSTEM TEST PASSED' if result else '❌ TRIAL SYSTEM TEST FAILED'}")
+                
+                if result:
+                    print("\n✅ 2-WEEK TRIAL SYSTEM VERIFICATION COMPLETE")
+                    print("   • Trial registration is instant (no admin approval)")
+                    print("   • Trial users get full access for 14 days")
+                    print("   • After expiration, chat is restricted but other features remain")
+                    print("   • Upgrade emails with ARGUS20 code are sent automatically")
+                    print("   • All trial management happens automatically in background")
+                else:
+                    print("\n❌ 2-WEEK TRIAL SYSTEM NEEDS ATTENTION")
+                    print("   • Check trial registration flow")
+                    print("   • Verify trial expiration logic")
+                    print("   • Review access restrictions for expired trials")
+                    
+            except Exception as e:
+                print(f"\n❌ ERROR in trial system test: {str(e)}")
+                result = False
+            
+            sys.exit(0 if result else 1)
     
-    # Run the admin approval system test by default (as requested in the review)
-    print("🎯 Running ADMIN APPROVAL SYSTEM TEST")
+    # Run the 2-week trial system test by default (as requested in the review)
+    print("🎯 Running 2-WEEK TRIAL SYSTEM TEST")
     print("=" * 60)
     
     try:
-        result = test_admin_approval_system()
-        print(f"\n{'🎉 ADMIN APPROVAL TEST PASSED' if result else '❌ ADMIN APPROVAL TEST FAILED'}")
+        result = test_2_week_trial_system()
+        print(f"\n{'🎉 TRIAL SYSTEM TEST PASSED' if result else '❌ TRIAL SYSTEM TEST FAILED'}")
         
         if result:
-            print("\n✅ ADMIN APPROVAL SYSTEM VERIFICATION COMPLETE")
-            print("   • New registrations require admin approval")
-            print("   • Pending users cannot login until approved") 
-            print("   • Admin has proper tools to manage user approvals")
-            print("   • System protects against unauthorized access")
+            print("\n✅ 2-WEEK TRIAL SYSTEM VERIFICATION COMPLETE")
+            print("   • Trial registration is instant (no admin approval)")
+            print("   • Trial users get full access for 14 days")
+            print("   • After expiration, chat is restricted but other features remain")
+            print("   • Upgrade emails with ARGUS20 code are sent automatically")
+            print("   • All trial management happens automatically in background")
         else:
-            print("\n❌ ADMIN APPROVAL SYSTEM NEEDS ATTENTION")
-            print("   • Check user registration flow")
-            print("   • Verify login restrictions for pending users")
-            print("   • Review admin approval endpoints")
+            print("\n❌ 2-WEEK TRIAL SYSTEM NEEDS ATTENTION")
+            print("   • Check trial registration flow")
+            print("   • Verify trial expiration logic")
+            print("   • Review access restrictions for expired trials")
             
     except Exception as e:
-        print(f"\n❌ ERROR in admin approval test: {str(e)}")
+        print(f"\n❌ ERROR in trial system test: {str(e)}")
         result = False
     
     sys.exit(0 if result else 1)
