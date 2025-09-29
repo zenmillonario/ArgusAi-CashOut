@@ -720,7 +720,7 @@ Great news! Your account has been approved and you now have full access to our p
 • WhatsApp trading alerts
 
 💡 GET STARTED:
-1. Login at: https://argus-trader-hub.preview.emergentagent.com
+1. Login at: https://cashoutai-frontend.onrender.com/
 2. Join the live trading chat
 3. Connect with our community of traders
 4. Start building and tracking your portfolio
