@@ -4061,6 +4061,7 @@ if __name__ == "__main__":
     print("✅ Non-admin messages are created and broadcast but do not trigger FCM notifications")
     
     return True
+
 def test_admin_demotion():
     """Test admin demotion functionality"""
     print("\n🔍 TESTING FEATURE: Admin Demotion Functionality")
