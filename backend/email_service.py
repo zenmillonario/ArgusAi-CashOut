@@ -397,9 +397,9 @@ Your 14-day trial with ArgusAI CashOut has ended, but we have an exclusive offer
 🎉 SPECIAL OFFER: 20% OFF any membership plan with code ARGUS20!
 
 💰 CHOOSE YOUR PLAN:
-• Monthly Plan ($47/month) - https://square.link/u/dhjuwn84
-• Yearly Plan ($470/year) - https://square.link/u/kKmNauCe  
-• Lifetime Plan ($997 one-time) - https://square.link/u/dRSryNkx
+• Monthly Plan ($199/month) - https://square.link/u/dhjuwn84
+• Yearly Plan ($1,296/year) - https://square.link/u/kKmNauCe  
+• Lifetime Plan ($3,969 one-time) - https://square.link/u/dRSryNkx
 
 💡 Don't forget to enter ARGUS20 at checkout for your 20% discount!
 
