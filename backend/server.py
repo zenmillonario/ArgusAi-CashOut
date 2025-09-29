@@ -2991,8 +2991,13 @@ async def get_trial_expired_users():
     """Get list of trial expired users for admin review"""
     trial_expired_users = await db.users.find(
         {"status": UserStatus.TRIAL_EXPIRED},
-        {"username": 1, "real_name": 1, "email": 1, "trial_end_date": 1, "membership_plan": 1}
+        {"id": 1, "username": 1, "real_name": 1, "email": 1, "trial_end_date": 1, "membership_plan": 1, "_id": 0}
     ).to_list(100)
+    
+    # Convert datetime objects to strings for JSON serialization
+    for user in trial_expired_users:
+        if "trial_end_date" in user and user["trial_end_date"]:
+            user["trial_end_date"] = user["trial_end_date"].isoformat()
     
     return {
         "trial_expired_users": trial_expired_users,
