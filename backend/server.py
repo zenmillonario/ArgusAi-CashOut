@@ -2049,8 +2049,10 @@ async def logout_user(user_id: str):
 
 @api_router.get("/users", response_model=List[User])
 async def get_users():
-    """Get all approved users (excludes pending and rejected users)"""
-    users = await db.users.find({"status": UserStatus.APPROVED}).to_list(1000)
+    """Get all active users (approved and trial users)"""
+    users = await db.users.find({
+        "status": {"$in": [UserStatus.APPROVED, UserStatus.TRIAL]}
+    }).to_list(1000)
     return [User(**user) for user in users]
 
 @api_router.get("/users/pending", response_model=List[User])
