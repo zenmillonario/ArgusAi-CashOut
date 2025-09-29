@@ -660,9 +660,9 @@ The ArgusAI CashOut Team
                 </div>
                 
                 <h4>💎 Membership Plans (with your discount):</h4>
-                <p>🗓️ <strong>Monthly:</strong> $47/month → <strong>$37.60/month</strong> (Save $9.40)</p>
-                <p>📅 <strong>Yearly:</strong> $470/year → <strong>$376/year</strong> (Save $94)</p>
-                <p>♾️ <strong>Lifetime:</strong> $997 → <strong>$797.60</strong> (Save $199.40)</p>
+                <p>🗓️ <strong>Monthly:</strong> $199/month → <strong>$159.20/month</strong> (Save $39.80)</p>
+                <p>📅 <strong>Yearly:</strong> $1,296/year → <strong>$1,036.80/year</strong> (Save $259.20)</p>
+                <p>♾️ <strong>Lifetime:</strong> $3,969 → <strong>$3,175.20</strong> (Save $793.80)</p>
             </div>
             
             <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
