@@ -435,7 +435,35 @@ const ChatTab = ({
       )}
 
       {/* Message Input - Fixed at bottom - Only show if not hidden */}
-      {!hideMessageInput && (
+      {!hideMessageInput && currentUser.status === "trial_expired" ? (
+        // TRIAL SYSTEM: Show upgrade message for expired trial users
+        <div className={`flex-shrink-0 p-4 rounded-lg border ${
+          isDarkTheme 
+            ? 'bg-red-500/10 border-red-500/30' 
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="text-center">
+            <h3 className={`font-semibold text-lg mb-2 ${
+              isDarkTheme ? 'text-red-400' : 'text-red-600'
+            }`}>
+              🚫 Chat Access Restricted
+            </h3>
+            <p className={`text-sm mb-3 ${
+              isDarkTheme ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              Your 14-day trial has expired. Upgrade your account to continue chatting with other traders.
+            </p>
+            <div className={`inline-flex items-center px-4 py-2 rounded-lg ${
+              isDarkTheme 
+                ? 'bg-yellow-500/20 border border-yellow-500/30 text-yellow-400' 
+                : 'bg-yellow-50 border border-yellow-200 text-yellow-600'
+            }`}>
+              <span className="font-bold mr-2">🎯 Special Offer:</span>
+              <span>Use code <strong>ARGUS20</strong> for 20% OFF!</span>
+            </div>
+          </div>
+        </div>
+      ) : !hideMessageInput && (
         <div className={`flex-shrink-0 ${mobileUserListOpen ? 'relative z-60' : ''}`}>
           <form onSubmit={sendMessage} className="space-y-3">
             <div className="flex space-x-2">
