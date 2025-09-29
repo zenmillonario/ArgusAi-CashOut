@@ -812,10 +812,11 @@ function App() {
       }
       
       // MOBILE OPTIMIZATION: Use mobile-friendly WebSocket URL
-      const finalWsUrl = capacitorManager.isNative 
+      const baseWsUrl = capacitorManager.isNative 
         ? capacitorManager.getWebSocketUrl(BACKEND_URL)
-        : wsUrl;
-        
+        : wsUrl.replace(`/${currentUser.id}/${currentUser.active_session_id}`, '');
+          
+      const finalWsUrl = `${baseWsUrl}/${currentUser.id}/${currentUser.active_session_id}`;
       console.log('🔌 Connecting to WebSocket:', finalWsUrl);
       
       const ws = new WebSocket(finalWsUrl);
