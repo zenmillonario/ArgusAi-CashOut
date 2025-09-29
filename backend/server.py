@@ -178,8 +178,43 @@ async def periodic_cleanup():
         try:
             await asyncio.sleep(600)  # 10 minutes
             await cleanup_stale_sessions()
+            await check_expired_trials()  # Check for expired trials
         except Exception as e:
             logger.error(f"Error in periodic cleanup: {e}")
+
+async def check_expired_trials():
+    """Check for expired trials and update status"""
+    try:
+        current_time = datetime.utcnow()
+        
+        # Find trials that have expired but haven't been processed
+        expired_trials = await db.users.find({
+            "status": UserStatus.TRIAL,
+            "trial_end_date": {"$lt": current_time}
+        }).to_list(100)
+        
+        if expired_trials:
+            logger.info(f"🕒 Found {len(expired_trials)} expired trials to process")
+            
+            for user in expired_trials:
+                # Update status to trial_expired
+                await db.users.update_one(
+                    {"id": user["id"]},
+                    {"$set": {"status": UserStatus.TRIAL_EXPIRED}}
+                )
+                
+                # Send upgrade email if not already sent
+                if not user.get("trial_upgrade_email_sent", False):
+                    await send_trial_upgrade_email(user["email"], user.get("real_name", user["username"]))
+                    await db.users.update_one(
+                        {"id": user["id"]},
+                        {"$set": {"trial_upgrade_email_sent": True}}
+                    )
+                
+                logger.info(f"⏰ TRIAL EXPIRED: {user['username']} - Status updated to trial_expired")
+        
+    except Exception as e:
+        logger.error(f"Error checking expired trials: {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
