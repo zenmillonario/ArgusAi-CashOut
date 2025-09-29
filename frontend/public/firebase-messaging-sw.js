@@ -1,9 +1,9 @@
 // Firebase messaging service worker for background notifications
 /* global importScripts, firebase, self, clients */
 
-// Import Firebase scripts
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+// Import Firebase scripts - Updated to match package.json version
+importScripts('https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/11.10.0/firebase-messaging-compat.js');
 
 // Your Firebase configuration
 const firebaseConfig = {
