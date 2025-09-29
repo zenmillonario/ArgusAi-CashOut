@@ -3798,6 +3798,232 @@ def test_admin_only_notifications():
         print(f"Missing messages: {', '.join(missing)}")
         return False
     
+def test_message_loading_performance():
+    """Test the critical message loading performance issue"""
+    print("\n🔍 TESTING CRITICAL ISSUE: Message Loading Performance")
+    
+    tester = CashoutAITester()
+    
+    # Login as admin
+    user = tester.test_login("admin", "admin123", tester.session1)
+    if not user:
+        print("❌ Login failed, cannot test message loading performance")
+        return False
+    
+    print(f"✅ Logged in as {user.get('username')}")
+    
+    # Test 1: Measure /api/messages/welcome endpoint response time
+    print("\n⏱️ Test 1: Measuring /api/messages/welcome endpoint response time")
+    
+    welcome_times = []
+    num_tests = 5
+    
+    for i in range(num_tests):
+        print(f"Welcome messages test {i+1}/{num_tests}...")
+        
+        start_time = time.time()
+        
+        success, response = tester.run_test(
+            f"Get welcome messages {i+1}",
+            "GET",
+            "messages/welcome",
+            200,
+            session=tester.session1
+        )
+        
+        end_time = time.time()
+        response_time = end_time - start_time
+        welcome_times.append(response_time)
+        
+        if success:
+            message_count = len(response) if isinstance(response, list) else 0
+            print(f"✅ Welcome messages {i+1} retrieved in {response_time:.3f} seconds ({message_count} messages)")
+        else:
+            print(f"❌ Welcome messages {i+1} failed in {response_time:.3f} seconds")
+            return False
+        
+        time.sleep(0.5)
+    
+    # Calculate welcome endpoint performance metrics
+    avg_welcome_time = sum(welcome_times) / len(welcome_times)
+    min_welcome_time = min(welcome_times)
+    max_welcome_time = max(welcome_times)
+    
+    print(f"\n📊 Welcome Endpoint Performance Metrics:")
+    print(f"   Average Response Time: {avg_welcome_time:.3f} seconds")
+    print(f"   Minimum Response Time: {min_welcome_time:.3f} seconds")
+    print(f"   Maximum Response Time: {max_welcome_time:.3f} seconds")
+    print(f"   All Response Times: {[f'{t:.3f}s' for t in welcome_times]}")
+    
+    # Test 2: Test with different message limits to identify optimal size
+    print("\n📏 Test 2: Testing different message limits for optimal performance")
+    
+    limits = [5, 20, 50, 100, 200]
+    limit_performance = {}
+    
+    for limit in limits:
+        print(f"Testing with limit={limit}...")
+        
+        start_time = time.time()
+        
+        success, response = tester.run_test(
+            f"Get messages with limit={limit}",
+            "GET",
+            f"messages?limit={limit}",
+            200,
+            session=tester.session1
+        )
+        
+        end_time = time.time()
+        response_time = end_time - start_time
+        
+        if success:
+            message_count = len(response) if isinstance(response, list) else 0
+            limit_performance[limit] = {
+                'response_time': response_time,
+                'message_count': message_count,
+                'success': True
+            }
+            print(f"✅ Limit {limit}: {response_time:.3f}s ({message_count} messages)")
+        else:
+            limit_performance[limit] = {
+                'response_time': response_time,
+                'message_count': 0,
+                'success': False
+            }
+            print(f"❌ Limit {limit}: Failed in {response_time:.3f}s")
+    
+    # Find optimal limit (best performance with reasonable message count)
+    successful_limits = {k: v for k, v in limit_performance.items() if v['success']}
+    if successful_limits:
+        optimal_limit = min(successful_limits.keys(), key=lambda k: successful_limits[k]['response_time'])
+        print(f"\n🎯 Optimal message limit: {optimal_limit} (fastest response: {successful_limits[optimal_limit]['response_time']:.3f}s)")
+    
+    # Test 3: Check database message count
+    print("\n🗄️ Test 3: Database Message Count Analysis")
+    
+    try:
+        import pymongo
+        from pymongo import MongoClient
+        
+        mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017/emergent_db')
+        client = MongoClient(mongo_url)
+        db = client['emergent_db']
+        
+        total_messages = db.messages.count_documents({})
+        print(f"✅ Total messages in database: {total_messages}")
+        
+        # Check if there are 410+ messages as mentioned in the review
+        if total_messages >= 410:
+            print(f"✅ Database has {total_messages} messages (matches review: 410+ messages)")
+        else:
+            print(f"⚠️ Database has {total_messages} messages (review mentioned 410+ messages)")
+        
+        # Check message size/complexity
+        sample_messages = list(db.messages.find().limit(5))
+        if sample_messages:
+            avg_message_size = sum(len(str(msg)) for msg in sample_messages) / len(sample_messages)
+            print(f"✅ Average message size: {avg_message_size:.0f} characters")
+        
+        client.close()
+        
+    except Exception as e:
+        print(f"⚠️ Could not analyze database: {str(e)}")
+    
+    # Test 4: Network latency test
+    print("\n🌐 Test 4: Network Latency Analysis")
+    
+    # Test simple endpoint for baseline latency
+    start_time = time.time()
+    success, response = tester.run_test(
+        "Baseline API latency test",
+        "GET",
+        "",  # Root endpoint
+        200,
+        session=tester.session1
+    )
+    baseline_latency = time.time() - start_time
+    
+    if success:
+        print(f"✅ Baseline API latency: {baseline_latency:.3f} seconds")
+        
+        # Compare with message loading times
+        message_overhead = avg_welcome_time - baseline_latency
+        print(f"📊 Message loading overhead: {message_overhead:.3f} seconds")
+        
+        if message_overhead > 2.0:
+            print(f"⚠️ High message loading overhead detected: {message_overhead:.3f}s")
+        else:
+            print(f"✅ Message loading overhead is reasonable: {message_overhead:.3f}s")
+    
+    # Test 5: Response size analysis
+    print("\n📦 Test 5: Response Size Analysis")
+    
+    # Get messages with different limits and measure response sizes
+    for limit in [50, 100, 200]:
+        success, response = tester.run_test(
+            f"Response size test with limit={limit}",
+            "GET",
+            f"messages?limit={limit}",
+            200,
+            session=tester.session1
+        )
+        
+        if success:
+            response_size = len(str(response))
+            message_count = len(response) if isinstance(response, list) else 0
+            avg_size_per_message = response_size / message_count if message_count > 0 else 0
+            
+            print(f"✅ Limit {limit}: {response_size} bytes total, {avg_size_per_message:.0f} bytes/message")
+            
+            # Check if response size is causing delays
+            if response_size > 1000000:  # 1MB
+                print(f"⚠️ Large response size detected: {response_size} bytes")
+    
+    # Performance Analysis and Recommendations
+    print(f"\n📋 CRITICAL PERFORMANCE ISSUE ANALYSIS:")
+    print(f"   🔍 Welcome Endpoint Average: {avg_welcome_time:.3f}s")
+    print(f"   🔍 Baseline API Latency: {baseline_latency:.3f}s")
+    
+    # Determine if there's a performance issue
+    performance_threshold = 2.0  # 2 seconds threshold
+    has_performance_issue = avg_welcome_time > performance_threshold
+    
+    if has_performance_issue:
+        print(f"❌ PERFORMANCE ISSUE CONFIRMED: Messages taking {avg_welcome_time:.3f}s (threshold: {performance_threshold}s)")
+        
+        # Provide specific recommendations
+        print(f"\n💡 RECOMMENDATIONS:")
+        if avg_welcome_time > 5.0:
+            print(f"   🚨 CRITICAL: Response time {avg_welcome_time:.3f}s is extremely slow")
+        
+        # Find the fastest performing limit
+        if successful_limits:
+            fastest_limit = min(successful_limits.keys(), key=lambda k: successful_limits[k]['response_time'])
+            fastest_time = successful_limits[fastest_limit]['response_time']
+            print(f"   ⚡ Consider reducing message limit to {fastest_limit} (response time: {fastest_time:.3f}s)")
+        
+        # Database optimization recommendations
+        print(f"   🗄️ Consider database query optimization")
+        print(f"   📦 Consider response payload optimization")
+        print(f"   🔄 Consider implementing pagination")
+        
+        return False
+    else:
+        print(f"✅ PERFORMANCE ACCEPTABLE: Messages loading in {avg_welcome_time:.3f}s")
+        return True
+
+if __name__ == "__main__":
+    # Run the critical message loading performance test
+    print("🚀 Starting Critical Message Loading Performance Test")
+    result = test_message_loading_performance()
+    
+    if result:
+        print("\n🎉 MESSAGE LOADING PERFORMANCE TEST PASSED")
+        exit(0)
+    else:
+        print("\n❌ MESSAGE LOADING PERFORMANCE TEST FAILED")
+        exit(1)
     print("✅ All test messages were successfully created and broadcast")
     
     # Step 10: Verify notification data for admin messages
