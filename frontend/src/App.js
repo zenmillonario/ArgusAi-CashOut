@@ -1047,12 +1047,15 @@ function App() {
     try {
       if (isRegistering) {
         // Registration
+        const isTrialUser = loginForm.membership_plan === "14-Day Trial";
+        
         const response = await axios.post(`${API}/users/register`, {
           username: loginForm.username,
           email: loginForm.email,
           real_name: loginForm.real_name,
           membership_plan: loginForm.membership_plan,
-          password: loginForm.password
+          password: loginForm.password,
+          is_trial: isTrialUser  // NEW: Trial system support
         });
         
         alert('Registration successful! Please wait for admin approval. You will be approved within 5 minutes.');
