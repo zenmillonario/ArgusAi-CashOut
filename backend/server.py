@@ -2114,12 +2114,25 @@ async def approve_user(approval: UserApproval, background_tasks: BackgroundTasks
     user_email = user_to_approve.get('email')
     
     if user_email and email_service:
+        # Send approval confirmation email
         background_tasks.add_task(
             email_service.send_approval_confirmation,
             user_email,
             user_name,
             approval.approved
         )
+        
+        # Send comprehensive welcome email for approved users
+        if approval.approved:
+            background_tasks.add_task(
+                email_service.send_general_welcome_email,
+                user_email,
+                user_name,
+                user_to_approve["username"],
+                user_to_approve.get("membership_plan", "Premium")
+            )
+            logger.info(f"✅ Welcome email scheduled for approved user {user_email}")
+            
     elif user_email:
         action = "approved" if approval.approved else "rejected"
         print(f"Email service unavailable. Would send {action} notification to {user_email}")
