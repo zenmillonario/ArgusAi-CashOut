@@ -569,11 +569,11 @@ Congratulations! Your 14-day FREE trial has started and you now have FULL ACCESS
 • Full Access: 14 days of unlimited features
 
 💰 EXCLUSIVE TRIAL MEMBER DISCOUNT:
-After your trial, use code ARGUS20 for 20% OFF any membership plan:
+Use code ARGUS20 for 20% OFF any membership plan (available anytime):
 
-MONTHLY PLAN: $47/month → $37.60/month (Save $9.40)
-YEARLY PLAN: $470/year → $376/year (Save $94) 
-LIFETIME PLAN: $997 → $797.60 (Save $199.40)
+MONTHLY PLAN: $199/month → $159.20/month (Save $39.80)
+YEARLY PLAN: $1,296/year → $1,036.80/year (Save $259.20) 
+LIFETIME PLAN: $3,969 → $3,175.20 (Save $793.80)
 
 🚀 GET STARTED:
 1. Login at: https://argus-trader-hub.preview.emergentagent.com
