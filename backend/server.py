@@ -4112,10 +4112,6 @@ async def get_welcome_messages(user_id: Optional[str] = None):
     
     logger.info(f"📚 NEW USER WELCOME: Loaded {len(cleaned_messages)} historical messages")
     return cleaned_messages
-    except Exception as e:
-        logger.error(f"Error creating Message objects: {e}")
-        # Return empty list if there are still validation issues
-        return []
 
 @api_router.post("/trades", response_model=PaperTrade)
 async def create_paper_trade(trade_data: PaperTradeCreate, user_id: str):
