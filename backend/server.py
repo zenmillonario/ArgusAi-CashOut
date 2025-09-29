@@ -1741,7 +1741,7 @@ async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks
             # Send welcome email to trial user
             if email_service:
                 try:
-                    await send_trial_welcome_email(user_data.email, user_dict.get('real_name', user_data.username), trial_end)
+                    await email_service.send_trial_welcome_email(user_data.email, user_dict.get('real_name', user_data.username), trial_end)
                     logger.info(f"✅ Trial welcome email sent to {user_data.email}")
                 except Exception as e:
                     logger.error(f"❌ Failed to send trial welcome email: {e}")
