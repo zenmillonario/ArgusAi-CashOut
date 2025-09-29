@@ -514,6 +514,8 @@ class UserStatus(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+    TRIAL = "trial"
+    TRIAL_EXPIRED = "trial_expired"
 
 class UserRole(str, Enum):
     MEMBER = "member"
