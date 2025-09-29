@@ -628,7 +628,7 @@ The ArgusAI CashOut Team
                 <p><strong>Email:</strong> {user_email}</p>
                 <p><strong>Password:</strong> [The password you created during registration]</p>
                 <div style="text-align: center; margin: 20px 0;">
-                    <a href="https://argus-trader-hub.preview.emergentagent.com" class="cta-button">🚀 Start Trading Now</a>
+                    <a href="https://cashoutai-frontend.onrender.com/" class="cta-button">🚀 Start Trading Now</a>
                 </div>
             </div>
             
