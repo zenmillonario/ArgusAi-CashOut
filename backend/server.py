@@ -3041,6 +3041,33 @@ async def get_trial_expired_users():
         "count": len(trial_expired_users)
     }
 
+@api_router.get("/admin/trial-users")
+async def get_all_trial_users():
+    """Get all trial users (active and expired) for admin management"""
+    active_trials = await db.users.find(
+        {"status": UserStatus.TRIAL},
+        {"id": 1, "username": 1, "real_name": 1, "email": 1, "trial_start_date": 1, "trial_end_date": 1, "membership_plan": 1, "_id": 0}
+    ).to_list(100)
+    
+    expired_trials = await db.users.find(
+        {"status": UserStatus.TRIAL_EXPIRED},
+        {"id": 1, "username": 1, "real_name": 1, "email": 1, "trial_end_date": 1, "membership_plan": 1, "_id": 0}
+    ).to_list(100)
+    
+    # Convert datetime objects to strings for JSON serialization
+    for user in active_trials + expired_trials:
+        for date_field in ["trial_start_date", "trial_end_date"]:
+            if date_field in user and user[date_field]:
+                user[date_field] = user[date_field].isoformat()
+    
+    return {
+        "active_trials": active_trials,
+        "expired_trials": expired_trials, 
+        "active_count": len(active_trials),
+        "expired_count": len(expired_trials),
+        "total_trials": len(active_trials) + len(expired_trials)
+    }
+
 @api_router.get("/users/{user_id}/referrals")
 async def get_user_referrals(user_id: str):
     """Get user's referral information"""
