@@ -4024,43 +4024,6 @@ if __name__ == "__main__":
     else:
         print("\n❌ MESSAGE LOADING PERFORMANCE TEST FAILED")
         exit(1)
-    print("✅ All test messages were successfully created and broadcast")
-    
-    # Step 10: Verify notification data for admin messages
-    print("\n🔍 Step 10: Verify notification data for admin messages")
-    
-    # Check admin text message notification data
-    if admin_text_message.get('is_admin') != True:
-        print("❌ Admin text message is_admin flag is not set to true")
-        return False
-    
-    # Check admin image message notification data
-    if admin_image_message.get('is_admin') != True:
-        print("❌ Admin image message is_admin flag is not set to true")
-        return False
-    
-    if admin_image_message.get('content_type') != "image":
-        print("❌ Admin image message content_type is not set to 'image'")
-        return False
-    
-    # Check member message notification data
-    if member_message.get('is_admin') != False:
-        print("❌ Member message is_admin flag is not set to false")
-        return False
-    
-    # Check moderator message notification data
-    if mod_message.get('is_admin') != False:
-        print("❌ Moderator message is_admin flag is not set to false")
-        return False
-    
-    print("✅ All message notification data is correctly set")
-    
-    # Final verification
-    print("\n✅ Admin-Only FCM Notifications test passed")
-    print("✅ Admin messages correctly trigger FCM notifications with proper data")
-    print("✅ Non-admin messages are created and broadcast but do not trigger FCM notifications")
-    
-    return True
 
 def test_admin_demotion():
     """Test admin demotion functionality"""
