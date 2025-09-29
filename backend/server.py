@@ -4056,6 +4056,59 @@ async def get_messages(limit: int = 100, user_id: Optional[str] = None):
     
     try:
         return [Message(**message) for message in cleaned_messages]
+
+@api_router.get("/messages/welcome", response_model=List[Message])
+async def get_welcome_messages(user_id: Optional[str] = None):
+    """Get recent message history for new users to provide context"""
+    # TRIAL SYSTEM: Check user access for chat viewing
+    if user_id:
+        user = await db.users.find_one({"id": user_id})
+        if user and user.get("status") == UserStatus.TRIAL_EXPIRED:
+            raise HTTPException(
+                status_code=403, 
+                detail="Chat viewing restricted. Your trial has expired. Upgrade your account to view trader discussions."
+            )
+    
+    # Get last 200 messages to provide good historical context for new users
+    messages = await db.messages.find().sort("timestamp", -1).limit(200).to_list(200)
+    
+    # Clean up messages for compatibility (same logic as regular get_messages)
+    cleaned_messages = []
+    for message in messages:
+        try:
+            # Fix highlighted_tickers format for compatibility
+            if 'highlighted_tickers' in message:
+                tickers = message['highlighted_tickers']
+                if isinstance(tickers, list) and tickers:
+                    if isinstance(tickers[0], dict):
+                        message['highlighted_tickers'] = [ticker.get('symbol', '') for ticker in tickers if isinstance(ticker, dict) and 'symbol' in ticker]
+                    elif not isinstance(tickers[0], str):
+                        message['highlighted_tickers'] = []
+                else:
+                    message['highlighted_tickers'] = []
+            else:
+                message['highlighted_tickers'] = []
+            
+            # Ensure all required fields exist with defaults
+            message.setdefault('content_type', 'text')
+            message.setdefault('avatar_url', None)
+            message.setdefault('is_admin', False)
+            message.setdefault('screen_name', message.get('username', 'Unknown'))
+            
+            # Ensure reply_to exists
+            message.setdefault('reply_to', None)
+            
+            cleaned_messages.append(Message(**message))
+            
+        except ValidationError as e:
+            logger.error(f"Validation error for message {message.get('id', 'unknown')}: {e}")
+            continue
+        except Exception as e:
+            logger.error(f"Error processing message {message.get('id', 'unknown')}: {e}")
+            continue
+    
+    logger.info(f"📚 NEW USER WELCOME: Loaded {len(cleaned_messages)} historical messages")
+    return cleaned_messages
     except Exception as e:
         logger.error(f"Error creating Message objects: {e}")
         # Return empty list if there are still validation issues
