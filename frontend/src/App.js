@@ -14,6 +14,7 @@ import AssetAllocationWheel from './AssetAllocationWheel';
 import LoadingScreen from './LoadingScreen';
 import { formatPrice, formatPnL, formatCurrency } from './utils';
 import notificationService from './firebase-config';
+import capacitorManager from './capacitor-utils';
 import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
