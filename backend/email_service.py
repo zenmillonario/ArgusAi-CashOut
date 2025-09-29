@@ -576,7 +576,7 @@ YEARLY PLAN: $1,296/year → $1,036.80/year (Save $259.20)
 LIFETIME PLAN: $3,969 → $3,175.20 (Save $793.80)
 
 🚀 GET STARTED:
-1. Login at: https://argus-trader-hub.preview.emergentagent.com
+1. Login at: https://cashoutai-frontend.onrender.com/
 2. Join the live trading chat
 3. Connect with our community of traders
 4. Start building your portfolio
