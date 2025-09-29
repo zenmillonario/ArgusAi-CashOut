@@ -542,7 +542,7 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "Admin Approval System"
+    - "2-Week Trial System"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
