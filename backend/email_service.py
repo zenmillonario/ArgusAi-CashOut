@@ -659,10 +659,36 @@ The ArgusAI CashOut Team
                     <div class="discount-code">ARGUS20</div>
                 </div>
                 
-                <h4>💎 Membership Plans (with your discount):</h4>
-                <p>🗓️ <strong>Monthly:</strong> $199/month → <strong>$159.20/month</strong> (Save $39.80)</p>
-                <p>📅 <strong>Yearly:</strong> $1,296/year → <strong>$1,036.80/year</strong> (Save $259.20)</p>
-                <p>♾️ <strong>Lifetime:</strong> $3,969 → <strong>$3,175.20</strong> (Save $793.80)</p>
+                <h4>💎 Choose Your Membership Plan:</h4>
+                
+                <!-- Monthly Plan Button -->
+                <div style="background: white; padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #e5e7eb; text-align: center;">
+                    <h4 style="margin: 0; color: #1f2937;">🗓️ Monthly Plan</h4>
+                    <p style="margin: 5px 0; color: #6b7280;"><s>$199/month</s> → <strong style="color: #ef4444;">$159.20/month</strong></p>
+                    <p style="margin: 5px 0; font-size: 14px; color: #10b981;">Save $39.80/month</p>
+                    <a href="https://square.link/u/dhjuwn84" style="background: #3b82f6; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">💳 Choose Monthly - $159.20</a>
+                </div>
+                
+                <!-- Yearly Plan Button (Featured) -->
+                <div style="background: linear-gradient(135deg, #fef3c7 0%, #fbbf24 100%); padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #f59e0b; text-align: center; position: relative;">
+                    <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #ef4444; color: white; padding: 4px 12px; border-radius: 15px; font-size: 12px; font-weight: bold;">MOST POPULAR</div>
+                    <h4 style="margin: 0; color: #1f2937;">📅 Yearly Plan</h4>
+                    <p style="margin: 5px 0; color: #6b7280;"><s>$1,296/year</s> → <strong style="color: #ef4444;">$1,036.80/year</strong></p>
+                    <p style="margin: 5px 0; font-size: 14px; color: #10b981;">Save $259.20/year + 2 months FREE!</p>
+                    <a href="https://square.link/u/kKmNauCe" style="background: #f59e0b; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">🏆 Choose Yearly - $1,036.80</a>
+                </div>
+                
+                <!-- Lifetime Plan Button -->
+                <div style="background: white; padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #e5e7eb; text-align: center;">
+                    <h4 style="margin: 0; color: #1f2937;">♾️ Lifetime Plan</h4>
+                    <p style="margin: 5px 0; color: #6b7280;"><s>$3,969 one-time</s> → <strong style="color: #ef4444;">$3,175.20 one-time</strong></p>
+                    <p style="margin: 5px 0; font-size: 14px; color: #10b981;">Save $793.80 + Never pay again!</p>
+                    <a href="https://square.link/u/dRSryNkx" style="background: #8b5cf6; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">💎 Choose Lifetime - $3,175.20</a>
+                </div>
+                
+                <div style="text-align: center; margin: 15px 0; padding: 10px; background: #e0f2fe; border-radius: 6px;">
+                    <p style="margin: 0; font-size: 14px; color: #0369a1;"><strong>💡 Remember:</strong> Enter code <strong>ARGUS20</strong> at checkout for your 20% discount!</p>
+                </div>
             </div>
             
             <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
