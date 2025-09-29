@@ -1734,17 +1734,19 @@ async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks
                 {"type": "new_registration", "username": user_data.username}
             )
     
+    # Insert user into database
     await db.users.insert_one(user.dict())
     
     # Handle referral if provided
     if referral_code:
         background_tasks.add_task(handle_referral_signup, user.id, referral_code)
     
-    # Notify admins about new registration via WebSocket
-    await manager.send_admin_notification(json.dumps({
-        "type": "new_registration",
-        "user": user.dict()
-    }, default=str))
+    # Notify admins about new registration via WebSocket (only for regular users, not trials)
+    if user.status == UserStatus.PENDING:
+        await manager.send_admin_notification(json.dumps({
+            "type": "new_registration",
+            "user": user.dict()
+        }, default=str))
     
     return user
 
