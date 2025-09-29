@@ -811,8 +811,14 @@ function App() {
         wsUrl = `${wsProtocol}${wsHost}/api/ws/${currentUser.id}/${currentUser.active_session_id}`;
       }
       
-      console.log('Connecting to WebSocket:', wsUrl);
-      const ws = new WebSocket(wsUrl);
+      // MOBILE OPTIMIZATION: Use mobile-friendly WebSocket URL
+      const finalWsUrl = capacitorManager.isNative 
+        ? capacitorManager.getWebSocketUrl(BACKEND_URL)
+        : wsUrl;
+        
+      console.log('🔌 Connecting to WebSocket:', finalWsUrl);
+      
+      const ws = new WebSocket(finalWsUrl);
       
       ws.onopen = () => {
         setIsConnected(true);
