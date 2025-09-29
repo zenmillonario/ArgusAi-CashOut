@@ -433,26 +433,74 @@ ArgusAI CashOut Team
         .content {{ padding: 20px; background: #f9f9f9; }}
         .offer-box {{ background: #fef3c7; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #f59e0b; text-align: center; }}
         .discount-code {{ background: #1f2937; color: #fbbf24; padding: 10px 20px; font-size: 24px; font-weight: bold; border-radius: 8px; display: inline-block; margin: 10px 0; }}
+        .plans-section {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; }}
+        .plan-card {{ border: 2px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 10px 0; text-align: center; }}
+        .plan-card.featured {{ border-color: #8b5cf6; background: #f3f4f6; }}
+        .plan-price {{ font-size: 24px; font-weight: bold; color: #1f2937; margin: 10px 0; }}
+        .plan-original {{ text-decoration: line-through; color: #6b7280; font-size: 18px; }}
+        .plan-discounted {{ color: #ef4444; font-weight: bold; }}
+        .plan-button {{ background: #8b5cf6; color: white; padding: 12px 25px; border-radius: 6px; text-decoration: none; display: inline-block; margin: 10px 0; font-weight: bold; transition: background 0.3s; }}
+        .plan-button:hover {{ background: #7c3aed; }}
         .restrictions {{ background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ef4444; }}
         .benefits {{ background: white; padding: 15px; border-radius: 8px; margin: 15px 0; }}
-        .cta-button {{ background: #8b5cf6; color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; display: inline-block; margin: 20px 0; font-weight: bold; }}
+        .discount-instructions {{ background: #e0e7ff; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #6366f1; }}
         .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎯 Special Upgrade Offer!</h1>
-        <p>Your trial has expired, but we have something special for you</p>
+        <h1>🎯 Exclusive Upgrade Offer!</h1>
+        <p>Your trial has expired - Get 20% OFF any plan</p>
     </div>
     
     <div class="content">
         <h2>Hi {user_name},</h2>
         
         <div class="offer-box">
-            <h2>🎉 EXCLUSIVE 20% OFF DISCOUNT!</h2>
-            <p>Use this code for any membership plan:</p>
-            <div class="discount-code">ARGUS20</div>
-            <p><strong>Limited time offer - Don't miss out!</strong></p>
+            <h2>🎉 SPECIAL TRIAL MEMBER DISCOUNT!</h2>
+            <p>Use code <span class="discount-code">ARGUS20</span> for 20% OFF</p>
+            <p><strong>Limited time offer for trial members only!</strong></p>
+        </div>
+
+        <div class="discount-instructions">
+            <h3>💡 How to Apply Your Discount:</h3>
+            <p>1. Click any plan button below</p>
+            <p>2. At checkout, enter <strong>ARGUS20</strong> in the "Add Coupon" field</p>
+            <p>3. Enjoy 20% savings on your membership!</p>
+        </div>
+        
+        <div class="plans-section">
+            <h3 style="text-align: center; margin-bottom: 20px;">💰 Choose Your Plan:</h3>
+            
+            <div class="plan-card">
+                <h4>Monthly Plan</h4>
+                <div class="plan-price">
+                    <span class="plan-original">$47/month</span><br>
+                    <span class="plan-discounted">$37.60/month with ARGUS20</span>
+                </div>
+                <p>Perfect for getting started</p>
+                <a href="https://square.link/u/dhjuwn84" class="plan-button">Choose Monthly Plan</a>
+            </div>
+            
+            <div class="plan-card featured">
+                <h4>🌟 Yearly Plan (Most Popular)</h4>
+                <div class="plan-price">
+                    <span class="plan-original">$470/year</span><br>
+                    <span class="plan-discounted">$376/year with ARGUS20</span>
+                </div>
+                <p>Save $188 compared to monthly + extra 20% OFF!</p>
+                <a href="https://square.link/u/kKmNauCe" class="plan-button">Choose Yearly Plan</a>
+            </div>
+            
+            <div class="plan-card">
+                <h4>Lifetime Plan</h4>
+                <div class="plan-price">
+                    <span class="plan-original">$997 one-time</span><br>
+                    <span class="plan-discounted">$797.60 with ARGUS20</span>
+                </div>
+                <p>Never pay again - lifetime access</p>
+                <a href="https://square.link/u/dRSryNkx" class="plan-button">Choose Lifetime Plan</a>
+            </div>
         </div>
         
         <div class="restrictions">
@@ -464,24 +512,20 @@ ArgusAI CashOut Team
         </div>
         
         <div class="benefits">
-            <h3>💎 Upgrade to get back:</h3>
-            <p>💬 Full real-time chat access</p>
-            <p>🏆 Achievement system and rewards</p>
-            <p>📊 Advanced portfolio analytics</p>
-            <p>⭐ Priority customer support</p>
-            <p>🔔 Premium notifications and alerts</p>
+            <h3>🚀 Upgrade to unlock:</h3>
+            <p>💬 <strong>Unlimited real-time chat</strong> with successful traders</p>
+            <p>📊 <strong>Advanced portfolio analytics</strong> and insights</p>
+            <p>🔔 <strong>Exclusive trading signals</strong> and alerts</p>
+            <p>⭐ <strong>Priority customer support</strong></p>
+            <p>🎓 <strong>Access to premium educational content</strong></p>
         </div>
         
-        <div style="text-align: center;">
-            <a href="#" class="cta-button">🚀 Upgrade Now with ARGUS20</a>
-        </div>
-        
-        <p><strong>Don't let this opportunity slip away!</strong> Use code <strong>ARGUS20</strong> and save 20% on any plan.</p>
+        <p style="text-align: center;"><strong>Ready to rejoin our trading community?</strong><br>Choose your plan above and don't forget to use code <strong>ARGUS20</strong>!</p>
     </div>
     
     <div class="footer">
         <p>ArgusAI CashOut Team</p>
-        <p>This offer is valid for a limited time. Terms and conditions apply.</p>
+        <p>After payment, your account will be upgraded to full member status within 24 hours.</p>
     </div>
 </body>
 </html>
