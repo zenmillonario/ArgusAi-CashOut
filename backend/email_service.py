@@ -485,8 +485,8 @@ ArgusAI CashOut Team
             <div class="plan-card featured">
                 <h4>🌟 Yearly Plan (Most Popular)</h4>
                 <div class="plan-price">
-                    <span class="plan-original">$470/year</span><br>
-                    <span class="plan-discounted">$376/year with ARGUS20</span>
+                    <span class="plan-original">$1,296/year</span><br>
+                    <span class="plan-discounted">$1,036.80/year with ARGUS20</span>
                 </div>
                 <p>Save $188 compared to monthly + extra 20% OFF!</p>
                 <a href="https://square.link/u/kKmNauCe" class="plan-button">Choose Yearly Plan</a>
