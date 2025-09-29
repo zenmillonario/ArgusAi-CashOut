@@ -607,6 +607,21 @@ test_plan:
         agent: "testing"
         comment: "✅ 2-WEEK TRIAL SYSTEM TESTING COMPLETED SUCCESSFULLY. Comprehensive testing verified all requirements: 1) TRIAL REGISTRATION FLOW: POST /api/users/register with is_trial: true creates users with status 'trial', membership_plan '14-Day Trial', and proper trial_start_date/trial_end_date (14 days). Auto-approval works - no admin approval needed. Trial welcome emails sent successfully. 2) TRIAL USER LOGIN: POST /api/users/login works for trial users with status 'trial'. Trial expiration logic correctly converts expired trials to 'trial_expired' status during login. 3) TRIAL ACCESS PERMISSIONS: Trial users have full chat access - POST /api/messages and GET /api/messages work correctly during trial period. Same access as approved users. 4) TRIAL EXPIRATION LOGIC: Users past expiration date automatically change from 'trial' to 'trial_expired' status. Upgrade emails with ARGUS20 discount code sent automatically. trial_upgrade_email_sent flag properly set. 5) TRIAL EXPIRED ACCESS RESTRICTIONS: POST /api/messages returns 403 with upgrade message 'Chat access restricted. Your trial has expired. Upgrade your account to continue chatting with other traders.' GET /api/messages returns 403 with upgrade message. Other features (portfolio, practice trading) remain accessible. 6) BACKGROUND TRIAL MANAGEMENT: Periodic cleanup function ready to process expired trials. Database consistency verified with proper trial user counts. Backend logs confirm all functionality: trial registration ('✨ TRIAL USER REGISTERED'), trial expiration ('⏰ TRIAL EXPIRED'), email notifications, and proper access restrictions. The complete trial system works correctly for the business model."
 
+  - task: "Admin Login Authentication Debug"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Debugged admin login authentication error for ArgusAI CashOut application. Investigation revealed that the admin user existed in database but was missing password_hash field, causing security vulnerability where any password would work. Fixed backend syntax error in server.py (misplaced except block), restarted backend service, and added proper password_hash to admin user."
+      - working: true
+        agent: "testing"
+        comment: "✅ ADMIN LOGIN AUTHENTICATION DEBUG COMPLETED SUCCESSFULLY. Comprehensive investigation and fix: 1) BACKEND SYNTAX ERROR: Fixed syntax error in server.py line 4115 (misplaced except block) that was preventing backend from starting properly. Backend service restarted successfully. 2) DATABASE INVESTIGATION: Found admin user exists with username 'admin', email 'admin@example.com', status 'approved', role 'admin', is_admin: true, but was missing password_hash field. This created security vulnerability where any password would be accepted. 3) SECURITY FIX: Added proper password_hash to admin user for password 'admin123' using SHA256 hashing. Verified hash generation and storage. 4) LOGIN ENDPOINT TESTING: POST /api/users/login now works correctly with admin/admin123 credentials, returns 200 status with valid session ID and user data. Wrong passwords (admin, wrongpass, 123456, password, empty) are properly rejected with 401 status. 5) BACKEND LOGS: Confirmed fast login optimization working ('🚀 FAST LOGIN: User admin logged in with session: ... (XP processing in background)'). 6) ROOT CAUSE: The issue was NOT with the login endpoint itself, but with missing password_hash field in database causing authentication bypass. The correct admin credentials are: username: admin, password: admin123. Login authentication is now secure and working correctly."
+
   - task: "Admin Approval System"
     implemented: true
     working: true
