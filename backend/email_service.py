@@ -550,7 +550,7 @@ ArgusAI CashOut Team
 Congratulations! Your 14-day FREE trial has started and you now have FULL ACCESS to our premium trading platform.
 
 🔑 YOUR LOGIN CREDENTIALS:
-• Website: https://argus-trader-hub.preview.emergentagent.com
+• Website: https://cashoutai-frontend.onrender.com/
 • Email: {user_email}
 • Password: [The password you created during registration]
 
