@@ -287,6 +287,108 @@ ArgusAI CashOut Team
         
         return await self.send_email(user_email, subject, plain_body, html_body)
     
+    async def send_trial_upgrade_email(
+        self, 
+        user_email: str, 
+        user_name: str
+    ) -> bool:
+        """Send trial upgrade email with Argus20 discount code"""
+        subject = "🎯 Your ArgusAI Trial Expired - 20% OFF with ARGUS20!"
+        
+        plain_body = f"""
+Hi {user_name},
+
+Your 14-day trial with ArgusAI CashOut has ended, but don't worry - we have a special offer for you!
+
+🎉 EXCLUSIVE OFFER: Use code ARGUS20 for 20% OFF any membership plan!
+
+What You're Missing:
+• Real-time chat with traders (RESTRICTED)
+• Full access to all premium features
+• Advanced portfolio analytics
+• Priority support
+
+Your account is now in LIMITED ACCESS mode:
+✅ You can still view your portfolio
+✅ Access paper trading
+✅ View market data
+❌ Chat access is restricted
+
+Ready to upgrade? Use discount code: ARGUS20
+
+Upgrade now to get back full access with 20% savings!
+
+--
+ArgusAI CashOut Team
+"""
+        
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .header {{ background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background: #f9f9f9; }}
+        .offer-box {{ background: #fef3c7; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #f59e0b; text-align: center; }}
+        .discount-code {{ background: #1f2937; color: #fbbf24; padding: 10px 20px; font-size: 24px; font-weight: bold; border-radius: 8px; display: inline-block; margin: 10px 0; }}
+        .restrictions {{ background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ef4444; }}
+        .benefits {{ background: white; padding: 15px; border-radius: 8px; margin: 15px 0; }}
+        .cta-button {{ background: #8b5cf6; color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; display: inline-block; margin: 20px 0; font-weight: bold; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎯 Special Upgrade Offer!</h1>
+        <p>Your trial has expired, but we have something special for you</p>
+    </div>
+    
+    <div class="content">
+        <h2>Hi {user_name},</h2>
+        
+        <div class="offer-box">
+            <h2>🎉 EXCLUSIVE 20% OFF DISCOUNT!</h2>
+            <p>Use this code for any membership plan:</p>
+            <div class="discount-code">ARGUS20</div>
+            <p><strong>Limited time offer - Don't miss out!</strong></p>
+        </div>
+        
+        <div class="restrictions">
+            <h3>⚠️ Your Account is Now in LIMITED ACCESS Mode</h3>
+            <p>❌ <strong>Chat access is restricted</strong> - You can't view or participate in trader discussions</p>
+            <p>✅ Portfolio management still available</p>
+            <p>✅ Paper trading still accessible</p>
+            <p>✅ Market data viewing allowed</p>
+        </div>
+        
+        <div class="benefits">
+            <h3>💎 Upgrade to get back:</h3>
+            <p>💬 Full real-time chat access</p>
+            <p>🏆 Achievement system and rewards</p>
+            <p>📊 Advanced portfolio analytics</p>
+            <p>⭐ Priority customer support</p>
+            <p>🔔 Premium notifications and alerts</p>
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="#" class="cta-button">🚀 Upgrade Now with ARGUS20</a>
+        </div>
+        
+        <p><strong>Don't let this opportunity slip away!</strong> Use code <strong>ARGUS20</strong> and save 20% on any plan.</p>
+    </div>
+    
+    <div class="footer">
+        <p>ArgusAI CashOut Team</p>
+        <p>This offer is valid for a limited time. Terms and conditions apply.</p>
+    </div>
+</body>
+</html>
+"""
+        
+        return await self.send_email(user_email, subject, plain_body, html_body)
+    
     async def send_trial_welcome_email(
         self, 
         user_email: str, 
@@ -373,6 +475,108 @@ ArgusAI CashOut Team
     
     <div class="footer">
         <p>ArgusAI CashOut Team</p>
+    </div>
+</body>
+</html>
+"""
+        
+        return await self.send_email(user_email, subject, plain_body, html_body)
+    
+    async def send_trial_upgrade_email(
+        self, 
+        user_email: str, 
+        user_name: str
+    ) -> bool:
+        """Send trial upgrade email with Argus20 discount code"""
+        subject = "🎯 Your ArgusAI Trial Expired - 20% OFF with ARGUS20!"
+        
+        plain_body = f"""
+Hi {user_name},
+
+Your 14-day trial with ArgusAI CashOut has ended, but don't worry - we have a special offer for you!
+
+🎉 EXCLUSIVE OFFER: Use code ARGUS20 for 20% OFF any membership plan!
+
+What You're Missing:
+• Real-time chat with traders (RESTRICTED)
+• Full access to all premium features
+• Advanced portfolio analytics
+• Priority support
+
+Your account is now in LIMITED ACCESS mode:
+✅ You can still view your portfolio
+✅ Access paper trading
+✅ View market data
+❌ Chat access is restricted
+
+Ready to upgrade? Use discount code: ARGUS20
+
+Upgrade now to get back full access with 20% savings!
+
+--
+ArgusAI CashOut Team
+"""
+        
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .header {{ background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background: #f9f9f9; }}
+        .offer-box {{ background: #fef3c7; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #f59e0b; text-align: center; }}
+        .discount-code {{ background: #1f2937; color: #fbbf24; padding: 10px 20px; font-size: 24px; font-weight: bold; border-radius: 8px; display: inline-block; margin: 10px 0; }}
+        .restrictions {{ background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ef4444; }}
+        .benefits {{ background: white; padding: 15px; border-radius: 8px; margin: 15px 0; }}
+        .cta-button {{ background: #8b5cf6; color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; display: inline-block; margin: 20px 0; font-weight: bold; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎯 Special Upgrade Offer!</h1>
+        <p>Your trial has expired, but we have something special for you</p>
+    </div>
+    
+    <div class="content">
+        <h2>Hi {user_name},</h2>
+        
+        <div class="offer-box">
+            <h2>🎉 EXCLUSIVE 20% OFF DISCOUNT!</h2>
+            <p>Use this code for any membership plan:</p>
+            <div class="discount-code">ARGUS20</div>
+            <p><strong>Limited time offer - Don't miss out!</strong></p>
+        </div>
+        
+        <div class="restrictions">
+            <h3>⚠️ Your Account is Now in LIMITED ACCESS Mode</h3>
+            <p>❌ <strong>Chat access is restricted</strong> - You can't view or participate in trader discussions</p>
+            <p>✅ Portfolio management still available</p>
+            <p>✅ Paper trading still accessible</p>
+            <p>✅ Market data viewing allowed</p>
+        </div>
+        
+        <div class="benefits">
+            <h3>💎 Upgrade to get back:</h3>
+            <p>💬 Full real-time chat access</p>
+            <p>🏆 Achievement system and rewards</p>
+            <p>📊 Advanced portfolio analytics</p>
+            <p>⭐ Priority customer support</p>
+            <p>🔔 Premium notifications and alerts</p>
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="#" class="cta-button">🚀 Upgrade Now with ARGUS20</a>
+        </div>
+        
+        <p><strong>Don't let this opportunity slip away!</strong> Use code <strong>ARGUS20</strong> and save 20% on any plan.</p>
+    </div>
+    
+    <div class="footer">
+        <p>ArgusAI CashOut Team</p>
+        <p>This offer is valid for a limited time. Terms and conditions apply.</p>
     </div>
 </body>
 </html>
