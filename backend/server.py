@@ -571,6 +571,11 @@ class User(BaseModel):
     daily_login_streak: int = 0
     last_login_date: Optional[str] = None  # YYYY-MM-DD format
     
+    # Trial system fields
+    trial_start_date: Optional[datetime] = None
+    trial_end_date: Optional[datetime] = None
+    trial_upgrade_email_sent: Optional[bool] = False
+    
     # NEW: Profile Customization
     profile_banner: Optional[str] = None  # URL or base64
     bio: Optional[str] = None
