@@ -2057,17 +2057,29 @@ async def get_users():
 
 @api_router.get("/users/pending", response_model=List[User])
 async def get_pending_users():
-    """Get all users pending approval and trial expired users"""
+    """Get all users needing admin attention (pending, trial, trial expired)"""
     pending_users = await db.users.find({"status": UserStatus.PENDING}).to_list(1000)
+    trial_users = await db.users.find({"status": UserStatus.TRIAL}).to_list(1000)
     trial_expired_users = await db.users.find({"status": UserStatus.TRIAL_EXPIRED}).to_list(1000)
     
-    # Add indicator for trial expired users
+    # Add indicators for different user types
+    for user in trial_users:
+        user["is_trial_active"] = True
+        trial_end = user.get('trial_end_date')
+        if trial_end:
+            if isinstance(trial_end, str):
+                trial_end = datetime.fromisoformat(trial_end.replace('Z', '+00:00'))
+            days_remaining = (trial_end - datetime.utcnow()).days
+            user["admin_note"] = f"🎯 ACTIVE TRIAL: {days_remaining} days remaining - Auto-approved trial user"
+        else:
+            user["admin_note"] = "🎯 ACTIVE TRIAL: Auto-approved trial user"
+    
     for user in trial_expired_users:
         user["is_trial_expired"] = True
         user["admin_note"] = f"⏰ TRIAL EXPIRED: User paid for membership plan '{user.get('membership_plan', 'Unknown')}' - Convert to Member after payment verification"
     
-    # Combine and sort by creation date
-    all_users = pending_users + trial_expired_users
+    # Combine and sort by creation date (most recent first)
+    all_users = pending_users + trial_users + trial_expired_users
     all_users.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
     
     return [User(**user) for user in all_users]
