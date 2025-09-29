@@ -2684,23 +2684,97 @@ async def update_user_role(user_id: str, role_update: UserRoleUpdate):
 
 @api_router.delete("/users/{user_id}")
 async def remove_user(user_id: str, admin_id: str):
-    """Remove user from app - admin only"""
+    """Remove user from app - admin only (includes trial users)"""
     # Verify admin status
     admin = await db.users.find_one({"id": admin_id})
     if not admin or not admin.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    # Don't allow removing other admins
+    # Get user details before deletion
     user_to_remove = await db.users.find_one({"id": user_id})
-    if user_to_remove and user_to_remove.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Cannot remove admin users")
-    
-    result = await db.users.delete_one({"id": user_id})
-    
-    if result.deleted_count == 0:
+    if not user_to_remove:
         raise HTTPException(status_code=404, detail="User not found")
     
-    return {"message": "User removed successfully"}
+    # Don't allow removing other admins
+    if user_to_remove.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Cannot remove admin users")
+    
+    username = user_to_remove.get("username", "Unknown")
+    user_status = user_to_remove.get("status", "Unknown")
+    membership_plan = user_to_remove.get("membership_plan", "Unknown")
+    
+    # COMPREHENSIVE CLEANUP: Remove all user-related data
+    try:
+        # 1. Delete user messages
+        messages_deleted = await db.messages.delete_many({"user_id": user_id})
+        
+        # 2. Delete user notifications
+        notifications_deleted = await db.notifications.delete_many({"user_id": user_id})
+        
+        # 3. Delete user trades/positions
+        trades_deleted = await db.trades.delete_many({"user_id": user_id})
+        positions_deleted = await db.positions.delete_many({"user_id": user_id})
+        
+        # 4. Delete FCM tokens
+        fcm_deleted = await db.fcm_tokens.delete_many({"user_id": user_id})
+        
+        # 5. Remove user from other users' followers/following lists
+        await db.users.update_many(
+            {"followers": user_id},
+            {"$pull": {"followers": user_id}, "$inc": {"follower_count": -1}}
+        )
+        await db.users.update_many(
+            {"following": user_id},
+            {"$pull": {"following": user_id}, "$inc": {"following_count": -1}}
+        )
+        
+        # 6. Delete user cash prizes
+        prizes_deleted = await db.cash_prizes.delete_many({"user_id": user_id})
+        
+        # 7. Finally, delete the user account
+        result = await db.users.delete_one({"id": user_id})
+        
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="User deletion failed")
+        
+        # Log the removal with details
+        logger.info(f"🗑️ USER REMOVED by admin {admin['username']}: {username} (Status: {user_status}, Plan: {membership_plan})")
+        logger.info(f"📊 Cleanup stats - Messages: {messages_deleted.deleted_count}, Notifications: {notifications_deleted.deleted_count}, Trades: {trades_deleted.deleted_count}, FCM: {fcm_deleted.deleted_count}")
+        
+        # Notify other admins about the removal
+        await manager.send_admin_notification(json.dumps({
+            "type": "user_removed",
+            "message": f"User {username} ({user_status}) has been removed by {admin['username']}",
+            "admin_action": "user_removal",
+            "removed_user": {
+                "username": username,
+                "status": user_status,
+                "membership_plan": membership_plan,
+                "removed_by": admin['username']
+            }
+        }, default=str))
+        
+        return {
+            "message": f"User {username} removed successfully",
+            "user_details": {
+                "username": username,
+                "status": user_status,
+                "membership_plan": membership_plan,
+                "removed_by": admin['username']
+            },
+            "cleanup_stats": {
+                "messages_deleted": messages_deleted.deleted_count,
+                "notifications_deleted": notifications_deleted.deleted_count,
+                "trades_deleted": trades_deleted.deleted_count,
+                "positions_deleted": positions_deleted.deleted_count,
+                "fcm_tokens_deleted": fcm_deleted.deleted_count,
+                "cash_prizes_deleted": prizes_deleted.deleted_count
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error during user removal: {e}")
+        raise HTTPException(status_code=500, detail=f"Error removing user: {str(e)}")
 
 # NEW: XP and Achievement Endpoints
 @api_router.post("/users/{user_id}/award-xp")
