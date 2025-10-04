@@ -12,6 +12,11 @@ class CapacitorManager {
     this.platform = Capacitor.getPlatform();
   }
 
+  // Mobile detection method
+  isMobile() {
+    return this.isNative;
+  }
+
   async initializeApp() {
     if (!this.isNative) return;
 
