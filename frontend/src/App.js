@@ -1908,7 +1908,61 @@ function App() {
   console.log('📱 Mobile Debug - Active Tab:', activeTab);
   console.log('📱 Mobile Debug - Is Mobile:', capacitorManager.isMobile());
   
-  // Mobile-specific fallback rendering
+  const isMobile = capacitorManager.isMobile();
+  
+  // Mobile-specific simplified rendering to fix WebView issues
+  if (isMobile) {
+    console.log('📱 Using mobile-optimized layout');
+    return (
+      <MobileErrorBoundary>
+        <div className={`min-h-screen ${isDarkTheme ? 'bg-gray-900' : 'bg-white'}`} style={{ height: '100vh', overflow: 'hidden' }}>
+          {/* Simplified Mobile Header */}
+          <div className={`${isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b`} style={{ height: '60px' }}>
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <h1 className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                  CashOutAi
+                </h1>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={logout}
+                  className={`px-3 py-1 rounded text-sm ${
+                    isDarkTheme 
+                      ? 'bg-red-600 hover:bg-red-700 text-white' 
+                      : 'bg-red-500 hover:bg-red-600 text-white'
+                  }`}
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Simplified Mobile Content */}
+          <div className={`${isDarkTheme ? 'bg-gray-900' : 'bg-white'}`} style={{ height: 'calc(100vh - 60px)', overflow: 'auto' }}>
+            <div className="p-4">
+              {activeTab === 'chat' && (
+                <div>
+                  <h2 className={`text-xl font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                    Welcome {currentUser?.real_name || currentUser?.username}!
+                  </h2>
+                  <ChatTab
+                    messages={messages}
+                    currentUser={currentUser}
+                    isDarkTheme={isDarkTheme}
+                    onUserClick={() => {}}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </MobileErrorBoundary>
+    );
+  }
+
+  // Desktop/Web rendering with complex CSS
   try {
     return (
       <MobileErrorBoundary>
