@@ -1,80 +1,70 @@
 <analysis>
-The AI engineer systematically developed and debugged key features for the ArgusAI CashOut application. Initially, the focus was on establishing the Email-to-Chat bridge, which involved setting up backend webhook endpoints, implementing regex-based parsing for price alerts, and integrating with Zapier. Significant effort was dedicated to troubleshooting parsing failures, database insertion issues, and correctly configuring the Zapier webhook URL to match the application's live environment.
-
-Subsequently, the engineer addressed a crucial UX feature: a smart auto-scroll system for the chat, including initial load auto-scroll, new message auto-scroll, manual scroll freedom, and a scroll-to-bottom button. This involved extensive debugging of React  hooks, DOM element selection, and state management. Concurrently, issues with the online user list (missing WebSocket endpoint) and bot message broadcasting were resolved. Finally, the integration of WhatsApp alerts via SyncMate was discussed and configured, overcoming challenges related to email filtering and correct Group ID mapping. The trajectory concludes with both the Email-to-Chat and Smart Scroll systems fully functional, and instructions for a new agent to start from the current codebase.
+The AI engineer systematically evolved the ArgusAI CashOut platform. Starting from an inherited MVP with functional Email-to-Chat, Smart Scroll, and WhatsApp integration, the focus shifted to critical user experience and core functionality. This included optimizing a slow login process by refactoring XP/achievement calculations and adding database indexing. The persistent 9 users online bug was resolved by implementing stale session cleanup and scheduled maintenance. The Invalid Host header error was addressed, improving application accessibility. A comprehensive 2-week trial membership system was developed, featuring auto-approval, chat restrictions for expired users, and robust admin tools for user management. Email templates were enhanced with accurate pricing, dynamic discount information, and direct payment buttons. Finally, the application was prepared for Google Play Store using Capacitor, with local mobile setup issues addressed. The immediate challenge is a post-login white screen on the Android emulator.
 </analysis>
 
 <product_requirements>
-The user's objective was to revive and enhance the ArgusAI-CashOut trading platform, focusing on several key areas:
-1.  **Functional Setup**: Ensure the application's core functionality is restored and runs correctly within the preview environment, with proper Nginx routing and environment variable handling.
-2.  **Chat UI Enhancements**: Improve chat responsiveness for various devices, ensure message input is always visible, optimize desktop layout, and refine scrolling behavior.
-3.  **Achievement & Referral Systems**: Implement new achievements based on membership duration and a referral system offering cash prizes with administrative review.
-4.  **Notification System**: Expand notifications to cover follows, replies, reactions, achievements, cash prizes, and level-ups, including an auto-mark as read feature.
-5.  **Layout & UI Optimization**: Compact headers and adjust chat/portfolio tab layouts, using emojis for navigation.
-6.  **Analytics Integration**: Integrate Microsoft Clarity for detailed user behavior tracking.
-7.  **Intro Visuals**: Replace the existing intro video with a dynamic, Matrix-style code rain animation, featuring a neon-bordered logo and peacock animation.
-8.  **Automated Chat Messages (Email-to-Chat Bridge)**: Develop a system to parse external price alert emails from a dedicated  into concise, formatted chat messages from a CashOutAi Bot, including smart filtering for irrelevant emails.
-9.  **Automated WhatsApp Alerts**: Extend the email alert system to also post formatted alerts to a WhatsApp group via SyncMate.
-10. **Smart Scroll System**: Implement an intelligent auto-scroll for the chat interface that scrolls to the bottom on new messages and initial load, but allows users to scroll up manually without being forced down, including an optional scroll-to-bottom button.
+The user aims to enhance the ArgusAI-CashOut trading platform, building upon an existing MVP. Initial requirements included restoring core functionality, improving chat UI, implementing achievement/referral systems, expanding notifications, optimizing layout, integrating Microsoft Clarity, and adding intro visuals. The previous AI engineer implemented a crucial Email-to-Chat Bridge (parsing price alerts to chat), a Smart Scroll System for chat, and WhatsApp alerts via SyncMate.
+
+Current user-driven development focused on:
+1.  **Login Optimization**: Resolve unusually long sign-in times.
+2.  **Online Users Bug**: Fix static 9 users online display.
+3.  **Deployment Issues**: Address Invalid Host header and Render lockfile errors.
+4.  **Trial Membership**: Implement a 2-week auto-approved trial, expiring to Limited Access (no chat), with an upgrade email incentive.
+5.  **Admin Tools**: Manage trial users, convert expired trials, and allow rejected users to re-register.
+6.  **Email Enhancement**: Correct website URLs, pricing, discount messaging, and add payment buttons to welcome/upgrade emails.
+7.  **Historical Chat**: Ensure new users can view past messages.
+8.  **Mobile App Deployment**: Port the React app to Google Play Store using Capacitor.
 </product_requirements>
 
 <key_technical_concepts>
 -   **Full-Stack Development**: React (Frontend), FastAPI (Backend), MongoDB (Database).
--   **Communication**: WebSockets (Real-time chat), RESTful APIs (Backend endpoints).
--   **Integration**: Zapier (Webhook automation), SyncMate (WhatsApp Business API).
--   **Data Handling**: Pydantic (Data validation), Regex (Email parsing).
--   **UX**: React Hooks, CSS selectors, DOM manipulation (for scrolling).
--   **Error Handling**: Logging, try-except blocks.
+-   **Communication**: WebSockets (Real-time chat), RESTful APIs.
+-   **Integration**: Zapier (Webhooks), SyncMate (WhatsApp), Capacitor (Mobile app packaging), Firebase (Notifications).
+-   **Data Handling**: Pydantic, Regex, PyMongo.
+-   **UX**: React Hooks, DOM manipulation, loading indicators.
+-   **DevOps**: Render (Deployment), Yarn (Package management).
 </key_technical_concepts>
 
 <code_architecture>
-The application uses a standard full-stack architecture with  (Python/FastAPI) and  (React.js) directories.
+The application uses a React frontend and FastAPI backend with MongoDB.
 
 
 
--   **/app/backend/server.py**:
-    -   **Summary**: Core FastAPI backend for application logic.
-    -   **Changes**:
-        -   **Email-to-Chat**: Added  function and  endpoint. Implemented  and  functions using regex and sender domain checks ( added) for filtering price alert emails. Ensured proper Message model usage and error handling for database insertions.
-        -   **WebSocket**: Added missing WebSocket endpoint () and integrated  for real-time online user status and message broadcasting. Bot messages are now broadcast via WebSocket.
-        -   **Message Model**: Fixed  validation in the  endpoint to handle lists of strings or dictionaries, and ensured correct Pydantic Message model usage during bot message creation to prevent schema validation errors.
--   **/app/frontend/src/App.js**:
-    -   **Summary**: Main React component managing application state, routing, and WebSocket connections.
-    -   **Changes**:
-        -   **Smart Scroll**: Implemented  function using  and . Added  hooks for auto-scrolling on new messages and initial load, with logic to detect manual user scrolling and manage a  state.
-        -   **WebSocket**: Updated WebSocket connection URL to  to match backend changes.
--   **/app/frontend/src/ChatTab.js**:
-    -   **Summary**: Displays chat messages and includes input for new messages.
-    -   **Changes**: Integrated the  at the end of the chat messages list for scrolling. Incorporated a floating scroll-to-bottom button (conditionally rendered by  prop) and connected it to the  function. Updated prop types to accept  and . Updated CSS selectors to correctly identify the chat message container for scrolling.
--   **/app/frontend/src/ChatInput.js**, **/app/frontend/src/LoadingScreen.js**:
-    -   **Summary**:  handles message input;  displays intro animation.
-    -   **Changes**: No significant new changes during the Email-to-Chat or Smart Scroll implementation, but previous trajectory notes indicate fixes for image paste (ChatInput) and Matrix-style animation (LoadingScreen).
+-   ****:
+    -   **Summary**: Core FastAPI backend.
+    -   **Changes**: Optimized  (XP/achievements, DB indexes), fixed online user count (stale sessions, scheduled cleanup, new endpoint). Implemented 2-week trial system (UserStatus enum, registration, login checks, chat restrictions for expired trials, background task for expiration). Added admin endpoints for trial user management (list, convert, remove), allowed rejected users to re-register. Increased message history limit. Fixed JSON serialization and syntax errors.
+-   ****:
+    -   **Summary**: Manages all email templates.
+    -   **Changes**: Added  and . Updated  to include correct Render URL, dynamic discount, accurate pricing, and embedded Square payment buttons (HTML and plain text).
+-   ****:
+    -   **Summary**: Main React component.
+    -   **Changes**: Implemented login loading state. Integrated 14-day trial option in registration. Asynchronously initialized Firebase. Integrated Capacitor for mobile (dynamic WebSocket URL, mobile detection).
+-   ****:
+    -   **Summary**: Displays chat messages.
+    -   **Changes**: Added UI for  user chat restrictions. Optimized message rendering with  for performance.
+-   ****:
+    -   **Summary**: Frontend dependencies and scripts.
+    -   **Changes**: Added Capacitor dependencies and plugins. Modified  script for host checking. Configured  for Node.js.
+-   ****:
+    -   **Summary**: Capacitor configuration.
+    -   **Changes**: Configured , , , , , .
+-   ****:
+    -   **Summary**: Android manifest.
+    -   **Changes**: Added essential permissions (INTERNET, ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE, WRITE_EXTERNAL_STORAGE).
 </code_architecture>
 
 <pending_tasks>
-- There are no explicit pending tasks in the trajectory as all identified user requests for Email-to-Chat integration and Smart Scroll functionality were successfully implemented and confirmed. The user then requested a summary for a new agent.
+-   **Mobile App Post-Login White Screen**: The Android emulator shows a white screen after login; this is a mobile-backend connectivity issue.
+-   **Backend URL for Mobile App**: Ensuring the Capacitor app correctly uses the production backend URL instead of .
+-   **Admin Panel Frontend Integration**: Frontend admin panel may need updates to reflect new backend capabilities (trial user visibility, conversion, removal).
 </pending_tasks>
 
 <current_work>
-Immediately before this summary request, the AI engineer completed the implementation and debugging of two major features: the **Email-to-Chat Bridge** and the **Smart Scroll System**, along with ensuring **WhatsApp integration** via SyncMate for alerts.
+Immediately preceding this summary, the AI engineer was working on preparing the ArgusAI CashOut platform for Google Play Store deployment using Capacitor. The user successfully opened the app in Android Studio and saw it running on the emulator. However, a critical issue has arisen: **after a successful login with  credentials, the mobile application displays a white screen.**
 
-**Email-to-Chat Integration:**
-The system now successfully receives price alert emails (e.g., from ) at . Zapier forwards these to the backend webhook endpoint . The backend parses the email content to extract tickers and prices, filters out irrelevant emails, and formats them into concise chat messages like 🔔 /bin/bash.04 👀. These messages are then inserted into MongoDB and broadcast in real-time to the chat via WebSockets, appearing from the 🤖 CashOutAi Bot. Debugging involved fixing parsing logic, database insertion failures due to Pydantic model mismatches (e.g.,  format), and ensuring the correct webhook URL was used by Zapier.
-
-**WhatsApp Integration:**
-The system also sends these formatted alerts to a WhatsApp group via SyncMate, integrated into the Zapier flow after the webhook. Initial issues revolved around correct WhatsApp Group ID format and Zapier using cached test data instead of real email data. This was resolved by ensuring the Zapier webhook step was properly tested with live email data, and confirming the correct Group ID for SyncMate.
-
-**Smart Scroll System:**
-A robust scrolling mechanism was implemented in the frontend. It features:
-1.  **Auto-scroll on initial load** and for **new messages**, ensuring users always see the latest content.
-2.  Allows **manual scrolling** up to view older messages without being forced back to the bottom.
-3.  A **scroll-to-bottom button** appears when the user is scrolled up, providing a quick way to jump to the latest messages.
-4.  Scrolling is **container-specific**, preventing the entire page from scrolling.
-Debugging involved fixing  dependency issues, incorrect CSS selectors for the chat container, and timing issues with DOM element availability.
-
-All these features are confirmed working on the preview environment and are ready for production deployment. The user's last confirmation was great it all works.
+This indicates a network connectivity problem where the mobile app fails to establish a proper connection with the backend API post-authentication. It is highly probable that the Capacitor-built Android app is attempting to connect to an incorrect or  backend URL after login, rather than the intended production  (). This is the latest reported and unresolved issue requiring immediate attention.
 </current_work>
 
 <optional_next_step>
-The next step is for the new agent to extract the codebase from GitHub to continue development.
+I will investigate why the Capacitor mobile app displays a white screen after login, ensuring it connects to the correct backend URL.
 </optional_next_step>

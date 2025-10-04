@@ -2525,7 +2525,7 @@ async def send_password_reset_email(email: str, user_name: str, reset_token: str
     subject = "🔑 Password Reset Request - ArgusAI CashOut"
     
     # In production, this would be your actual domain
-    reset_link = f"https://argus-trader-hub.preview.emergentagent.com/reset-password?token={reset_token}"
+    reset_link = f"https://argusai-trading.preview.emergentagent.com/reset-password?token={reset_token}"
     
     plain_body = f"""
 Hi {user_name},
