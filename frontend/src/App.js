@@ -1628,7 +1628,12 @@ function App() {
   const initializeFirebaseAsync = async (userId) => {
     try {
       console.log('🔄 Initializing Firebase notifications in background for user:', userId);
-      const notificationSuccess = await notificationService.initializeForUser(userId);
+      let notificationSuccess = false;
+      if (!capacitorManager.isMobile()) {
+        notificationSuccess = await notificationService.initializeForUser(userId);
+      } else {
+        console.log('📱 Skipping Firebase in mobile WebView');  
+      }
       if (notificationSuccess) {
         console.log('✅ Firebase notifications initialized successfully (background)');
       } else {
