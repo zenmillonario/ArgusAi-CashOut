@@ -1,6 +1,6 @@
 {
   "appId": "com.argusai.cashout",
-  "appName": "ArgusAI CashOut",
+  "appName": "CashOutAi",
   "webDir": "build",
   "server": {
     "androidScheme": "https",
