@@ -1923,6 +1923,7 @@ def test_mobile_app_backend_connectivity():
     print("\n📱 Test 7: Mobile-Specific API Endpoints")
     
     # Test FCM token registration (important for mobile push notifications)
+    timestamp = datetime.now().strftime("%H%M%S")
     test_fcm_token = f"test_mobile_token_{timestamp}"
     
     success, fcm_response = tester.run_test(
