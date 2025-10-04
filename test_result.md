@@ -542,7 +542,8 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "Message Loading Performance Investigation"
+    - "Mobile App Post-Login White Screen Fix"
+    - "App Branding Updates"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
