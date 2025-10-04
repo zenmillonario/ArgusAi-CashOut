@@ -101,7 +101,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Test the optimized login performance for ArgusAI CashOut application. I've implemented several performance optimizations to fix the slow login issue including backend optimizations (asynchronous XP/achievement processing, reduced database queries, comprehensive database indexes, background processing for login rewards) and frontend optimizations (asynchronous Firebase initialization, loading states and progress indicators). Please test the login endpoint /api/users/login with credentials admin/admin123 and measure response times, database performance, background processing, and session management."
+user_problem_statement: "Fix mobile app post-login white screen issue on Android emulator and update app branding. The mobile app successfully loads and shows login screen, but after successful login with admin/admin123 credentials, it displays a white screen instead of the main chat interface. Also need to update app name to 'CashOutAi' and replace app icon with user-provided peacock logo."
 
 backend:
   - task: "Optimized Login Performance"
