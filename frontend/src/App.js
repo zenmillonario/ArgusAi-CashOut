@@ -115,6 +115,24 @@ function App() {
   // Load saved user on app start
   useEffect(() => {
     const initializeUser = async () => {
+      // MOBILE OPTIMIZATION: Initialize Capacitor for mobile app
+      console.log('🚀 App initializing...');
+      console.log('Platform info:', {
+        isNative: capacitorManager.isNative,
+        platform: capacitorManager.platform,
+        userAgent: navigator.userAgent
+      });
+      
+      if (capacitorManager.isNative) {
+        console.log('📱 Initializing mobile app features...');
+        try {
+          await capacitorManager.initializeApp();
+          console.log('✅ Mobile app initialization complete');
+        } catch (error) {
+          console.error('❌ Mobile app initialization failed:', error);
+        }
+      }
+      
       // Check if this is a request for the widget page
       if (window.location.pathname === '/cashoutai-button-widget.html') {
         // Redirect to the actual widget page
@@ -122,6 +140,7 @@ function App() {
         return;
       }
       
+      console.log('🔍 Checking for saved user...');
       const savedUser = localStorage.getItem('cashoutai_user');
       if (savedUser) {
         try {
