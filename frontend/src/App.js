@@ -1622,7 +1622,15 @@ function App() {
   }
 
   // If showing loading screen, return early with loading screen
+  console.log('🎬 Render conditions:', {
+    showLoadingScreen,
+    showLogin, 
+    currentUser: !!currentUser,
+    isLoading
+  });
+
   if (showLoadingScreen) {
+    console.log('📺 Rendering loading screen');
     return (
       <LoadingScreen 
         onComplete={() => setShowLoadingScreen(false)}
@@ -1632,6 +1640,8 @@ function App() {
   }
 
   if (showLogin) {
+    console.log('🔐 Rendering login screen');
+    return (
     return (
       <div className={`min-h-screen ${isDarkTheme ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
         <div className="flex items-center justify-center min-h-screen p-4">
