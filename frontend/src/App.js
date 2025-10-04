@@ -1948,7 +1948,7 @@ function App() {
                     Welcome {currentUser?.real_name || currentUser?.username}!
                   </h2>
                   <ChatTab
-                    messages={messages}
+                    messages={messages || []}
                     currentUser={currentUser}
                     isDarkTheme={isDarkTheme}
                     onUserClick={() => {}}
