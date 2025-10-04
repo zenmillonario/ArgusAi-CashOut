@@ -34,7 +34,7 @@ const ChatTab = ({
   showScrollButton,
   scrollToBottom
 }) => {
-  const displayMessages = showSearch ? filteredMessages : messages;
+  const displayMessages = showSearch ? (filteredMessages || []) : (messages || []);
   const [followingUsers, setFollowingUsers] = useState([]);
   const [followerCounts, setFollowerCounts] = useState({});
 
