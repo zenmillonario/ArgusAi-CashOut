@@ -1854,6 +1854,7 @@ function App() {
     );
   }
 
+  console.log('🏠 Rendering main app interface');
   return (
     <div className={`min-h-screen overflow-auto ${isDarkTheme ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>{/* Ensure body can scroll */}
       {/* Header - Fixed/Sticky */}
