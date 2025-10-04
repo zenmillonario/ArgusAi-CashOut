@@ -3580,8 +3580,26 @@ function App() {
           currentUser={currentUser}
         />
       )}
-    </div>
-  );
+        </div>
+      </MobileErrorBoundary>
+    );
+  } catch (error) {
+    console.error('🚨 Critical Mobile Rendering Error:', error);
+    return (
+      <div className="min-h-screen bg-red-900 text-white p-8 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Critical Mobile App Error</h1>
+          <p className="mb-4">The mobile app encountered a critical error.</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-white text-red-900 px-6 py-2 rounded-lg hover:bg-gray-100"
+          >
+            Reload App
+          </button>
+        </div>
+      </div>
+    );
+  }
 }
 
 export default App;
