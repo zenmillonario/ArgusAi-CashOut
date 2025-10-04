@@ -4309,15 +4309,15 @@ def test_message_loading_performance():
         return True
 
 if __name__ == "__main__":
-    # Run the critical message loading performance test
-    print("🚀 Starting Critical Message Loading Performance Test")
-    result = test_message_loading_performance()
+    # Run the mobile app backend connectivity test
+    print("🚀 Starting Mobile App Backend Connectivity Test")
+    result = test_mobile_app_backend_connectivity()
     
     if result:
-        print("\n🎉 MESSAGE LOADING PERFORMANCE TEST PASSED")
+        print("\n🎉 MOBILE APP BACKEND CONNECTIVITY TEST PASSED")
         exit(0)
     else:
-        print("\n❌ MESSAGE LOADING PERFORMANCE TEST FAILED")
+        print("\n❌ MOBILE APP BACKEND CONNECTIVITY TEST FAILED")
         exit(1)
 
 def test_admin_demotion():
