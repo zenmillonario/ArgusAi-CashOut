@@ -1642,7 +1642,6 @@ function App() {
   if (showLogin) {
     console.log('🔐 Rendering login screen');
     return (
-    return (
       <div className={`min-h-screen ${isDarkTheme ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
         <div className="flex items-center justify-center min-h-screen p-4">
           <div className={`w-full max-w-md backdrop-blur-lg rounded-2xl border p-8 ${
