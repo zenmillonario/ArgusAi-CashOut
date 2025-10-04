@@ -207,7 +207,12 @@ function App() {
             // Initialize Firebase push notifications for saved user
             try {
               console.log('Initializing Firebase notifications for saved user:', user.id);
-              const notificationSuccess = await notificationService.initializeForUser(user.id);
+              let notificationSuccess = false;
+              if (!capacitorManager.isMobile()) {
+                notificationSuccess = await notificationService.initializeForUser(user.id);
+              } else {
+                console.log('📱 Skipping Firebase in mobile WebView');
+              }
               if (notificationSuccess) {
                 console.log('✅ Firebase notifications initialized successfully for saved user');
               } else {
