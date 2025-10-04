@@ -725,7 +725,7 @@ function App() {
           messageId: messageId
         };
         
-        setNotifications(prev => [newNotification, ...prev.slice(0, 49)]); // Keep last 50 notifications
+        setNotifications(prev => [newNotification, ...(prev || []).slice(0, 49)]); // Keep last 50 notifications
       }
       
       return {
