@@ -17,6 +17,56 @@ import notificationService from './firebase-config';
 import capacitorManager from './capacitor-utils';
 import './App.css';
 
+// Error Boundary Component for Mobile App
+class MobileErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('🚨 Mobile App Error Boundary Caught:', error);
+    console.error('🚨 Error Info:', errorInfo);
+    this.setState({
+      error: error,
+      errorInfo: errorInfo
+    });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-gray-900 text-white p-8 flex items-center justify-center">
+          <div className="max-w-md w-full text-center">
+            <h1 className="text-2xl font-bold mb-4 text-red-400">Mobile App Error</h1>
+            <p className="text-gray-300 mb-4">Something went wrong with the mobile app interface.</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
+            >
+              Reload App
+            </button>
+            <details className="mt-4 text-left">
+              <summary className="cursor-pointer text-sm text-gray-400">Technical Details</summary>
+              <pre className="text-xs mt-2 p-2 bg-gray-800 rounded overflow-auto">
+                {this.state.error && this.state.error.toString()}
+                <br />
+                {this.state.errorInfo.componentStack}
+              </pre>
+            </details>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
