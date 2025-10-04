@@ -1365,7 +1365,7 @@ function App() {
           messageId: replyToMessage.id
         };
         
-        setNotifications(prev => [newNotification, ...prev.slice(0, 49)]);
+        setNotifications(prev => [newNotification, ...(prev || []).slice(0, 49)]);
       }
       
       setNewMessage('');
