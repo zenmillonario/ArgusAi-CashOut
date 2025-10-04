@@ -549,17 +549,17 @@ test_plan:
   test_priority: "high_first"
 
 backend:
-  - task: "Message Loading Performance Investigation"
+  - task: "Mobile App Backend Connectivity"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
-      - working: true
-        agent: "testing"
-        comment: "CRITICAL PERFORMANCE ISSUE RESOLVED: Comprehensive testing revealed that the message loading performance is actually EXCELLENT, not slow as reported. Test results: 1) WELCOME ENDPOINT PERFORMANCE: Average response time is 0.022 seconds (not several minutes as reported), with all 5 tests completing under 0.037 seconds. Range: 0.017s-0.037s. 2) DATABASE ANALYSIS: Confirmed 410 messages in database (matches user report), average message size 460 characters. 3) NETWORK LATENCY: Baseline API latency 0.007s, message loading overhead only 0.015s (very reasonable). 4) OPTIMAL PERFORMANCE: Different limits tested - limit=5 fastest at 0.009s, limit=200 takes 1.986s but still under 2s threshold. 5) RESPONSE SIZE: 200 messages = 84,236 bytes (84KB), well within acceptable limits. CONCLUSION: The backend API is performing exceptionally well. The user's report of 'several minutes' loading time is likely a frontend/network issue, not backend performance. Backend responds in milliseconds, not minutes."
+      - working: "NA"
+        agent: "main"
+        comment: "Backend API is working correctly for web interface with proper CORS headers and all endpoints functional. Need to verify that mobile Capacitor app can connect to the production backend URL (https://argusai-trading.preview.emergentagent.com/api). The mobile app may have network connectivity or URL configuration issues causing post-login white screen."
 
   - task: "Gap Fix and Emoji Tab Navigation Improvements"
     implemented: true
