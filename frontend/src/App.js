@@ -1169,10 +1169,13 @@ function App() {
         setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
       } else {
         // Login
+        console.log('🔐 Attempting login with API:', API);
         const response = await axios.post(`${API}/users/login`, {
           username: loginForm.username,
           password: loginForm.password
         });
+        
+        console.log('✅ Login successful, user data:', response.data);
         
         // PERFORMANCE OPTIMIZATION: Show login success immediately
         setCurrentUser(response.data);
@@ -1181,6 +1184,9 @@ function App() {
         
         // Save user to localStorage for persistence
         localStorage.setItem('cashoutai_user', JSON.stringify(response.data));
+        
+        console.log('💾 User data saved to localStorage');
+        console.log('🎯 Login complete, should now show main app interface');
         
         // PERFORMANCE OPTIMIZATION: Initialize Firebase push notifications asynchronously in background
         // Don't await this - let it run in background so login completes immediately
