@@ -1667,6 +1667,38 @@ function App() {
     }
   };
 
+  // Session refresh functionality for remember me sessions
+  const setupSessionRefresh = (user) => {
+    // Refresh session every 23 hours to keep it alive
+    const refreshInterval = setInterval(async () => {
+      try {
+        console.log('🔄 Refreshing session for remember me user');
+        const response = await axios.get(`${API}/users/${user.id}/session-status?session_id=${user.active_session_id}`);
+        
+        if (response.data.valid) {
+          // Update session timestamp in localStorage
+          const savedUser = JSON.parse(localStorage.getItem('cashoutai_user'));
+          if (savedUser) {
+            savedUser.sessionCreated = new Date().toISOString();
+            localStorage.setItem('cashoutai_user', JSON.stringify(savedUser));
+            console.log('✅ Session refreshed successfully');
+          }
+        } else {
+          console.log('❌ Session invalid, logging out');
+          clearInterval(refreshInterval);
+          logout();
+        }
+      } catch (error) {
+        console.error('Error refreshing session:', error);
+        clearInterval(refreshInterval);
+        logout();
+      }
+    }, 23 * 60 * 60 * 1000); // 23 hours
+
+    // Store interval ID to clear it later
+    window.sessionRefreshInterval = refreshInterval;
+  };
+
   const logout = async () => {
     try {
       await axios.post(`${API}/users/logout?user_id=${currentUser.id}`);
