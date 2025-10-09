@@ -218,7 +218,7 @@ const ChatTab = ({
         </div>
         
         {/* Messages container with isolated scroll */}
-        <div className="overflow-y-auto space-y-1" style={{ maxHeight: 'calc(100vh - 360px)' }}>
+        <div className="overflow-y-auto space-y-0.5" style={{ maxHeight: 'calc(100vh - 360px)' }}>
           {/* CRITICAL UX FIX: Empty State UI */}
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center py-8">
