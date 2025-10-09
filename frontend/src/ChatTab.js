@@ -292,11 +292,10 @@ const ChatTab = ({
                 // Text messages - STREAMLINED SAME LINE FORMAT
                 <div className="flex items-start space-x-1 py-0">
                   {/* Compact timestamp */}
-                  <span className="text-xs text-gray-500 w-16 flex-shrink-0 text-right whitespace-nowrap">
+                  <span className="text-xs text-gray-500 w-12 flex-shrink-0 text-right">
                     {new Date(message.timestamp).toLocaleTimeString([], {
                       hour: '2-digit', 
                       minute:'2-digit',
-                      hour12: true,
                       timeZone: 'America/New_York'
                     })}
                   </span>
