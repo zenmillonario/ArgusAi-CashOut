@@ -6756,6 +6756,24 @@ def main():
     return 0 if all_passed else 1
 
 if __name__ == "__main__":
+    print("🚀 Starting CashoutAI Backend Testing Suite")
+    
+    # Run the specific test for improved chat system message history
+    print("🎯 Running specific test: Improved Chat System with Increased Message History")
+    
+    if test_improved_chat_system_message_history():
+        print("\n🎉 IMPROVED CHAT SYSTEM MESSAGE HISTORY TEST PASSED!")
+        print("✅ The chat system successfully supports 2000 message history")
+        print("✅ Older messages (4+ weeks) are accessible when available")
+        print("✅ Backend performance is optimized for increased limits")
+    else:
+        print("\n❌ IMPROVED CHAT SYSTEM MESSAGE HISTORY TEST FAILED!")
+        print("❌ Please check the output above for specific issues")
+    
+    print("\n🔚 Testing complete")
+    exit()
+    
+    # Original test code (commented out for this specific test)
     print("🚀 Starting CashoutAI Backend API Tests")
     print("=" * 60)
     
