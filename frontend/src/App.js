@@ -1109,7 +1109,7 @@ function App() {
       const startTime = performance.now();
       
       // PERFORMANCE OPTIMIZATION: Start with smaller limit for faster initial load
-      const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=500` : `${API}/messages?limit=500`;
+      const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=50` : `${API}/messages?limit=50`;
       const response = await axios.get(url);
       
       const loadTime = performance.now() - startTime;
