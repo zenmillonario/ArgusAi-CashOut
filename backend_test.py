@@ -6479,29 +6479,30 @@ if __name__ == "__main__":
             
             sys.exit(0 if result else 1)
     
-    # Run the 2-week trial system test by default (as requested in the review)
-    print("🎯 Running 2-WEEK TRIAL SYSTEM TEST")
+    # Run the session persistence and Remember Me test by default (as requested in the review)
+    print("🎯 Running SESSION PERSISTENCE AND REMEMBER ME TEST")
     print("=" * 60)
     
     try:
-        result = test_2_week_trial_system()
-        print(f"\n{'🎉 TRIAL SYSTEM TEST PASSED' if result else '❌ TRIAL SYSTEM TEST FAILED'}")
+        result = test_session_persistence_remember_me()
+        print(f"\n{'🎉 SESSION TEST PASSED' if result else '❌ SESSION TEST FAILED'}")
         
         if result:
-            print("\n✅ 2-WEEK TRIAL SYSTEM VERIFICATION COMPLETE")
-            print("   • Trial registration is instant (no admin approval)")
-            print("   • Trial users get full access for 14 days")
-            print("   • After expiration, chat is restricted but other features remain")
-            print("   • Upgrade emails with ARGUS20 code are sent automatically")
-            print("   • All trial management happens automatically in background")
+            print("\n✅ SESSION PERSISTENCE AND REMEMBER ME VERIFICATION COMPLETE")
+            print("   • Session creation and validation working correctly")
+            print("   • Invalid session detection working correctly")
+            print("   • Session persistence across multiple requests")
+            print("   • Session invalidation on new login working correctly")
+            print("   • Remember Me functionality ready for implementation")
+            print("   • Session cleanup on logout working correctly")
         else:
-            print("\n❌ 2-WEEK TRIAL SYSTEM NEEDS ATTENTION")
-            print("   • Check trial registration flow")
-            print("   • Verify trial expiration logic")
-            print("   • Review access restrictions for expired trials")
+            print("\n❌ SESSION PERSISTENCE NEEDS ATTENTION")
+            print("   • Check session-status endpoint implementation")
+            print("   • Verify session validation logic")
+            print("   • Review session cleanup processes")
             
     except Exception as e:
-        print(f"\n❌ ERROR in trial system test: {str(e)}")
+        print(f"\n❌ ERROR in session test: {str(e)}")
         result = False
     
     sys.exit(0 if result else 1)
