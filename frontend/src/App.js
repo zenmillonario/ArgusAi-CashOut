@@ -1265,6 +1265,12 @@ function App() {
         console.log('💾 User data saved to localStorage');
         console.log('🎯 Login complete, should now show main app interface');
         
+        // Set up automatic session refresh for remember me sessions
+        if (rememberMe) {
+          console.log('🔄 Setting up automatic session refresh for new remember me session');
+          setupSessionRefresh(sessionData);
+        }
+        
         // PERFORMANCE OPTIMIZATION: Initialize Firebase push notifications asynchronously in background
         // Don't await this - let it run in background so login completes immediately
         setTimeout(() => {
