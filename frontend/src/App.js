@@ -196,12 +196,19 @@ function App() {
       if (savedUser) {
         try {
           const user = JSON.parse(savedUser);
-          // Check if session is still valid (not older than 24 hours)
-          const sessionAge = user.session_created_at ? 
-            (Date.now() - new Date(user.session_created_at).getTime()) / (1000 * 60 * 60) : 
-            25; // Default to expired if no session timestamp
           
-          if (sessionAge < 24 && user.active_session_id) {
+          // Enhanced session validation with remember me support
+          const sessionCreated = user.sessionCreated || user.session_created_at;
+          const sessionDuration = user.sessionDuration || 1; // Default 1 day
+          const maxSessionHours = sessionDuration * 24; // Convert days to hours
+          
+          const sessionAge = sessionCreated ? 
+            (Date.now() - new Date(sessionCreated).getTime()) / (1000 * 60 * 60) : 
+            maxSessionHours + 1; // Default to expired if no session timestamp
+          
+          console.log(`🕒 Session check: Age=${sessionAge.toFixed(1)}h, Max=${maxSessionHours}h, RememberMe=${user.rememberMe}`);
+          
+          if (sessionAge < maxSessionHours && user.active_session_id) {
             setCurrentUser(user);
             setShowLogin(false);
             
