@@ -1706,6 +1706,12 @@ function App() {
       console.error('Error during logout:', error);
     }
     
+    // Clear session refresh interval
+    if (window.sessionRefreshInterval) {
+      clearInterval(window.sessionRefreshInterval);
+      window.sessionRefreshInterval = null;
+    }
+    
     // Clear persisted user data and reset remember me state
     localStorage.removeItem('cashoutai_user');
     setRememberMe(false);
