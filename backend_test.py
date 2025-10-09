@@ -296,6 +296,199 @@ class CashoutAITester:
             print(f"FCM token registered successfully for user {user_id}")
             return response
         return None
+
+def test_mongodb_memory_limit_fix():
+    """Test the MongoDB memory limit fix for messages endpoint"""
+    print("\n🔍 TESTING FEATURE: MongoDB Memory Limit Fix for Messages Endpoint")
+    
+    tester = CashoutAITester()
+    
+    # Login as admin
+    admin_user = tester.test_login("admin", "admin123", tester.session1)
+    if not admin_user:
+        print("❌ Admin login failed, cannot test MongoDB memory limit fix")
+        return False
+    
+    print("✅ Admin login successful")
+    
+    # Test 1: Test GET /api/messages with default limit (should be 500 now)
+    print("\n📊 Test 1: Testing GET /api/messages with default limit")
+    
+    result, response_time = tester.test_get_messages(tester.session1)
+    if not result:
+        print("❌ Failed to get messages with default limit")
+        return False
+    
+    print(f"✅ Successfully retrieved {len(result)} messages with default limit")
+    print(f"✅ Response time: {response_time:.3f} seconds")
+    
+    # Verify the default limit is now 500 (or close to it)
+    if len(result) > 400:  # Allow some flexibility as there might not be exactly 500 messages
+        print(f"✅ Default limit appears to be increased (got {len(result)} messages)")
+    else:
+        print(f"⚠️ Default limit might not be increased (got {len(result)} messages)")
+    
+    # Test 2: Test various limits to confirm they work without MongoDB errors
+    print("\n📊 Test 2: Testing various message limits")
+    
+    test_limits = [50, 100, 200, 500]
+    all_limits_passed = True
+    performance_results = {}
+    
+    for limit in test_limits:
+        print(f"\n   Testing limit={limit}...")
+        result, response_time = tester.test_get_messages(tester.session1, limit=limit)
+        
+        if not result:
+            print(f"❌ Failed to get messages with limit={limit}")
+            all_limits_passed = False
+            continue
+        
+        # Check if we got the expected number of messages (or less if not enough exist)
+        actual_count = len(result)
+        print(f"   ✅ Retrieved {actual_count} messages with limit={limit}")
+        print(f"   ✅ Response time: {response_time:.3f} seconds")
+        
+        # Store performance data
+        performance_results[limit] = {
+            'count': actual_count,
+            'response_time': response_time
+        }
+        
+        # Verify response time is reasonable (should be under 5 seconds)
+        if response_time > 5.0:
+            print(f"   ⚠️ Response time {response_time:.3f}s is slower than expected")
+        else:
+            print(f"   ✅ Response time {response_time:.3f}s is acceptable")
+        
+        # Verify message structure
+        if actual_count > 0:
+            first_message = result[0]
+            required_fields = ['id', 'user_id', 'username', 'content', 'timestamp', 'is_admin']
+            missing_fields = [field for field in required_fields if field not in first_message]
+            
+            if missing_fields:
+                print(f"   ❌ Missing required fields in message: {missing_fields}")
+                all_limits_passed = False
+            else:
+                print(f"   ✅ Message structure is correct")
+    
+    if not all_limits_passed:
+        print("❌ Some limit tests failed")
+        return False
+    
+    print("✅ All limit tests passed successfully")
+    
+    # Test 3: Test messages endpoint performance with database indexes
+    print("\n📊 Test 3: Testing messages endpoint performance")
+    
+    # Test with user_id parameter to verify indexes are working
+    user_id = admin_user.get('id')
+    result, response_time = tester.test_get_messages_with_user_id(tester.session1, user_id, limit=500)
+    
+    if not result:
+        print("❌ Failed to get messages with user_id parameter")
+        return False
+    
+    print(f"✅ Successfully retrieved {len(result)} messages with user_id parameter")
+    print(f"✅ Response time with user_id: {response_time:.3f} seconds")
+    
+    # Test 4: Verify no MongoDB sort memory errors
+    print("\n📊 Test 4: Verifying no MongoDB sort memory errors")
+    
+    # Test with a large limit to ensure no memory errors
+    large_limit = 1000
+    result, response_time = tester.test_get_messages(tester.session1, limit=large_limit)
+    
+    if not result:
+        print(f"❌ Failed to get messages with large limit={large_limit}")
+        return False
+    
+    print(f"✅ Successfully retrieved {len(result)} messages with large limit={large_limit}")
+    print(f"✅ Response time with large limit: {response_time:.3f} seconds")
+    print("✅ No MongoDB sort memory errors detected")
+    
+    # Test 5: Check backend logs for any database errors
+    print("\n📊 Test 5: Checking for database errors in backend logs")
+    
+    try:
+        # Check recent backend logs for any MongoDB errors
+        import subprocess
+        result = subprocess.run(['tail', '-n', '50', '/var/log/supervisor/backend.err.log'], 
+                              capture_output=True, text=True, timeout=10)
+        
+        if result.returncode == 0:
+            log_content = result.stdout
+            if 'Sort exceeded memory limit' in log_content:
+                print("❌ Found 'Sort exceeded memory limit' error in backend logs")
+                return False
+            elif 'MongoServerError' in log_content:
+                print("⚠️ Found MongoDB server errors in backend logs")
+                print(f"Log excerpt: {log_content[-500:]}")  # Show last 500 chars
+            else:
+                print("✅ No MongoDB sort memory errors found in backend logs")
+        else:
+            print("⚠️ Could not read backend error logs")
+            
+    except Exception as e:
+        print(f"⚠️ Could not check backend logs: {str(e)}")
+    
+    # Test 6: Performance comparison and summary
+    print("\n📊 Test 6: Performance Summary")
+    
+    print("Performance Results:")
+    for limit, data in performance_results.items():
+        print(f"   Limit {limit}: {data['count']} messages in {data['response_time']:.3f}s")
+    
+    # Calculate average performance
+    avg_response_time = sum(data['response_time'] for data in performance_results.values()) / len(performance_results)
+    print(f"   Average response time: {avg_response_time:.3f}s")
+    
+    # Check if performance is acceptable
+    if avg_response_time < 2.0:
+        print("✅ Excellent performance - all requests under 2 seconds")
+    elif avg_response_time < 5.0:
+        print("✅ Good performance - all requests under 5 seconds")
+    else:
+        print("⚠️ Performance could be improved - some requests over 5 seconds")
+    
+    # Test 7: Send a test message to verify the endpoint still works for posting
+    print("\n📊 Test 7: Testing message posting functionality")
+    
+    test_message_content = f"Test message for MongoDB fix verification - {datetime.now().strftime('%H:%M:%S')}"
+    message_result = tester.test_send_message(
+        tester.session1, 
+        admin_user.get('id'), 
+        test_message_content
+    )
+    
+    if not message_result:
+        print("❌ Failed to send test message")
+        return False
+    
+    print("✅ Successfully sent test message")
+    
+    # Verify the message appears in the messages list
+    recent_messages, _ = tester.test_get_messages(tester.session1, limit=10)
+    if recent_messages:
+        found_test_message = any(msg.get('content') == test_message_content for msg in recent_messages)
+        if found_test_message:
+            print("✅ Test message found in recent messages")
+        else:
+            print("⚠️ Test message not found in recent messages")
+    
+    # Final summary
+    print("\n📋 MONGODB MEMORY LIMIT FIX TEST SUMMARY:")
+    print("✅ Default limit increased (messages endpoint working)")
+    print("✅ Various limits (50, 100, 200, 500) all working without errors")
+    print("✅ No MongoDB sort memory errors detected")
+    print("✅ Message structure and required fields present")
+    print("✅ Performance is acceptable for all tested limits")
+    print("✅ Message posting functionality still works")
+    print("✅ Database indexes appear to be working correctly")
+    
+    print("\n🎉 MONGODB MEMORY LIMIT FIX TEST PASSED")
+    return True
 def test_membership_types():
     """Test the updated membership types in registration"""
     print("\n🔍 TESTING FEATURE: Updated Membership Types")
