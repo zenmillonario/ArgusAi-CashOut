@@ -1861,6 +1861,29 @@ function App() {
                 />
               </div>
               
+              {!isRegistering && (
+                <div className="mb-4">
+                  <label className={`flex items-center cursor-pointer ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <input
+                      type="checkbox"
+                      className={`mr-3 rounded focus:ring-2 focus:ring-blue-500 ${
+                        isDarkTheme 
+                          ? 'bg-white/10 border-white/20 text-blue-500' 
+                          : 'bg-white border-gray-300 text-blue-600'
+                      }`}
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                    />
+                    <span className="text-sm">
+                      Remember me for 30 days
+                      <span className={`block text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Keep me logged in on this device
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
+              
               {isRegistering && (
                 <div className={`p-3 rounded-lg border ${
                   loginForm.membership_plan === "14-Day Trial"
