@@ -542,6 +542,7 @@ metadata:
 
 test_plan:
   current_focus: 
+    - "Session Persistence and Remember Me Functionality"
     - "Mobile App Post-Login White Screen Fix"
     - "App Branding Updates"
   stuck_tasks: []
