@@ -74,7 +74,7 @@ class EmailService:
         user_data: dict
     ) -> bool:
         """Send registration notification to admin"""
-        subject = f"🔔 New User Registration - {user_data.get('real_name', user_data.get('username'))}"
+        subject = f"🔔 New REGULAR User Registration - {user_data.get('real_name', user_data.get('username'))} (Requires Approval)"
         
         plain_body = f"""
 New User Registration - ArgusAI CashOut
