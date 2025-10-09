@@ -648,6 +648,18 @@ backend:
         agent: "testing"
         comment: "✅ 2-WEEK TRIAL SYSTEM TESTING COMPLETED SUCCESSFULLY. Comprehensive testing verified all requirements: 1) TRIAL REGISTRATION FLOW: POST /api/users/register with is_trial: true creates users with status 'trial', membership_plan '14-Day Trial', and proper trial_start_date/trial_end_date (14 days). Auto-approval works - no admin approval needed. Trial welcome emails sent successfully. 2) TRIAL USER LOGIN: POST /api/users/login works for trial users with status 'trial'. Trial expiration logic correctly converts expired trials to 'trial_expired' status during login. 3) TRIAL ACCESS PERMISSIONS: Trial users have full chat access - POST /api/messages and GET /api/messages work correctly during trial period. Same access as approved users. 4) TRIAL EXPIRATION LOGIC: Users past expiration date automatically change from 'trial' to 'trial_expired' status. Upgrade emails with ARGUS20 discount code sent automatically. trial_upgrade_email_sent flag properly set. 5) TRIAL EXPIRED ACCESS RESTRICTIONS: POST /api/messages returns 403 with upgrade message 'Chat access restricted. Your trial has expired. Upgrade your account to continue chatting with other traders.' GET /api/messages returns 403 with upgrade message. Other features (portfolio, practice trading) remain accessible. 6) BACKGROUND TRIAL MANAGEMENT: Periodic cleanup function ready to process expired trials. Database consistency verified with proper trial user counts. Backend logs confirm all functionality: trial registration ('✨ TRIAL USER REGISTERED'), trial expiration ('⏰ TRIAL EXPIRED'), email notifications, and proper access restrictions. The complete trial system works correctly for the business model."
 
+  - task: "Trial Member Registration and Email Sending"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TRIAL MEMBER REGISTRATION AND EMAIL SENDING TESTING COMPLETED SUCCESSFULLY. Comprehensive testing with specific test data (testtrialuser@example.com, testtrial123, testpass123, Test Trial User) verified all requirements: 1) TRIAL REGISTRATION: Successfully registered trial user with status 'trial', membership_plan '14-Day Trial', proper trial_start_date and trial_end_date (exactly 14 days from registration). 2) EMAIL SENDING FUNCTIONALITY: Backend logs confirm email service working correctly - found '📧 Attempting to send trial welcome email to testtrialuser@example.com', 'Email sent successfully to testtrialuser@example.com', and '✅ Trial welcome email result: True - sent to testtrialuser@example.com'. Email service initialized successfully and is available. 3) EMAIL SERVICE CONFIGURATION: Email service module imported successfully, email service instance available, proper error handling for missing email credentials in test environment. 4) TRIAL END DATE SETTING: Trial end date correctly set to exactly 14 days from registration (2025-10-09 to 2025-10-23), duration verified as 14 days. 5) TRIAL USER LOGIN: User can login successfully with trial credentials, receives proper session ID, status remains 'trial'. 6) TRIAL ACCESS VERIFICATION: Trial user has full chat access during trial period - can send messages successfully. Backend logs show '✨ TRIAL USER REGISTERED: testtrial123 - Trial ends: 2025-10-23 10:42:19.727139' and fast login optimization working. The complete trial registration flow including email notifications is working correctly."
+
   - task: "Admin Login Authentication Debug"
     implemented: true
     working: true
