@@ -4367,8 +4367,8 @@ async def get_welcome_messages(user_id: Optional[str] = None):
                 detail="Chat viewing restricted. Your trial has expired. Upgrade your account to view trader discussions."
             )
     
-    # Get last 2000 messages to provide 4+ weeks of historical context for new users
-    messages = await db.messages.find().sort("timestamp", -1).limit(2000).to_list(2000)
+    # Get last 500 messages to provide good historical context for new users
+    messages = await db.messages.find().sort("timestamp", -1).limit(500).to_list(500)
     
     # Clean up messages for compatibility (same logic as regular get_messages)
     cleaned_messages = []
