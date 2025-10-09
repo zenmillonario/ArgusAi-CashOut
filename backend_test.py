@@ -1978,10 +1978,9 @@ def test_session_persistence_remember_me():
     success, logout_response = tester.run_test(
         "User logout",
         "POST",
-        "users/logout",
+        f"users/logout?user_id={user_id}",  # Pass user_id as query parameter
         200,
-        session=tester.session2,
-        data={"user_id": user_id}  # Pass user_id in request body
+        session=tester.session2
     )
     
     if not success:
