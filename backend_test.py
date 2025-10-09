@@ -4556,15 +4556,15 @@ def test_message_loading_performance():
         return True
 
 if __name__ == "__main__":
-    # Run the mobile app backend connectivity test
-    print("🚀 Starting Mobile App Backend Connectivity Test")
-    result = test_mobile_app_backend_connectivity()
+    # Run the trial member registration and email test
+    print("🚀 Starting Trial Member Registration and Email Test")
+    result = test_trial_member_registration_and_email()
     
     if result:
-        print("\n🎉 MOBILE APP BACKEND CONNECTIVITY TEST PASSED")
+        print("\n🎉 TRIAL MEMBER REGISTRATION AND EMAIL TEST PASSED")
         exit(0)
     else:
-        print("\n❌ MOBILE APP BACKEND CONNECTIVITY TEST FAILED")
+        print("\n❌ TRIAL MEMBER REGISTRATION AND EMAIL TEST FAILED")
         exit(1)
 
 def test_admin_demotion():
