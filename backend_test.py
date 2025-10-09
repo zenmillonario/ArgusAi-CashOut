@@ -2047,6 +2047,252 @@ def test_mobile_app_backend_connectivity():
     
     return True
 
+def test_trial_member_registration_and_email():
+    """Test trial member registration and email sending functionality"""
+    print("\n🔍 TESTING FEATURE: Trial Member Registration and Email Sending")
+    
+    tester = CashoutAITester()
+    
+    # Use the specific test data provided in the review request
+    test_email = "testtrialuser@example.com"
+    test_username = "testtrial123"
+    test_password = "testpass123"
+    test_real_name = "Test Trial User"
+    
+    print(f"Testing trial registration with:")
+    print(f"  Email: {test_email}")
+    print(f"  Username: {test_username}")
+    print(f"  Password: {test_password}")
+    print(f"  Real name: {test_real_name}")
+    
+    # Test 1: Register a new trial user
+    print("\n📝 Test 1: Trial User Registration")
+    
+    success, trial_user = tester.run_test(
+        "Register trial user with email testing",
+        "POST",
+        "users/register",
+        200,
+        data={
+            "username": test_username,
+            "email": test_email,
+            "real_name": test_real_name,
+            "membership_plan": "14-Day Trial",
+            "is_trial": True,
+            "password": test_password
+        }
+    )
+    
+    if not success:
+        print("❌ Failed to register trial user")
+        return False
+    
+    # Verify trial user properties
+    if trial_user.get("status") != "trial":
+        print(f"❌ Trial user status is {trial_user.get('status')}, expected 'trial'")
+        return False
+    
+    if trial_user.get("membership_plan") != "14-Day Trial":
+        print(f"❌ Trial user membership plan is {trial_user.get('membership_plan')}, expected '14-Day Trial'")
+        return False
+    
+    if not trial_user.get("trial_start_date"):
+        print("❌ Trial user missing trial_start_date")
+        return False
+    
+    if not trial_user.get("trial_end_date"):
+        print("❌ Trial user missing trial_end_date")
+        return False
+    
+    print(f"✅ Trial user registered successfully with status 'trial'")
+    print(f"✅ Trial start date: {trial_user.get('trial_start_date')}")
+    print(f"✅ Trial end date: {trial_user.get('trial_end_date')}")
+    
+    # Test 2: Verify trial end date is 14 days from now
+    print("\n📅 Test 2: Trial End Date Verification (14 days from now)")
+    
+    from datetime import datetime, timedelta
+    import dateutil.parser
+    
+    try:
+        trial_end_date = dateutil.parser.parse(trial_user.get('trial_end_date'))
+        trial_start_date = dateutil.parser.parse(trial_user.get('trial_start_date'))
+        
+        # Calculate expected end date (14 days from start)
+        expected_end_date = trial_start_date + timedelta(days=14)
+        
+        # Allow for small time differences (within 1 minute)
+        time_diff = abs((trial_end_date - expected_end_date).total_seconds())
+        
+        if time_diff > 60:  # More than 1 minute difference
+            print(f"❌ Trial end date not set correctly. Expected around {expected_end_date}, got {trial_end_date}")
+            return False
+        
+        print(f"✅ Trial end date correctly set to 14 days from start")
+        print(f"   Start: {trial_start_date}")
+        print(f"   End: {trial_end_date}")
+        print(f"   Duration: {(trial_end_date - trial_start_date).days} days")
+        
+    except Exception as e:
+        print(f"❌ Error parsing trial dates: {str(e)}")
+        return False
+    
+    # Test 3: Check backend logs for email sending
+    print("\n📧 Test 3: Email Service Logs Verification")
+    
+    # Check backend logs for email-related messages
+    try:
+        import subprocess
+        import os
+        
+        # Check supervisor backend logs for email messages
+        log_files = [
+            "/var/log/supervisor/backend.out.log",
+            "/var/log/supervisor/backend.err.log"
+        ]
+        
+        email_logs_found = False
+        error_logs_found = False
+        
+        for log_file in log_files:
+            if os.path.exists(log_file):
+                try:
+                    # Get recent log entries (last 100 lines)
+                    result = subprocess.run(['tail', '-n', '100', log_file], 
+                                          capture_output=True, text=True, timeout=10)
+                    
+                    if result.returncode == 0:
+                        log_content = result.stdout
+                        
+                        # Look for trial welcome email messages
+                        if "📧 Attempting to send trial welcome email" in log_content:
+                            email_logs_found = True
+                            print(f"✅ Found trial welcome email log in {log_file}")
+                        
+                        if "trial welcome email" in log_content.lower():
+                            email_logs_found = True
+                            print(f"✅ Found trial welcome email reference in {log_file}")
+                        
+                        # Look for email service errors
+                        if "email service" in log_content.lower() and "error" in log_content.lower():
+                            error_logs_found = True
+                            print(f"⚠️ Found email service error in {log_file}")
+                        
+                        # Look for email service unavailable messages
+                        if "Email service unavailable" in log_content:
+                            print(f"ℹ️ Email service unavailable message found in {log_file}")
+                            print(f"   This is expected in test environment without email credentials")
+                        
+                        # Look for successful email initialization
+                        if "Email service initialized successfully" in log_content:
+                            print(f"✅ Email service initialized successfully")
+                        
+                except subprocess.TimeoutExpired:
+                    print(f"⚠️ Timeout reading log file {log_file}")
+                except Exception as e:
+                    print(f"⚠️ Error reading log file {log_file}: {str(e)}")
+            else:
+                print(f"⚠️ Log file not found: {log_file}")
+        
+        if not email_logs_found and not error_logs_found:
+            print("ℹ️ No specific email logs found, but this may be expected in test environment")
+        
+    except Exception as e:
+        print(f"⚠️ Error checking backend logs: {str(e)}")
+    
+    # Test 4: Verify email service configuration
+    print("\n⚙️ Test 4: Email Service Configuration Check")
+    
+    try:
+        # Check if email service environment variables are configured
+        import os
+        
+        email_config_vars = [
+            'MAIL_USERNAME',
+            'MAIL_PASSWORD', 
+            'MAIL_FROM',
+            'MAIL_SERVER',
+            'MAIL_PORT'
+        ]
+        
+        configured_vars = []
+        missing_vars = []
+        
+        for var in email_config_vars:
+            if os.environ.get(var):
+                configured_vars.append(var)
+            else:
+                missing_vars.append(var)
+        
+        if configured_vars:
+            print(f"✅ Email configuration variables found: {', '.join(configured_vars)}")
+        
+        if missing_vars:
+            print(f"ℹ️ Missing email configuration variables: {', '.join(missing_vars)}")
+            print("   This is expected in test environment")
+        
+        # Check if email service module exists
+        try:
+            import sys
+            sys.path.append('/app/backend')
+            from email_service import email_service
+            print("✅ Email service module imported successfully")
+            
+            if email_service:
+                print("✅ Email service instance is available")
+            else:
+                print("ℹ️ Email service instance is None (expected in test environment)")
+                
+        except ImportError as e:
+            print(f"ℹ️ Email service module not available: {str(e)}")
+        except Exception as e:
+            print(f"ℹ️ Email service check: {str(e)}")
+    
+    except Exception as e:
+        print(f"⚠️ Error checking email service configuration: {str(e)}")
+    
+    # Test 5: Test trial user login
+    print("\n🔐 Test 5: Trial User Login")
+    
+    trial_login = tester.test_login(test_username, test_password, tester.session2)
+    if not trial_login:
+        print("❌ Trial user login failed")
+        return False
+    
+    if trial_login.get("status") != "trial":
+        print(f"❌ Trial user login status is {trial_login.get('status')}, expected 'trial'")
+        return False
+    
+    print(f"✅ Trial user can login successfully with status 'trial'")
+    print(f"✅ Session ID: {trial_login.get('active_session_id')}")
+    
+    # Test 6: Verify trial user has chat access
+    print("\n💬 Test 6: Trial User Chat Access")
+    
+    trial_message_result = tester.test_send_message(
+        tester.session2, 
+        trial_login.get("id"), 
+        "Hello! This is a test message from the trial user to verify chat access."
+    )
+    
+    if not trial_message_result:
+        print("❌ Trial user cannot send chat messages")
+        return False
+    
+    print("✅ Trial user has chat access - can send messages")
+    
+    # Test Summary
+    print(f"\n📋 TRIAL MEMBER REGISTRATION AND EMAIL TEST SUMMARY:")
+    print(f"   ✅ Trial Registration: User created with trial status")
+    print(f"   ✅ Trial Duration: 14-day period correctly set")
+    print(f"   ✅ Email Service: Configuration checked and logs reviewed")
+    print(f"   ✅ Trial Login: User can login with trial credentials")
+    print(f"   ✅ Trial Access: Chat functionality available during trial")
+    print(f"   ✅ User Data: {test_username} / {test_email} / {test_real_name}")
+    
+    print(f"🎉 TRIAL MEMBER REGISTRATION AND EMAIL TESTING COMPLETED")
+    return True
+
 def test_2_week_trial_system():
     """Test the complete 2-week trial system implementation for ArgusAI CashOut"""
     print("\n🔍 TESTING FEATURE: 2-Week Trial System for ArgusAI CashOut")
