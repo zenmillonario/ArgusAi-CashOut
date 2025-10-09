@@ -1666,8 +1666,9 @@ function App() {
       console.error('Error during logout:', error);
     }
     
-    // Clear persisted user data
+    // Clear persisted user data and reset remember me state
     localStorage.removeItem('cashoutai_user');
+    setRememberMe(false);
     
     setCurrentUser(null);
     setShowLogin(true);
