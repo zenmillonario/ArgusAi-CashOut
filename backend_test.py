@@ -6565,6 +6565,34 @@ if __name__ == "__main__":
                 result = False
             
             sys.exit(0 if result else 1)
+        
+        elif test_type == "notifications":
+            print("🎯 Running ADMIN NOTIFICATION SYSTEM TEST ONLY")
+            print("=" * 60)
+            
+            try:
+                result = test_admin_notification_system()
+                print(f"\n{'🎉 ADMIN NOTIFICATION TEST PASSED' if result else '❌ ADMIN NOTIFICATION TEST FAILED'}")
+                
+                if result:
+                    print("\n✅ ADMIN NOTIFICATION SYSTEM VERIFICATION COMPLETE")
+                    print("   • Trial user registration sends admin notification email")
+                    print("   • Regular user registration sends admin notification email")
+                    print("   • Email content differs between trial and regular registrations")
+                    print("   • Background tasks process notifications without blocking")
+                    print("   • Admin notifications sent to zenmillonario@gmail.com")
+                    print("   • send_trial_registration_notification method working")
+                else:
+                    print("\n❌ ADMIN NOTIFICATION SYSTEM NEEDS ATTENTION")
+                    print("   • Check email service configuration")
+                    print("   • Verify notification methods implementation")
+                    print("   • Review background task processing")
+                    
+            except Exception as e:
+                print(f"\n❌ ERROR in admin notification test: {str(e)}")
+                result = False
+            
+            sys.exit(0 if result else 1)
     
     # Run the session persistence and Remember Me test by default (as requested in the review)
     print("🎯 Running SESSION PERSISTENCE AND REMEMBER ME TEST")
