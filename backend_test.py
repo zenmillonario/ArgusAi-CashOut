@@ -7250,16 +7250,21 @@ def main():
 if __name__ == "__main__":
     print("🚀 Starting CashoutAI Backend Testing Suite")
     
-    # Run the specific test for improved chat system message history
-    print("🎯 Running specific test: Improved Chat System with Increased Message History")
+    # Run the email service test as requested in the review
+    print("🎯 Running EMAIL SERVICE STATUS AND FUNCTIONALITY TEST")
     
-    if test_improved_chat_system_message_history():
-        print("\n🎉 IMPROVED CHAT SYSTEM MESSAGE HISTORY TEST PASSED!")
-        print("✅ The chat system successfully supports 2000 message history")
-        print("✅ Older messages (4+ weeks) are accessible when available")
-        print("✅ Backend performance is optimized for increased limits")
+    if test_email_service_status_and_functionality():
+        print("\n🎉 EMAIL SERVICE STATUS AND FUNCTIONALITY TEST PASSED!")
+        print("✅ Email service is currently available and initialized")
+        print("✅ All email environment variables are properly loaded")
+        print("✅ Gmail SMTP connection is working correctly")
+        print("✅ All required email service methods are available")
+        print("✅ Admin notification email functionality is working")
+        print("✅ No email service errors found in backend logs")
+        print("✅ Email service can connect to Gmail SMTP successfully")
+        print("✅ No 'Email service not available' warnings detected")
     else:
-        print("\n❌ IMPROVED CHAT SYSTEM MESSAGE HISTORY TEST FAILED!")
+        print("\n❌ EMAIL SERVICE STATUS AND FUNCTIONALITY TEST FAILED!")
         print("❌ Please check the output above for specific issues")
     
     print("\n🔚 Testing complete")
