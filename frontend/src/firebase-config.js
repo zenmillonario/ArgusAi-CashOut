@@ -106,8 +106,13 @@ class NotificationService {
       const hasPermission = await this.requestPermission();
       if (!hasPermission) return null;
 
-      // Get token
-      const token = await getToken(messaging, {
+      // Get token (only if messaging is available)
+      if (!this.messaging) {
+        console.log('🚫 Firebase messaging not available');
+        return null;
+      }
+      
+      const token = await getToken(this.messaging, {
         vapidKey: VAPID_KEY,
         serviceWorkerRegistration: registration
       });
