@@ -1146,7 +1146,7 @@ function App() {
       if (error.response?.status === 403) {
         try {
           console.log('🔄 Trying fallback endpoint...');
-          const response = await axios.get(`${API}/messages?limit=500`);
+          const response = await axios.get(`${API}/messages?limit=50`);
           setMessages(response.data || []);
           console.log(`✅ Fallback loaded ${response.data?.length || 0} messages`);
         } catch (fallbackError) {
