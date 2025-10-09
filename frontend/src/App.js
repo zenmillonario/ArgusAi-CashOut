@@ -1238,8 +1238,14 @@ function App() {
         setShowLogin(false);
         setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
         
-        // Save user to localStorage for persistence
-        localStorage.setItem('cashoutai_user', JSON.stringify(response.data));
+        // Save user to localStorage for persistence with session info
+        const sessionData = {
+          ...response.data,
+          rememberMe: rememberMe,
+          sessionCreated: new Date().toISOString(),
+          sessionDuration: rememberMe ? 30 : 1 // 30 days if remember me, 1 day otherwise
+        };
+        localStorage.setItem('cashoutai_user', JSON.stringify(sessionData));
         
         console.log('💾 User data saved to localStorage');
         console.log('🎯 Login complete, should now show main app interface');
