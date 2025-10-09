@@ -4830,17 +4830,7 @@ def test_message_loading_performance():
         print(f"✅ PERFORMANCE ACCEPTABLE: Messages loading in {avg_welcome_time:.3f}s")
         return True
 
-if __name__ == "__main__":
-    # Run the trial member registration and email test
-    print("🚀 Starting Trial Member Registration and Email Test")
-    result = test_trial_member_registration_and_email()
-    
-    if result:
-        print("\n🎉 TRIAL MEMBER REGISTRATION AND EMAIL TEST PASSED")
-        exit(0)
-    else:
-        print("\n❌ TRIAL MEMBER REGISTRATION AND EMAIL TEST FAILED")
-        exit(1)
+# Removed duplicate main section - using the main section at the end of the file
 
 def test_admin_demotion():
     """Test admin demotion functionality"""
