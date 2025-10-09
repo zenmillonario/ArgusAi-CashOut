@@ -38,6 +38,47 @@ const ChatTab = ({
   const [followingUsers, setFollowingUsers] = useState([]);
   const [followerCounts, setFollowerCounts] = useState({});
 
+  // Function to group messages by date and add daily separators
+  const getMessagesWithDateSeparators = (messages) => {
+    if (!messages || messages.length === 0) return [];
+    
+    const messagesWithSeparators = [];
+    let currentDate = null;
+    
+    // Sort messages by timestamp (newest first, but we'll reverse for display)
+    const sortedMessages = [...messages].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    sortedMessages.forEach((message, index) => {
+      const messageDate = new Date(message.timestamp);
+      const messageDateString = messageDate.toDateString(); // "Thu Oct 09 2025"
+      
+      // Add date separator if it's a new date
+      if (currentDate !== messageDateString) {
+        currentDate = messageDateString;
+        
+        // Format date as "Thursday, October 09, 2025"
+        const formattedDate = messageDate.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric', 
+          month: 'long',
+          day: '2-digit',
+          timeZone: 'America/New_York'
+        });
+        
+        messagesWithSeparators.push({
+          id: `date-separator-${messageDateString}`,
+          type: 'date-separator',
+          date: formattedDate,
+          timestamp: message.timestamp
+        });
+      }
+      
+      messagesWithSeparators.push(message);
+    });
+    
+    return messagesWithSeparators.reverse(); // Show newest first
+  };
+
   // API setup
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
   const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
