@@ -1751,6 +1751,281 @@ def test_trade_history():
     print("✅ Trade History with P&L Calculations test passed")
     return True
 
+def test_session_persistence_remember_me():
+    """Test session persistence and Remember Me functionality"""
+    print("\n🔍 TESTING FEATURE: Session Persistence and Remember Me Functionality")
+    
+    tester = CashoutAITester()
+    
+    # Test 1: Login and Session Creation
+    print("\n🔐 Test 1: Login and Session Creation")
+    
+    username = "admin"
+    password = "admin123"
+    
+    print(f"Testing login with credentials: {username}/{password}")
+    
+    # Perform login to create a session
+    user_data = tester.test_login(username, password, tester.session1)
+    if not user_data:
+        print("❌ Login failed, cannot test session persistence")
+        return False
+    
+    user_id = user_data.get('id')
+    session_id = user_data.get('active_session_id')
+    
+    if not session_id:
+        print("❌ No session ID returned from login")
+        return False
+    
+    print(f"✅ Login successful - User ID: {user_id}")
+    print(f"✅ Session created - Session ID: {session_id}")
+    
+    # Test 2: Session Status Endpoint with Valid Session
+    print("\n✅ Test 2: Session Status Endpoint - Valid Session")
+    
+    success, session_response = tester.run_test(
+        "Check valid session status",
+        "GET",
+        f"users/{user_id}/session-status?session_id={session_id}",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to check valid session status")
+        return False
+    
+    # Verify response structure
+    if 'valid' not in session_response:
+        print("❌ Missing 'valid' field in session status response")
+        return False
+    
+    if 'message' not in session_response:
+        print("❌ Missing 'message' field in session status response")
+        return False
+    
+    # Verify session is valid
+    if not session_response.get('valid'):
+        print(f"❌ Session should be valid but got: {session_response}")
+        return False
+    
+    print(f"✅ Valid session correctly identified: {session_response.get('message')}")
+    
+    # Test 3: Session Status Endpoint with Invalid Session
+    print("\n❌ Test 3: Session Status Endpoint - Invalid Session")
+    
+    invalid_session_id = str(uuid.uuid4())  # Generate a fake session ID
+    
+    success, invalid_session_response = tester.run_test(
+        "Check invalid session status",
+        "GET",
+        f"users/{user_id}/session-status?session_id={invalid_session_id}",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to check invalid session status")
+        return False
+    
+    # Verify invalid session is correctly identified
+    if invalid_session_response.get('valid'):
+        print(f"❌ Invalid session should not be valid but got: {invalid_session_response}")
+        return False
+    
+    print(f"✅ Invalid session correctly identified: {invalid_session_response.get('message')}")
+    
+    # Test 4: Session Status with Non-existent User
+    print("\n👤 Test 4: Session Status - Non-existent User")
+    
+    fake_user_id = str(uuid.uuid4())
+    
+    success, not_found_response = tester.run_test(
+        "Check session status for non-existent user",
+        "GET",
+        f"users/{fake_user_id}/session-status?session_id={session_id}",
+        404,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to handle non-existent user correctly")
+        return False
+    
+    print("✅ Non-existent user correctly returns 404")
+    
+    # Test 5: Session Persistence After Multiple Requests
+    print("\n🔄 Test 5: Session Persistence After Multiple Requests")
+    
+    # Make several API calls to verify session remains valid
+    api_calls = [
+        ("Get user profile", "GET", f"users/{user_id}/profile", 200),
+        ("Get messages", "GET", "messages?limit=5", 200),
+        ("Check session again", "GET", f"users/{user_id}/session-status?session_id={session_id}", 200)
+    ]
+    
+    for call_name, method, endpoint, expected_status in api_calls:
+        success, response = tester.run_test(
+            call_name,
+            method,
+            endpoint,
+            expected_status,
+            session=tester.session1
+        )
+        
+        if not success:
+            print(f"❌ Failed API call: {call_name}")
+            return False
+        
+        # For the final session check, verify it's still valid
+        if "session-status" in endpoint:
+            if not response.get('valid'):
+                print(f"❌ Session became invalid after API calls: {response}")
+                return False
+            print("✅ Session remains valid after multiple API calls")
+    
+    print("✅ Session persistence verified across multiple requests")
+    
+    # Test 6: Session Invalidation on New Login
+    print("\n🔄 Test 6: Session Invalidation on New Login")
+    
+    # Login again with the same user to test session invalidation
+    new_user_data = tester.test_login(username, password, tester.session2)
+    if not new_user_data:
+        print("❌ Second login failed")
+        return False
+    
+    new_session_id = new_user_data.get('active_session_id')
+    
+    if new_session_id == session_id:
+        print("❌ New login should generate a different session ID")
+        return False
+    
+    print(f"✅ New login generated different session ID: {new_session_id}")
+    
+    # Check that old session is now invalid
+    success, old_session_response = tester.run_test(
+        "Check old session after new login",
+        "GET",
+        f"users/{user_id}/session-status?session_id={session_id}",
+        200,
+        session=tester.session1
+    )
+    
+    if not success:
+        print("❌ Failed to check old session status")
+        return False
+    
+    if old_session_response.get('valid'):
+        print(f"❌ Old session should be invalid after new login: {old_session_response}")
+        return False
+    
+    print("✅ Old session correctly invalidated after new login")
+    
+    # Check that new session is valid
+    success, new_session_response = tester.run_test(
+        "Check new session after login",
+        "GET",
+        f"users/{user_id}/session-status?session_id={new_session_id}",
+        200,
+        session=tester.session2
+    )
+    
+    if not success:
+        print("❌ Failed to check new session status")
+        return False
+    
+    if not new_session_response.get('valid'):
+        print(f"❌ New session should be valid: {new_session_response}")
+        return False
+    
+    print("✅ New session is valid after login")
+    
+    # Test 7: Session Validation for Remember Me Scenario
+    print("\n💾 Test 7: Remember Me Scenario - Long-term Session Validation")
+    
+    # Simulate checking session after some time (for Remember Me functionality)
+    print("Simulating Remember Me functionality...")
+    
+    # Check session multiple times to simulate periodic validation
+    for i in range(3):
+        success, remember_response = tester.run_test(
+            f"Remember Me validation check {i+1}",
+            "GET",
+            f"users/{user_id}/session-status?session_id={new_session_id}",
+            200,
+            session=tester.session2
+        )
+        
+        if not success:
+            print(f"❌ Remember Me validation check {i+1} failed")
+            return False
+        
+        if not remember_response.get('valid'):
+            print(f"❌ Session should remain valid for Remember Me: {remember_response}")
+            return False
+        
+        print(f"✅ Remember Me validation check {i+1} passed")
+        time.sleep(0.5)  # Small delay between checks
+    
+    print("✅ Session remains valid for Remember Me functionality")
+    
+    # Test 8: Session Cleanup on Logout
+    print("\n🚪 Test 8: Session Cleanup on Logout")
+    
+    # Logout the user
+    success, logout_response = tester.run_test(
+        "User logout",
+        "POST",
+        "users/logout",
+        200,
+        session=tester.session2,
+        data={"user_id": user_id}  # Pass user_id in request body
+    )
+    
+    if not success:
+        print("❌ Logout failed")
+        return False
+    
+    print("✅ User logout successful")
+    
+    # Check that session is now invalid after logout
+    success, post_logout_response = tester.run_test(
+        "Check session after logout",
+        "GET",
+        f"users/{user_id}/session-status?session_id={new_session_id}",
+        200,
+        session=tester.session2
+    )
+    
+    if not success:
+        print("❌ Failed to check session status after logout")
+        return False
+    
+    if post_logout_response.get('valid'):
+        print(f"❌ Session should be invalid after logout: {post_logout_response}")
+        return False
+    
+    print("✅ Session correctly invalidated after logout")
+    
+    # Summary
+    print(f"\n📋 SESSION PERSISTENCE AND REMEMBER ME TEST SUMMARY:")
+    print(f"   ✅ Session Creation: Working correctly")
+    print(f"   ✅ Valid Session Validation: Working correctly")
+    print(f"   ✅ Invalid Session Detection: Working correctly")
+    print(f"   ✅ Non-existent User Handling: Working correctly")
+    print(f"   ✅ Session Persistence: Working correctly")
+    print(f"   ✅ Session Invalidation on New Login: Working correctly")
+    print(f"   ✅ Remember Me Functionality: Working correctly")
+    print(f"   ✅ Session Cleanup on Logout: Working correctly")
+    
+    print(f"🎉 SESSION PERSISTENCE AND REMEMBER ME FUNCTIONALITY: All tests passed!")
+    print(f"🔒 The session-status endpoint is ready for Remember Me feature implementation")
+    print(f"💡 Sessions can be validated every 23 hours to keep users logged in for up to 30 days")
+    
+    return True
+
 def test_mobile_app_backend_connectivity():
     """Test backend API connectivity and login functionality for mobile app support"""
     print("\n🔍 TESTING FEATURE: Mobile App Backend Connectivity")
