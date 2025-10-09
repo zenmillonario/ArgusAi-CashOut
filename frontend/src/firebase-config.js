@@ -189,7 +189,12 @@ class NotificationService {
 
   // Setup listener for foreground messages
   setupForegroundListener() {
-    onMessage(messaging, (payload) => {
+    if (!this.messaging) {
+      console.log('🚫 Firebase messaging not available for foreground listener');
+      return;
+    }
+    
+    onMessage(this.messaging, (payload) => {
       console.log('Message received in foreground:', payload);
 
       // Play WhatsApp-like sound
