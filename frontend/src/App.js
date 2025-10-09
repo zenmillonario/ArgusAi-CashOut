@@ -229,6 +229,12 @@ function App() {
             } catch (error) {
               console.error('Error initializing Firebase notifications for saved user:', error);
             }
+            
+            // Set up automatic session refresh for remember me sessions
+            if (user.rememberMe) {
+              console.log('🔄 Setting up automatic session refresh for remember me session');
+              setupSessionRefresh(user);
+            }
           } else {
             // Session expired, clear storage
             localStorage.removeItem('cashoutai_user');
