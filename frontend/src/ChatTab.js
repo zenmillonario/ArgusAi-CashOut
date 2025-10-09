@@ -236,24 +236,8 @@ const ChatTab = ({
             </div>
           )}
           {/* PERFORMANCE OPTIMIZATION: Use React.memo and limit initial render */}
-          {getMessagesWithDateSeparators(displayMessages.slice(0, 2000)).map((message, index) => {
-            // Render date separator
-            if (message.type === 'date-separator') {
-              return (
-                <div key={message.id} className="flex items-center justify-center my-4">
-                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    isDarkTheme 
-                      ? 'bg-gray-800 text-gray-400 border border-gray-700' 
-                      : 'bg-gray-100 text-gray-600 border border-gray-200'
-                  }`}>
-                    {message.date}
-                  </div>
-                </div>
-              );
-            }
-            
-            // Render regular message
-            return (
+          {/* TEMPORARILY SIMPLIFIED - REVERT TO BASIC MESSAGE DISPLAY TO FIX DISAPPEARING MESSAGES */}
+          {displayMessages.slice(0, 2000).map((message, index) => (
             <div key={message.id} className="group">
               {/* STREAMLINED FORMAT: Username: Message on same line */}
               {message.content_type === 'image' ? (
