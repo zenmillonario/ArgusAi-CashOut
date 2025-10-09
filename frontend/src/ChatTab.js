@@ -404,7 +404,8 @@ const ChatTab = ({
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
           <div ref={messagesEndRef} />
         </div>
         
