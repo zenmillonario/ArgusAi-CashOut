@@ -15,19 +15,51 @@ const firebaseConfig = {
 // VAPID key for push notifications
 const VAPID_KEY = "BCFwFhta05moYQ1dkY6Q1YjWCkGoOOCopnT19IwCzMP62X7RTKIPXUSV4ZQvWAq93QNJKUpV_1yjt42htBcfLvg";
 
-// Initialize Firebase
+// Mobile browser detection
+const isMobileBrowser = () => {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const mobileKeywords = ['android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone', 'mobile'];
+  return mobileKeywords.some(keyword => userAgent.includes(keyword));
+};
+
+// Check if Firebase messaging is supported
+const isFirebaseSupported = () => {
+  // Don't initialize Firebase messaging on mobile browsers due to compatibility issues
+  if (isMobileBrowser()) {
+    console.log('🚫 Firebase messaging disabled on mobile browsers for compatibility');
+    return false;
+  }
+  
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+};
+
+// Initialize Firebase app
 const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
+
+// Initialize messaging only if supported
+let messaging = null;
+if (isFirebaseSupported()) {
+  try {
+    messaging = getMessaging(app);
+    console.log('✅ Firebase messaging initialized for desktop');
+  } catch (error) {
+    console.log('⚠️ Firebase messaging initialization failed:', error.message);
+    messaging = null;
+  }
+} else {
+  console.log('🚫 Firebase messaging not supported or disabled');
+}
 
 class NotificationService {
   constructor() {
     this.token = null;
     this.isSupported = this.checkSupport();
+    this.messaging = messaging;
   }
 
   // Check if push notifications are supported
   checkSupport() {
-    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    return messaging !== null && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   }
 
   // Request notification permission
