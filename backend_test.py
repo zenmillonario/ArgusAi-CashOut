@@ -7410,30 +7410,32 @@ if __name__ == "__main__":
             
             sys.exit(0 if result else 1)
     
-    # Run the session persistence and Remember Me test by default (as requested in the review)
-    print("🎯 Running SESSION PERSISTENCE AND REMEMBER ME TEST")
+    # Run the email service test as requested in the review
+    print("🎯 Running EMAIL SERVICE STATUS AND FUNCTIONALITY TEST")
     print("=" * 60)
     
     try:
-        result = test_session_persistence_remember_me()
-        print(f"\n{'🎉 SESSION TEST PASSED' if result else '❌ SESSION TEST FAILED'}")
+        result = test_email_service_status_and_functionality()
+        print(f"\n{'🎉 EMAIL SERVICE TEST PASSED' if result else '❌ EMAIL SERVICE TEST FAILED'}")
         
         if result:
-            print("\n✅ SESSION PERSISTENCE AND REMEMBER ME VERIFICATION COMPLETE")
-            print("   • Session creation and validation working correctly")
-            print("   • Invalid session detection working correctly")
-            print("   • Session persistence across multiple requests")
-            print("   • Session invalidation on new login working correctly")
-            print("   • Remember Me functionality ready for implementation")
-            print("   • Session cleanup on logout working correctly")
+            print("\n✅ EMAIL SERVICE VERIFICATION COMPLETE")
+            print("   • Email service is currently available and initialized")
+            print("   • All email environment variables are properly loaded")
+            print("   • Gmail SMTP connection is working correctly")
+            print("   • All required email service methods are available")
+            print("   • Admin notification email functionality is working")
+            print("   • No email service errors found in backend logs")
+            print("   • Email service can connect to Gmail SMTP successfully")
+            print("   • No 'Email service not available' warnings detected")
         else:
-            print("\n❌ SESSION PERSISTENCE NEEDS ATTENTION")
-            print("   • Check session-status endpoint implementation")
-            print("   • Verify session validation logic")
-            print("   • Review session cleanup processes")
+            print("\n❌ EMAIL SERVICE NEEDS ATTENTION")
+            print("   • Check email service configuration")
+            print("   • Verify environment variables")
+            print("   • Review SMTP connection settings")
             
     except Exception as e:
-        print(f"\n❌ ERROR in session test: {str(e)}")
+        print(f"\n❌ ERROR in email service test: {str(e)}")
         result = False
     
     sys.exit(0 if result else 1)
