@@ -237,7 +237,7 @@ const ChatTab = ({
           )}
           {/* PERFORMANCE OPTIMIZATION: Use React.memo and limit initial render */}
           {/* TEMPORARILY SIMPLIFIED - REVERT TO BASIC MESSAGE DISPLAY TO FIX DISAPPEARING MESSAGES */}
-          {displayMessages.slice(0, 500).map((message, index) => (
+          {displayMessages.slice(0, 100).map((message, index) => (
             <div key={message.id} className="group">
               {/* STREAMLINED FORMAT: Username: Message on same line */}
               {message.content_type === 'image' ? (
