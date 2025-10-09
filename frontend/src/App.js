@@ -1230,6 +1230,7 @@ function App() {
         
         setIsRegistering(false);
         setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
+        setRememberMe(false);
       } else {
         // Login
         console.log('🔐 Attempting login with API:', API);
@@ -1244,6 +1245,7 @@ function App() {
         setCurrentUser(response.data);
         setShowLogin(false);
         setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
+        setRememberMe(false);
         
         // Save user to localStorage for persistence with session info
         const sessionData = {
