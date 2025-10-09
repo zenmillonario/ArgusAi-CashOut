@@ -6424,6 +6424,34 @@ if __name__ == "__main__":
             
             sys.exit(0 if result else 1)
         
+        elif test_type == "session":
+            print("🎯 Running SESSION PERSISTENCE AND REMEMBER ME TEST ONLY")
+            print("=" * 60)
+            
+            try:
+                result = test_session_persistence_remember_me()
+                print(f"\n{'🎉 SESSION TEST PASSED' if result else '❌ SESSION TEST FAILED'}")
+                
+                if result:
+                    print("\n✅ SESSION PERSISTENCE AND REMEMBER ME VERIFICATION COMPLETE")
+                    print("   • Session creation and validation working correctly")
+                    print("   • Invalid session detection working correctly")
+                    print("   • Session persistence across multiple requests")
+                    print("   • Session invalidation on new login working correctly")
+                    print("   • Remember Me functionality ready for implementation")
+                    print("   • Session cleanup on logout working correctly")
+                else:
+                    print("\n❌ SESSION PERSISTENCE NEEDS ATTENTION")
+                    print("   • Check session-status endpoint implementation")
+                    print("   • Verify session validation logic")
+                    print("   • Review session cleanup processes")
+                    
+            except Exception as e:
+                print(f"\n❌ ERROR in session test: {str(e)}")
+                result = False
+            
+            sys.exit(0 if result else 1)
+        
         elif test_type == "trial":
             print("🎯 Running 2-WEEK TRIAL SYSTEM TEST ONLY")
             print("=" * 60)
