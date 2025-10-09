@@ -290,7 +290,7 @@ const ChatTab = ({
                 </div>
               ) : (
                 // Text messages - STREAMLINED SAME LINE FORMAT
-                <div className="flex items-start space-x-1 py-0">
+                <div className="flex items-start space-x-1 py-0.5">
                   {/* Compact timestamp */}
                   <span className="text-xs text-gray-500 w-12 flex-shrink-0 text-right">
                     {new Date(message.timestamp).toLocaleTimeString([], {
