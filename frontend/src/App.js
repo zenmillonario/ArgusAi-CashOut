@@ -1056,7 +1056,7 @@ function App() {
           // Also check for new messages periodically when WebSocket is down
           const messageCheckInterval = setInterval(async () => {
             try {
-              const response = await axios.get(`${API}/messages?limit=20&user_id=${currentUser?.id}`);
+              const response = await axios.get(`${API}/messages?limit=100&user_id=${currentUser?.id}`);
               const latestMessages = response.data;
               
               setMessages(prev => {
