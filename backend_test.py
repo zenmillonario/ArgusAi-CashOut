@@ -262,6 +262,7 @@ class CashoutAITester:
     
     def test_get_messages_with_user_id(self, session, user_id, limit=2000):
         """Test getting chat messages with user_id parameter"""
+        start_time = time.time()
         success, response = self.run_test(
             f"Get chat messages with user_id (limit={limit})",
             "GET",
@@ -269,11 +270,13 @@ class CashoutAITester:
             200,
             session=session
         )
+        end_time = time.time()
+        response_time = end_time - start_time
         
         if success:
-            print(f"Retrieved {len(response)} messages for user {user_id}")
-            return response
-        return None
+            print(f"Retrieved {len(response)} messages for user {user_id} in {response_time:.3f} seconds")
+            return response, response_time
+        return None, response_time
     
     def test_register_fcm_token(self, session, user_id, token):
         """Test registering an FCM token"""
