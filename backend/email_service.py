@@ -151,6 +151,114 @@ ArgusAI CashOut System
         
         return await self.send_email(admin_email, subject, plain_body, html_body)
     
+    async def send_trial_registration_notification(
+        self, 
+        admin_email: str, 
+        user_data: dict
+    ) -> bool:
+        """Send trial registration notification to admin"""
+        trial_end_date = user_data.get('trial_end_date')
+        trial_end_str = trial_end_date.strftime('%B %d, %Y at %I:%M %p UTC') if trial_end_date else 'Not set'
+        
+        subject = f"🎯 New TRIAL User Registration - {user_data.get('real_name', user_data.get('username'))}"
+        
+        plain_body = f"""
+New TRIAL User Registration - ArgusAI CashOut
+
+🎯 TRIAL USER DETAILS:
+• Name: {user_data.get('real_name', 'Not provided')}
+• Username: {user_data.get('username')}
+• Email: {user_data.get('email')}
+• Membership Plan: {user_data.get('membership_plan', '14-Day Trial')}
+• Trial Start: {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}
+• Trial Ends: {trial_end_str}
+• Registration Date: {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}
+
+✅ This user was automatically approved and can start using the platform immediately.
+🎯 They have 14 days of full access before requiring upgrade.
+
+Login at: https://cashoutai-frontend.onrender.com
+
+--
+ArgusAI CashOut System
+"""
+        
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trial Registration Notification</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f8fafc; }}
+        .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 20px; text-align: center; }}
+        .header h1 {{ color: white; margin: 0; font-size: 24px; font-weight: 600; }}
+        .content {{ padding: 30px 20px; }}
+        .trial-badge {{ background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; display: inline-block; font-weight: 600; margin-bottom: 20px; }}
+        .user-info {{ background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+        .user-info h3 {{ margin-top: 0; color: #374151; }}
+        .info-row {{ display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }}
+        .info-label {{ font-weight: 600; color: #6b7280; }}
+        .info-value {{ color: #374151; }}
+        .trial-info {{ background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 20px; margin: 20px 0; }}
+        .trial-info h4 {{ margin-top: 0; color: #047857; }}
+        .footer {{ background: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb; }}
+        .button {{ background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 New Trial Registration</h1>
+        </div>
+        <div class="content">
+            <div class="trial-badge">TRIAL USER</div>
+            
+            <div class="user-info">
+                <h3>User Information</h3>
+                <div class="info-row">
+                    <span class="info-label">Name:</span>
+                    <span class="info-value">{user_data.get('real_name', 'Not provided')}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Username:</span>
+                    <span class="info-value">{user_data.get('username')}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Email:</span>
+                    <span class="info-value">{user_data.get('email')}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Membership:</span>
+                    <span class="info-value">{user_data.get('membership_plan', '14-Day Trial')}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Registration:</span>
+                    <span class="info-value">{datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}</span>
+                </div>
+            </div>
+            
+            <div class="trial-info">
+                <h4>📅 Trial Information</h4>
+                <p><strong>Trial Period:</strong> 14 days of full access</p>
+                <p><strong>Status:</strong> ✅ Automatically approved - active now</p>
+                <p><strong>Trial Ends:</strong> {trial_end_str}</p>
+                <p>This user can immediately access chat, trading tools, and all platform features.</p>
+            </div>
+        </div>
+        <div class="footer">
+            <a href="https://cashoutai-frontend.onrender.com" class="button">View Platform</a>
+            <p style="margin-top: 15px; color: #6b7280; font-size: 14px;">ArgusAI CashOut Admin System</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        return await self.send_email(admin_email, subject, plain_body, html_body)
+    
     async def send_approval_confirmation(
         self, 
         user_email: str, 
