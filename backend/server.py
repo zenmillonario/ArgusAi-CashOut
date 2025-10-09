@@ -1767,6 +1767,16 @@ async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks
             else:
                 logger.error(f"❌ Email service not available - cannot send welcome email to {user_data.email}")
             
+            # Send admin notification for trial registration
+            if email_service:
+                admin_email = os.getenv("MAIL_USERNAME", "zenmillonario@gmail.com")
+                background_tasks.add_task(
+                    email_service.send_trial_registration_notification,
+                    admin_email,
+                    user_dict
+                )
+                logger.info(f"📧 Scheduled admin notification for trial user registration: {user_data.username}")
+            
         else:
             # Regular registration - requires admin approval
             user = User(**user_dict, status=UserStatus.PENDING)
