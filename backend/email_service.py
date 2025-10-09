@@ -77,7 +77,9 @@ class EmailService:
         subject = f"🔔 New REGULAR User Registration - {user_data.get('real_name', user_data.get('username'))} (Requires Approval)"
         
         plain_body = f"""
-New User Registration - ArgusAI CashOut
+New REGULAR User Registration - ArgusAI CashOut
+
+👤 PENDING APPROVAL REQUIRED
 
 User Details:
 • Name: {user_data.get('real_name', 'Not provided')}
@@ -87,7 +89,10 @@ User Details:
 • Membership Plan: {user_data.get('membership_plan', 'Not specified')}
 • Registration Date: {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}
 
+⚠️ This user is PENDING and cannot access the platform until you approve them.
+
 Please review and approve this registration in the ArgusAI CashOut admin panel.
+Login at: https://cashoutai-frontend.onrender.com
 
 --
 ArgusAI CashOut System
