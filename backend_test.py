@@ -7521,21 +7521,23 @@ def main():
 if __name__ == "__main__":
     print("🚀 Starting CashoutAI Backend Testing Suite")
     
-    # Run the email service test as requested in the review
-    print("🎯 Running EMAIL SERVICE STATUS AND FUNCTIONALITY TEST")
+    # Run the Zapier webhook test as requested in the review
+    print("🎯 Running ZAPIER WEBHOOK ENDPOINT TEST")
     
-    if test_email_service_status_and_functionality():
-        print("\n🎉 EMAIL SERVICE STATUS AND FUNCTIONALITY TEST PASSED!")
-        print("✅ Email service is currently available and initialized")
-        print("✅ All email environment variables are properly loaded")
-        print("✅ Gmail SMTP connection is working correctly")
-        print("✅ All required email service methods are available")
-        print("✅ Admin notification email functionality is working")
-        print("✅ No email service errors found in backend logs")
-        print("✅ Email service can connect to Gmail SMTP successfully")
-        print("✅ No 'Email service not available' warnings detected")
+    if test_zapier_webhook_endpoint():
+        print("\n🎉 ZAPIER WEBHOOK ENDPOINT TEST PASSED!")
+        print("✅ /api/bot/email-webhook endpoint accepts sample email data")
+        print("✅ Endpoint returns 200 status for valid requests")
+        print("✅ cashoutai_bot user exists or gets created automatically")
+        print("✅ Bot user has proper admin privileges and bot role")
+        print("✅ Webhook processes various email field formats")
+        print("✅ Endpoint returns proper response structure for Zapier")
+        print("✅ Error handling works for empty/invalid data")
+        print("✅ Bot messages have correct structure in database")
+        print("✅ Multiple Zapier field name variations supported")
+        print("✅ The webhook endpoint is ready for Zapier integration!")
     else:
-        print("\n❌ EMAIL SERVICE STATUS AND FUNCTIONALITY TEST FAILED!")
+        print("\n❌ ZAPIER WEBHOOK ENDPOINT TEST FAILED!")
         print("❌ Please check the output above for specific issues")
     
     print("\n🔚 Testing complete")
