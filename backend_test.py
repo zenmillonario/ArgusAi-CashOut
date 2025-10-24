@@ -1298,12 +1298,23 @@ def test_webhook_endpoint_new_domain():
     print("✅ Bot messages have correct structure in database")
     print("✅ Multiple Zapier field name variations supported")
     
-    print("\n🎉 ZAPIER WEBHOOK ENDPOINT TEST PASSED")
-    print("\nℹ️ The webhook endpoint is ready for Zapier integration!")
-    print("ℹ️ Zapier can send email data to: /api/bot/email-webhook")
+    print("\n🎉 WEBHOOK ENDPOINT NEW DOMAIN TEST PASSED")
+    print("\nℹ️ The webhook endpoint is accessible and working on the new domain!")
+    print("ℹ️ New domain URL: https://cashoutai.app/api/bot/email-webhook")
+    print("ℹ️ Zapier can send email data to this endpoint")
     print("ℹ️ Supported fields: subject/Subject, body/Body/content, from/From/sender")
+    print("ℹ️ No domain-related issues detected")
     
     return True
+
+def test_zapier_webhook_endpoint():
+    """Test the Zapier webhook endpoint to verify it's still working"""
+    print("\n🔍 TESTING FEATURE: Zapier Webhook Endpoint (/api/bot/email-webhook)")
+    
+    tester = CashoutAITester()
+    
+    # Test 1: Test the /api/bot/email-webhook endpoint with sample email data
+    print("\n📧 Test 1: Testing /api/bot/email-webhook endpoint with sample email data")
 
 def test_admin_notification_system():
     """Test the admin notification system for both trial and regular user registrations"""
