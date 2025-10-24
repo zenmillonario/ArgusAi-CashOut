@@ -3399,6 +3399,59 @@ def test_improved_chat_system_message_history():
     # Note: We can't easily test WebSocket connection in this context, but we verify the endpoint exists
     print("✅ WebSocket endpoint configured (actual connection testing requires WebSocket client)")
     
+if __name__ == "__main__":
+    print("🚀 Starting CashoutAI Backend Testing Suite")
+    
+    # Run all tests
+    all_tests_passed = True
+    
+    # Test the webhook endpoint on new domain (priority test for this review)
+    if not test_webhook_endpoint_new_domain():
+        all_tests_passed = False
+    
+    # Test the MongoDB memory limit fix
+    if not test_mongodb_memory_limit_fix():
+        all_tests_passed = False
+    
+    # Test membership types
+    if not test_membership_types():
+        all_tests_passed = False
+    
+    # Test stock price API
+    if not test_stock_price_api():
+        all_tests_passed = False
+    
+    # Test user approval bug fix
+    if not test_user_approval_bug_fix():
+        all_tests_passed = False
+    
+    # Test profile performance metrics
+    if not test_profile_performance_metrics():
+        all_tests_passed = False
+    
+    # Test email service status and functionality
+    if not test_email_service_status_and_functionality():
+        all_tests_passed = False
+    
+    # Test Zapier webhook endpoint
+    if not test_zapier_webhook_endpoint():
+        all_tests_passed = False
+    
+    # Test admin notification system
+    if not test_admin_notification_system():
+        all_tests_passed = False
+    
+    # Test admin panel role dropdown
+    if not test_admin_panel_role_dropdown():
+        all_tests_passed = False
+    
+    # Final summary
+    print("\n" + "="*80)
+    if all_tests_passed:
+        print("🎉 ALL TESTS PASSED! CashoutAI Backend is working correctly.")
+    else:
+        print("❌ SOME TESTS FAILED! Please check the output above for details.")
+    print("="*80)
     # Test 7: Mobile-Specific API Endpoints
     print("\n📱 Test 7: Mobile-Specific API Endpoints")
     
