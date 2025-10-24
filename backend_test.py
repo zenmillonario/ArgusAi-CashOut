@@ -1006,14 +1006,42 @@ def test_email_service_status_and_functionality():
     
     return True
 
-def test_zapier_webhook_endpoint():
-    """Test the Zapier webhook endpoint to verify it's still working"""
-    print("\n🔍 TESTING FEATURE: Zapier Webhook Endpoint (/api/bot/email-webhook)")
+def test_webhook_endpoint_new_domain():
+    """Test the webhook endpoint on the new domain to verify it's accessible and working"""
+    print("\n🔍 TESTING FEATURE: Webhook Endpoint on New Domain (https://cashoutai.app/api/bot/email-webhook)")
     
     tester = CashoutAITester()
     
-    # Test 1: Test the /api/bot/email-webhook endpoint with sample email data
-    print("\n📧 Test 1: Testing /api/bot/email-webhook endpoint with sample email data")
+    # Test 1: Verify the new domain is configured correctly
+    print("\n🌐 Test 1: Verify new domain configuration")
+    print(f"Base URL: {tester.base_url}")
+    print(f"API URL: {tester.api_url}")
+    
+    if "cashoutai.app" not in tester.base_url:
+        print("❌ New domain not configured correctly")
+        return False
+    else:
+        print("✅ New domain (cashoutai.app) is configured correctly")
+    
+    # Test 2: Test basic API health check on new domain
+    print("\n🏥 Test 2: API Health Check on New Domain")
+    
+    success, response = tester.run_test(
+        "API Health Check",
+        "GET",
+        "",
+        200
+    )
+    
+    if not success:
+        print("❌ API health check failed on new domain")
+        return False
+    
+    print("✅ API is accessible on new domain")
+    print(f"Response: {response}")
+    
+    # Test 3: Test the /api/bot/email-webhook endpoint with sample email data
+    print("\n📧 Test 3: Testing /api/bot/email-webhook endpoint with sample email data")
     
     # Sample email data similar to what Zapier would send
     sample_email_data = {
