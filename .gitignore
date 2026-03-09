@@ -1,3 +1,7 @@
+# Firebase credentials (use environment variables instead)
+firebase-admin.json
+firebase-admin-*.json
+
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 .idea/
 dist
