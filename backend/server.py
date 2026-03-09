@@ -1769,7 +1769,7 @@ async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks
             
             # Send admin notification for trial registration
             if email_service:
-                admin_email = os.getenv("MAIL_USERNAME", "zenmillonario@gmail.com")
+                admin_email = os.getenv("MAIL_USERNAME")
                 background_tasks.add_task(
                     email_service.send_trial_registration_notification,
                     admin_email,
@@ -1783,7 +1783,7 @@ async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks
             
             # Send email notification to admin for new registration
             if email_service:
-                admin_email = os.getenv("MAIL_USERNAME", "zenmillonario@gmail.com")
+                admin_email = os.getenv("MAIL_USERNAME")
                 background_tasks.add_task(
                     email_service.send_registration_notification,
                     admin_email,
