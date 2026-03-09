@@ -2534,8 +2534,9 @@ async def send_password_reset_email(email: str, user_name: str, reset_token: str
         
     subject = "🔑 Password Reset Request - ArgusAI CashOut"
     
-    # In production, this would be your actual domain
-    reset_link = f"https://cashout-mobile.preview.emergentagent.com/reset-password?token={reset_token}"
+    # Use environment variable for frontend URL, fallback to production domain
+    frontend_url = os.getenv('FRONTEND_URL') or os.getenv('REACT_APP_FRONTEND_URL') or 'https://cashoutai.app'
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     plain_body = f"""
 Hi {user_name},
