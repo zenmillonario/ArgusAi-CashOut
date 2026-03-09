@@ -1,5 +1,4 @@
 .github
-.env
 .git
 node_modules
 __pycache__
@@ -7,7 +6,10 @@ __pycache__
 *.pyo
 .DS_Store
 
-# Credential files
+# Allow .env files for deployment configuration
+# .env files are needed for proper deployment setup
+
+# Credential files (but not .env files)
 **/credentials.json
 **/creds.json
 **/*.pem
