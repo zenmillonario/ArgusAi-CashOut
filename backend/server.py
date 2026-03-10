@@ -308,6 +308,10 @@ async def send_notification_to_admins(title: str, body: str, data: Optional[Dict
     try:
         from fcm_service import fcm_service
         
+        if not fcm_service.initialized:
+            logger.warning("FCM service not initialized - admin notifications disabled")
+            return
+        
         # Get all admin users
         admin_users = await db.users.find({"is_admin": True}).to_list(1000)
         admin_user_ids = [user["id"] for user in admin_users]
