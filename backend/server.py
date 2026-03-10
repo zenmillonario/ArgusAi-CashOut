@@ -283,6 +283,10 @@ async def test_notification(test_data: Dict[str, str]):
     try:
         from fcm_service import fcm_service
         
+        if not fcm_service.initialized:
+            logger.warning("FCM service not initialized - push notifications disabled")
+            return {"success": False, "message": "Push notifications not available"}
+        
         # In test mode, just log and return success
         logger.info(f"Sending test notification to token: {token}")
         
