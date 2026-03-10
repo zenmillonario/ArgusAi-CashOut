@@ -264,8 +264,8 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
 
-# Create the main app without a prefix
-app = FastAPI(lifespan=lifespan)
+# Use the existing app initialized at the top
+# app = FastAPI(lifespan=lifespan) # Removed duplicate - using app from top
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
