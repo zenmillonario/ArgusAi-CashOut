@@ -1199,6 +1199,27 @@ function App() {
     }
   };
 
+  const refreshUserProfile = async () => {
+    if (!currentUser) return;
+    try {
+      const response = await axios.get(`${API}/users/${currentUser.id}/profile`);
+      setCurrentUser(prev => ({
+        ...prev,
+        bio: response.data.bio,
+        profile_banner: response.data.profile_banner,
+        avatar_url: response.data.avatar_url,
+        location: response.data.location,
+        show_location: response.data.show_location,
+        trading_style_tags: response.data.trading_style_tags,
+        achievements: response.data.achievements,
+        experience_points: response.data.experience_points,
+        level: response.data.level,
+      }));
+    } catch (error) {
+      console.error('Error refreshing user profile:', error);
+    }
+  };
+
   useEffect(() => {
     if (currentUser) {
       loadMessages();
@@ -2953,228 +2974,315 @@ function App() {
           </div>
         )}
 
-        {/* Profile Tab */}
+        {/* Profile Tab - Twitter/X Style */}
         {activeTab === 'profile' && (
-          <div className="flex-1 overflow-y-auto space-y-6 p-4 max-h-screen">{/* Allow scrolling */}
-            {/* XP Progress - Mobile/Tablet */}
-            <div className="lg:hidden">
-              <XPProgressBar 
-                currentXP={userXP.experience_points} 
-                level={userXP.level} 
-                isDarkTheme={isDarkTheme} 
-              />
-            </div>
+          <div className="flex-1 overflow-y-auto max-h-screen" data-testid="profile-tab">
 
-            {/* Profile Header */}
-            <div className={`backdrop-blur-lg rounded-xl border p-6 ${
-              isDarkTheme 
-                ? 'bg-white/5 border-white/10' 
-                : 'bg-white/80 border-gray-200'
-            }`}>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                  👤 My Profile
-                </h2>
+            {showProfileCustomization ? (
+              <div className="p-4">
                 <button
-                  onClick={() => setShowProfileCustomization(!showProfileCustomization)}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  onClick={() => setShowProfileCustomization(false)}
+                  className={`mb-4 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    isDarkTheme ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                  }`}
+                  data-testid="back-to-profile-btn"
                 >
-                  {showProfileCustomization ? 'View Profile' : 'Customize Profile'}
+                  &larr; Back to Profile
                 </button>
-              </div>
-
-              {!showProfileCustomization ? (
-                <>
-                  {/* Large Profile Picture Section */}
-                  <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-8 mb-8">
-                    <div className="relative">
-                      {currentUser?.avatar_url ? (
-                        <img
-                          src={currentUser.avatar_url}
-                          alt="Profile"
-                          className="w-40 h-40 rounded-full object-cover border-4 border-blue-500 shadow-2xl"
-                        />
-                      ) : (
-                        <div className={`w-40 h-40 rounded-full border-4 border-blue-500 shadow-2xl flex items-center justify-center text-6xl font-bold ${
-                          currentUser?.is_admin 
-                            ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white' 
-                            : 'bg-gradient-to-br from-blue-500 to-purple-500 text-white'
-                        }`}>
-                          {currentUser?.is_admin ? '👑' : currentUser?.username?.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      
-                      {/* Level Badge */}
-                      <div className="absolute -bottom-2 -right-2 bg-yellow-500 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold shadow-lg">
-                        L{userXP.level}
-                      </div>
-                    </div>
-                    
-                    <div className="text-center md:text-left">
-                      <h1 className={`text-4xl font-bold mb-2 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                        {currentUser?.screen_name || currentUser?.username}
-                      </h1>
-                      <p className={`text-xl mb-4 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                        @{currentUser?.username} • {currentUser?.is_admin ? '👑 Admin' : currentUser?.role || 'Member'}
-                      </p>
-                      
-                      {/* Quick Action Buttons */}
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <button
-                          onClick={() => setShowProfileCustomization(true)}
-                          className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
-                        >
-                          📷 Update Photo
-                        </button>
-                        <button
-                          onClick={() => setShowChangePassword(true)}
-                          className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
-                        >
-                          🔒 Change Password
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* User Stats Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <div className={`p-4 rounded-lg ${isDarkTheme ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl mb-1">⭐</div>
-                      <div className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                        Level {userXP.level}
-                      </div>
-                      <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {userXP.experience_points.toLocaleString()} XP
-                      </div>
-                    </div>
-
-                    <div className={`p-4 rounded-lg ${isDarkTheme ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl mb-1">💰</div>
-                      <div className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                        ${formatCurrency(currentUser?.total_profit || 0)}
-                      </div>
-                      <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Total Profit
-                      </div>
-                    </div>
-
-                    <div className={`p-4 rounded-lg ${isDarkTheme ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl mb-1">📈</div>
-                      <div className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                        {currentUser?.win_percentage?.toFixed(1) || 0}%
-                      </div>
-                      <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Win Rate
-                      </div>
-                    </div>
-
-                    <div className={`p-4 rounded-lg ${isDarkTheme ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl mb-1">🎯</div>
-                      <div className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                        {currentUser?.trades_count || 0}
-                      </div>
-                      <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Total Trades
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Basic Profile Info */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div>
-                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Username
-                        </label>
-                        <div className={`p-3 rounded-lg border ${
-                          isDarkTheme 
-                            ? 'bg-white/5 border-white/10 text-white' 
-                            : 'bg-white/70 border-gray-200 text-gray-900'
-                        }`}>
-                          {currentUser?.username}
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Real Name
-                        </label>
-                        <div className={`p-3 rounded-lg border ${
-                          isDarkTheme 
-                            ? 'bg-white/5 border-white/10 text-white' 
-                            : 'bg-white/70 border-gray-200 text-gray-900'
-                        }`}>
-                          {currentUser?.real_name || 'Not set'}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Screen Name
-                        </label>
-                        <div className={`p-3 rounded-lg border ${
-                          isDarkTheme 
-                            ? 'bg-white/5 border-white/10 text-white' 
-                            : 'bg-white/70 border-gray-200 text-gray-900'
-                        }`}>
-                          {currentUser?.screen_name || 'Not set'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Email
-                        </label>
-                        <div className={`p-3 rounded-lg border ${
-                          isDarkTheme 
-                            ? 'bg-white/5 border-white/10 text-white' 
-                            : 'bg-white/70 border-gray-200 text-gray-900'
-                        }`}>
-                          {currentUser?.email}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Role
-                        </label>
-                        <div className={`p-3 rounded-lg border ${
-                          isDarkTheme 
-                            ? 'bg-white/5 border-white/10 text-white' 
-                            : 'bg-white/70 border-gray-200 text-gray-900'
-                        }`}>
-                          {currentUser?.is_admin ? '👑 Admin' : currentUser?.role || 'Member'}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className={`block mb-2 font-medium ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Member Since
-                        </label>
-                        <div className={`p-3 rounded-lg border ${
-                          isDarkTheme 
-                            ? 'bg-white/5 border-white/10 text-white' 
-                            : 'bg-white/70 border-gray-200 text-gray-900'
-                        }`}>
-                          {currentUser?.created_at ? new Date(currentUser.created_at).toLocaleDateString() : 'Unknown'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
                 <ProfileCustomization 
                   currentUser={currentUser}
                   isDarkTheme={isDarkTheme}
                   onUpdate={() => {
-                    // Refresh user data after profile update
                     setShowProfileCustomization(false);
+                    refreshUserProfile();
+                    fetchUserXPData();
                   }}
                 />
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className={`max-w-2xl mx-auto ${isDarkTheme ? 'bg-gray-900' : 'bg-white'}`}>
+                {/* Banner Image */}
+                <div className="relative" data-testid="profile-banner">
+                  {currentUser?.profile_banner ? (
+                    <img
+                      src={currentUser.profile_banner}
+                      alt="Profile banner"
+                      className="w-full h-48 sm:h-56 object-cover"
+                    />
+                  ) : (
+                    <div className={`w-full h-48 sm:h-56 ${
+                      isDarkTheme 
+                        ? 'bg-gradient-to-r from-blue-900 via-indigo-900 to-purple-900' 
+                        : 'bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400'
+                    }`} />
+                  )}
+                </div>
+
+                {/* Avatar + Edit Button Row */}
+                <div className="relative px-4">
+                  {/* Avatar - overlapping banner */}
+                  <div className="relative -mt-16 sm:-mt-20 mb-1" data-testid="profile-avatar">
+                    <div className="flex items-end justify-between">
+                      <div className="relative">
+                        {currentUser?.avatar_url ? (
+                          <img
+                            src={currentUser.avatar_url}
+                            alt="Profile"
+                            className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover border-4 ${
+                              isDarkTheme ? 'border-gray-900' : 'border-white'
+                            } shadow-lg`}
+                          />
+                        ) : (
+                          <div className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full border-4 ${
+                            isDarkTheme ? 'border-gray-900' : 'border-white'
+                          } shadow-lg flex items-center justify-center text-5xl sm:text-6xl font-bold ${
+                            currentUser?.is_admin 
+                              ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white' 
+                              : 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
+                          }`}>
+                            {currentUser?.username?.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        {/* Level Badge */}
+                        <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-sm shadow-md border-2 border-gray-900">
+                          {userXP.level}
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2 pb-2">
+                        <button
+                          onClick={() => setShowProfileCustomization(true)}
+                          className={`px-5 py-2 rounded-full font-semibold text-sm transition-colors border ${
+                            isDarkTheme 
+                              ? 'border-gray-600 text-white hover:bg-white/10' 
+                              : 'border-gray-300 text-gray-900 hover:bg-gray-50'
+                          }`}
+                          data-testid="edit-profile-btn"
+                        >
+                          Edit profile
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Name & Handle */}
+                  <div className="mt-2" data-testid="profile-info">
+                    <h1 className={`text-xl sm:text-2xl font-extrabold leading-tight ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                      {currentUser?.screen_name || currentUser?.real_name || currentUser?.username}
+                      {currentUser?.is_admin && (
+                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                          Admin
+                        </span>
+                      )}
+                    </h1>
+                    <p className={`text-sm sm:text-base ${isDarkTheme ? 'text-gray-500' : 'text-gray-500'}`}>
+                      @{currentUser?.username}
+                    </p>
+                  </div>
+
+                  {/* Bio */}
+                  {currentUser?.bio && (
+                    <p className={`mt-3 text-sm sm:text-base leading-relaxed ${isDarkTheme ? 'text-gray-200' : 'text-gray-800'}`} data-testid="profile-bio">
+                      {currentUser.bio}
+                    </p>
+                  )}
+
+                  {/* Meta Row: Location, Joined Date, Role */}
+                  <div className={`flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm ${isDarkTheme ? 'text-gray-500' : 'text-gray-500'}`}>
+                    {currentUser?.location && currentUser?.show_location && (
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        {currentUser.location}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                      Joined {currentUser?.created_at ? new Date(currentUser.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Unknown'}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      {currentUser?.role === 'admin' ? 'Admin' : currentUser?.membership_plan || currentUser?.role || 'Member'}
+                    </span>
+                  </div>
+
+                  {/* Followers / Following Row */}
+                  <div className={`flex gap-5 mt-3 text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`} data-testid="profile-follow-stats">
+                    <span>
+                      <span className={`font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        {currentUser?.following_count || currentUser?.following?.length || 0}
+                      </span> Following
+                    </span>
+                    <span>
+                      <span className={`font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        {currentUser?.follower_count || currentUser?.followers?.length || 0}
+                      </span> Followers
+                    </span>
+                  </div>
+
+                  {/* Trading Style Tags */}
+                  {currentUser?.trading_style_tags && currentUser.trading_style_tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-4" data-testid="profile-tags">
+                      {currentUser.trading_style_tags.map(tag => {
+                        const tagStyles = {
+                          day_trader: { label: 'Day Trader', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+                          diamond_hands: { label: 'Diamond Hands', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+                          swing_trader: { label: 'Swing Trader', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+                          technical_analyst: { label: 'Technical Analyst', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+                          news_trader: { label: 'News Trader', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+                          growth_investor: { label: 'Growth Investor', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+                          value_investor: { label: 'Value Investor', color: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' },
+                          momentum_trader: { label: 'Momentum Trader', color: 'bg-pink-500/20 text-pink-400 border-pink-500/30' },
+                          balanced_trader: { label: 'Balanced Trader', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
+                          algo_trader: { label: 'Algo Trader', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
+                          mobile_trader: { label: 'Mobile Trader', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
+                          contrarian: { label: 'Contrarian', color: 'bg-violet-500/20 text-violet-400 border-violet-500/30' }
+                        };
+                        const style = tagStyles[tag] || { label: tag, color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' };
+                        return (
+                          <span key={tag} className={`px-3 py-1 rounded-full text-xs font-medium border ${style.color}`}>
+                            {style.label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className={`mt-5 border-t ${isDarkTheme ? 'border-gray-800' : 'border-gray-100'}`} />
+
+                {/* Stats Cards */}
+                <div className="px-4 py-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="profile-stats">
+                    <div className={`p-4 rounded-xl text-center ${isDarkTheme ? 'bg-gray-800/80' : 'bg-gray-50'}`}>
+                      <div className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        {userXP.level}
+                      </div>
+                      <div className={`text-xs mt-1 ${isDarkTheme ? 'text-gray-500' : 'text-gray-500'}`}>Level</div>
+                    </div>
+                    <div className={`p-4 rounded-xl text-center ${isDarkTheme ? 'bg-gray-800/80' : 'bg-gray-50'}`}>
+                      <div className={`text-2xl font-bold ${
+                        (currentUser?.total_profit || 0) >= 0 
+                          ? 'text-green-400' 
+                          : 'text-red-400'
+                      }`}>
+                        {formatCurrency(currentUser?.total_profit || 0)}
+                      </div>
+                      <div className={`text-xs mt-1 ${isDarkTheme ? 'text-gray-500' : 'text-gray-500'}`}>Total P&L</div>
+                    </div>
+                    <div className={`p-4 rounded-xl text-center ${isDarkTheme ? 'bg-gray-800/80' : 'bg-gray-50'}`}>
+                      <div className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        {currentUser?.win_percentage?.toFixed(0) || 0}%
+                      </div>
+                      <div className={`text-xs mt-1 ${isDarkTheme ? 'text-gray-500' : 'text-gray-500'}`}>Win Rate</div>
+                    </div>
+                    <div className={`p-4 rounded-xl text-center ${isDarkTheme ? 'bg-gray-800/80' : 'bg-gray-50'}`}>
+                      <div className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                        {currentUser?.trades_count || 0}
+                      </div>
+                      <div className={`text-xs mt-1 ${isDarkTheme ? 'text-gray-500' : 'text-gray-500'}`}>Trades</div>
+                    </div>
+                  </div>
+
+                  {/* XP Progress */}
+                  <div className="mt-4">
+                    <XPProgressBar 
+                      currentXP={userXP.experience_points} 
+                      level={userXP.level} 
+                      isDarkTheme={isDarkTheme} 
+                    />
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className={`border-t ${isDarkTheme ? 'border-gray-800' : 'border-gray-100'}`} />
+
+                {/* Achievements */}
+                {currentUser?.achievements && currentUser.achievements.length > 0 && (
+                  <div className="px-4 py-5" data-testid="profile-achievements">
+                    <h3 className={`text-base font-bold mb-3 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                      Achievements
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {currentUser.achievements.map(achievement => {
+                        const achievementMap = {
+                          chatterbox: { icon: '💬', label: 'Chatterbox' },
+                          first_blood: { icon: '🩸', label: 'First Blood' },
+                          team_member_3m: { icon: '🤝', label: '3 Month Member' },
+                          team_member_8m: { icon: '🏆', label: '8 Month Member' },
+                          profitable_trader: { icon: '💰', label: 'Profitable Trader' },
+                          heart_giver: { icon: '❤️', label: 'Heart Giver' },
+                          streak_master: { icon: '🔥', label: 'Streak Master' },
+                          social_butterfly: { icon: '🦋', label: 'Social Butterfly' }
+                        };
+                        const info = achievementMap[achievement] || { icon: '🏅', label: achievement.replace(/_/g, ' ') };
+                        return (
+                          <span key={achievement} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
+                            isDarkTheme 
+                              ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' 
+                              : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                          }`}>
+                            <span>{info.icon}</span>
+                            {info.label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Divider */}
+                <div className={`border-t ${isDarkTheme ? 'border-gray-800' : 'border-gray-100'}`} />
+
+                {/* Account Details */}
+                <div className="px-4 py-5" data-testid="profile-details">
+                  <h3 className={`text-base font-bold mb-3 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
+                    Account Details
+                  </h3>
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Email', value: currentUser?.email },
+                      { label: 'Real Name', value: currentUser?.real_name || 'Not set' },
+                      { label: 'Screen Name', value: currentUser?.screen_name || 'Not set' },
+                      { label: 'Login Streak', value: `${currentUser?.daily_login_streak || 0} days` },
+                      { label: 'XP', value: `${userXP.experience_points.toLocaleString()} XP` },
+                    ].map(item => (
+                      <div key={item.label} className={`flex justify-between items-center py-2 border-b last:border-0 ${
+                        isDarkTheme ? 'border-gray-800' : 'border-gray-100'
+                      }`}>
+                        <span className={`text-sm ${isDarkTheme ? 'text-gray-500' : 'text-gray-500'}`}>{item.label}</span>
+                        <span className={`text-sm font-medium ${isDarkTheme ? 'text-gray-200' : 'text-gray-800'}`}>{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="px-4 pb-6">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowChangePassword(true)}
+                      className={`flex-1 py-3 rounded-xl font-medium text-sm transition-colors ${
+                        isDarkTheme 
+                          ? 'bg-gray-800 text-white hover:bg-gray-700' 
+                          : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                      }`}
+                      data-testid="change-password-btn"
+                    >
+                      Change Password
+                    </button>
+                    <button
+                      onClick={logout}
+                      className="flex-1 py-3 rounded-xl font-medium text-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                      data-testid="logout-btn"
+                    >
+                      Log Out
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

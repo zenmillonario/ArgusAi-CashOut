@@ -1403,7 +1403,7 @@ async def get_current_stock_price(symbol: str) -> float:
     try:
         # Use FMP API key from environment
         api_key = os.environ.get('FMP_API_KEY')
-        url = f"https://financialmodelingprep.com/api/v3/quote/{symbol}?apikey={api_key}"
+        url = f"https://financialmodelingprep.com/stable/quote?symbol={symbol}&apikey={api_key}"
         
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=10.0)
@@ -2712,7 +2712,7 @@ async def get_stock_price(symbol: str):
     
     try:
         async with aiohttp.ClientSession() as session:
-            url = f"https://financialmodelingprep.com/api/v3/quote/{symbol}?apikey={fmp_api_key}"
+            url = f"https://financialmodelingprep.com/stable/quote?symbol={symbol}&apikey={fmp_api_key}"
             async with session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
