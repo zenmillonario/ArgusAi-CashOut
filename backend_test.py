@@ -8591,3 +8591,22 @@ if __name__ == "__main__":
         result = False
     
     sys.exit(0 if result else 1)
+
+if __name__ == "__main__":
+    print("🚨 URGENT: Diagnosing authentication error on cashoutai.app production site")
+    print("=" * 80)
+    
+    # Run the specific test for cashoutai.app authentication
+    result = test_cashoutai_production_authentication()
+    
+    if result:
+        print("\n🎉 AUTHENTICATION DIAGNOSIS COMPLETE - LOGIN WORKING")
+        print("✅ No authentication errors found on cashoutai.app")
+        print("✅ Backend is accessible and functional")  
+        print("✅ Admin credentials (admin/admin123) are working")
+    else:
+        print("\n❌ AUTHENTICATION ERROR CONFIRMED")
+        print("❌ Login is failing on cashoutai.app")
+        print("❌ Immediate action required to fix authentication")
+    
+    print("=" * 80)
