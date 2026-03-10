@@ -14,28 +14,30 @@ class FCMService:
     """Firebase Cloud Messaging service for sending push notifications"""
     
     def __init__(self):
-        """Initialize Firebase Admin SDK with service account credentials"""
         self.initialized = False
         try:
-            # Check if Firebase Admin SDK is already initialized
-            if not firebase_admin._apps:
-                # Path to the Firebase Admin SDK service account key
-                cred_path = os.path.join(os.path.dirname(__file__), 'firebase-admin.json')
-                
-                if not os.path.exists(cred_path):
-                    logger.error(f"Firebase Admin SDK credentials file not found at {cred_path}")
-                    return
-                
-                # Initialize Firebase Admin SDK with credentials
+            # Try to initialize Firebase Admin SDK
+            cred_path = "/app/backend/firebase-admin.json"
+            
+            # Check if credentials file exists
+            if not os.path.exists(cred_path):
+                logger.warning("Firebase credentials file not found. Push notifications will be disabled.")
+                self.initialized = False
+                return
+            
+            # Check if Firebase is already initialized
+            try:
+                firebase_admin.get_app()
+                logger.info("Firebase Admin SDK already initialized")
+                self.initialized = True
+            except ValueError:
+                # Not initialized yet, so initialize it
                 cred = credentials.Certificate(cred_path)
                 initialize_app(cred)
                 logger.info("Firebase Admin SDK initialized successfully")
                 self.initialized = True
-            else:
-                logger.info("Firebase Admin SDK already initialized")
-                self.initialized = True
         except Exception as e:
-            logger.error(f"Failed to initialize Firebase Admin SDK: {str(e)}")
+            logger.warning(f"Firebase Admin SDK initialization failed: {str(e)}. Push notifications will be disabled.")
             self.initialized = False
     
     async def send_notification(self, token: str, title: str, body: str, 
