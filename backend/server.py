@@ -4269,18 +4269,21 @@ async def create_message(message_data: MessageCreate):
                 # Send notification using FCM service
                 from fcm_service import fcm_service
                 
-                await fcm_service.send_to_multiple(
-                    tokens=token_list,
-                    title=f"👑 Admin {sender_name}",
-                    body=message_preview,
-                    data={
-                        "type": "admin_message",
-                        "sender_id": message_data.user_id,
-                        "sender_name": sender_name,
-                        "message_type": message_data.content_type,
-                        "timestamp": str(int(datetime.utcnow().timestamp()))
-                    }
-                )
+                if fcm_service.initialized:
+                    await fcm_service.send_to_multiple(
+                        tokens=token_list,
+                        title=f"👑 Admin {sender_name}",
+                        body=message_preview,
+                        data={
+                            "type": "admin_message",
+                            "sender_id": message_data.user_id,
+                            "sender_name": sender_name,
+                            "message_type": message_data.content_type,
+                            "timestamp": str(int(datetime.utcnow().timestamp()))
+                        }
+                    )
+                else:
+                    logger.warning("FCM service not initialized - message notifications disabled")
                 
     except Exception as e:
         # Don't fail message creation if push notification fails
