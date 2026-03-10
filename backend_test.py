@@ -1593,6 +1593,280 @@ def test_zapier_webhook_endpoint():
     # Test 1: Test the /api/bot/email-webhook endpoint with sample email data
     print("\n📧 Test 1: Testing /api/bot/email-webhook endpoint with sample email data")
 
+def test_cashoutai_production_authentication():
+    """URGENT: Diagnose authentication error on cashoutai.app production site"""
+    print("\n🚨 URGENT TESTING: Authentication Error Diagnosis on cashoutai.app")
+    
+    # Test the production domain directly as specified in review request
+    production_url = "https://cashoutai.app"
+    tester = CashoutAITester(base_url=production_url)
+    
+    print(f"🎯 Testing production domain: {production_url}")
+    print(f"🎯 API endpoint: {production_url}/api")
+    
+    # Test 1: Direct API connectivity to cashoutai.app
+    print("\n🌐 Test 1: Direct API Connectivity to cashoutai.app")
+    
+    try:
+        import requests
+        response = requests.get(f"{production_url}/api", timeout=10)
+        print(f"✅ Direct API call status: {response.status_code}")
+        print(f"✅ Response headers: {dict(response.headers)}")
+        try:
+            print(f"✅ Response body: {response.json()}")
+        except:
+            print(f"✅ Response text: {response.text[:200]}...")
+    except Exception as e:
+        print(f"❌ CRITICAL: Cannot reach {production_url}/api - {str(e)}")
+        return False
+    
+    # Test 2: Test login endpoint directly on production domain
+    print(f"\n🔐 Test 2: Direct Login Test on {production_url}/api/users/login")
+    
+    login_url = f"{production_url}/api/users/login"
+    login_data = {"username": "admin", "password": "admin123"}
+    
+    print(f"🎯 Testing URL: {login_url}")
+    print(f"🎯 Credentials: {login_data}")
+    
+    try:
+        start_time = time.time()
+        response = requests.post(login_url, json=login_data, timeout=15)
+        end_time = time.time()
+        response_time = end_time - start_time
+        
+        print(f"📊 Response Status: {response.status_code}")
+        print(f"📊 Response Time: {response_time:.3f} seconds")
+        print(f"📊 Response Headers: {dict(response.headers)}")
+        
+        if response.status_code == 200:
+            try:
+                login_response = response.json()
+                print("✅ LOGIN SUCCESSFUL!")
+                print(f"✅ User ID: {login_response.get('id')}")
+                print(f"✅ Username: {login_response.get('username')}")
+                print(f"✅ Session ID: {login_response.get('active_session_id')}")
+                print(f"✅ Is Admin: {login_response.get('is_admin')}")
+                print(f"✅ Status: {login_response.get('status')}")
+                print(f"✅ Email: {login_response.get('email')}")
+                
+                # Store session for further tests
+                session_id = login_response.get('active_session_id')
+                user_id = login_response.get('id')
+                
+            except Exception as json_error:
+                print(f"❌ JSON parsing error: {json_error}")
+                print(f"❌ Raw response: {response.text}")
+                return False
+                
+        else:
+            print(f"❌ LOGIN FAILED - Status: {response.status_code}")
+            try:
+                error_response = response.json()
+                print(f"❌ Error response: {error_response}")
+                
+                # Check for specific error messages
+                error_detail = error_response.get('detail', '')
+                if 'Invalid credentials' in error_detail:
+                    print("❌ DIAGNOSIS: Invalid credentials error")
+                elif 'User not found' in error_detail:
+                    print("❌ DIAGNOSIS: User not found error")
+                elif 'Account pending' in error_detail:
+                    print("❌ DIAGNOSIS: Account pending approval")
+                else:
+                    print(f"❌ DIAGNOSIS: Unknown error - {error_detail}")
+                    
+            except:
+                print(f"❌ Raw error response: {response.text}")
+            return False
+            
+    except requests.exceptions.Timeout:
+        print("❌ CRITICAL: Login request timed out")
+        return False
+    except requests.exceptions.ConnectionError as e:
+        print(f"❌ CRITICAL: Connection error - {str(e)}")
+        return False
+    except Exception as e:
+        print(f"❌ CRITICAL: Unexpected error - {str(e)}")
+        return False
+    
+    # Test 3: Verify CORS configuration for cashoutai.app
+    print(f"\n🔗 Test 3: CORS Configuration Verification for cashoutai.app")
+    
+    try:
+        # Test CORS preflight request
+        cors_headers = {
+            'Origin': 'https://cashoutai.app',
+            'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': 'Content-Type'
+        }
+        
+        cors_response = requests.options(login_url, headers=cors_headers, timeout=10)
+        print(f"📊 CORS Preflight Status: {cors_response.status_code}")
+        print(f"📊 CORS Headers: {dict(cors_response.headers)}")
+        
+        # Check specific CORS headers
+        cors_origin = cors_response.headers.get('Access-Control-Allow-Origin')
+        cors_methods = cors_response.headers.get('Access-Control-Allow-Methods')
+        cors_headers_allowed = cors_response.headers.get('Access-Control-Allow-Headers')
+        
+        print(f"✅ Allow-Origin: {cors_origin}")
+        print(f"✅ Allow-Methods: {cors_methods}")
+        print(f"✅ Allow-Headers: {cors_headers_allowed}")
+        
+        if cors_origin == '*' or 'cashoutai.app' in str(cors_origin):
+            print("✅ CORS configuration allows cashoutai.app")
+        else:
+            print("❌ CORS configuration may block cashoutai.app")
+            
+    except Exception as e:
+        print(f"⚠️ Could not test CORS: {str(e)}")
+    
+    # Test 4: Test other API endpoints to verify backend functionality
+    print(f"\n🔧 Test 4: Backend Functionality Verification")
+    
+    if 'session_id' in locals() and 'user_id' in locals():
+        # Test messages endpoint
+        try:
+            messages_url = f"{production_url}/api/messages?limit=5"
+            messages_response = requests.get(messages_url, timeout=10)
+            print(f"📊 Messages endpoint status: {messages_response.status_code}")
+            
+            if messages_response.status_code == 200:
+                messages = messages_response.json()
+                print(f"✅ Messages endpoint working - {len(messages)} messages retrieved")
+            else:
+                print(f"⚠️ Messages endpoint issue: {messages_response.status_code}")
+                
+        except Exception as e:
+            print(f"⚠️ Could not test messages endpoint: {str(e)}")
+        
+        # Test user profile endpoint
+        try:
+            profile_url = f"{production_url}/api/users/{user_id}/profile"
+            profile_response = requests.get(profile_url, timeout=10)
+            print(f"📊 Profile endpoint status: {profile_response.status_code}")
+            
+            if profile_response.status_code == 200:
+                print("✅ Profile endpoint working")
+            else:
+                print(f"⚠️ Profile endpoint issue: {profile_response.status_code}")
+                
+        except Exception as e:
+            print(f"⚠️ Could not test profile endpoint: {str(e)}")
+    
+    # Test 5: Check environment configuration
+    print(f"\n⚙️ Test 5: Environment Configuration Check")
+    
+    # Check frontend .env configuration
+    try:
+        with open('/app/frontend/.env', 'r') as f:
+            env_content = f.read()
+            print("📋 Frontend .env configuration:")
+            for line in env_content.strip().split('\n'):
+                if 'REACT_APP_BACKEND_URL' in line:
+                    print(f"  {line}")
+                    if 'cashoutai.app' in line:
+                        print("  ✅ Frontend configured for cashoutai.app")
+                    else:
+                        print("  ⚠️ Frontend NOT configured for cashoutai.app")
+                        print(f"  ⚠️ This could be the issue - frontend may be calling wrong backend URL")
+    except Exception as e:
+        print(f"⚠️ Could not read frontend .env: {str(e)}")
+    
+    # Test 6: Network connectivity and DNS resolution
+    print(f"\n🌐 Test 6: Network Connectivity and DNS Resolution")
+    
+    try:
+        import socket
+        
+        # Test DNS resolution
+        ip = socket.gethostbyname('cashoutai.app')
+        print(f"✅ DNS resolution: cashoutai.app -> {ip}")
+        
+        # Test port connectivity
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+        result = sock.connect_ex(('cashoutai.app', 443))
+        sock.close()
+        
+        if result == 0:
+            print("✅ Port 443 (HTTPS) is accessible")
+        else:
+            print("❌ Port 443 (HTTPS) is not accessible")
+            
+    except Exception as e:
+        print(f"⚠️ Network connectivity test failed: {str(e)}")
+    
+    # Test 7: Check backend logs for authentication errors
+    print(f"\n📋 Test 7: Backend Logs Analysis")
+    
+    try:
+        import subprocess
+        
+        # Check recent backend logs for authentication errors
+        result = subprocess.run(['tail', '-n', '50', '/var/log/supervisor/backend.out.log'], 
+                              capture_output=True, text=True, timeout=10)
+        
+        if result.returncode == 0:
+            log_content = result.stdout
+            
+            # Look for authentication-related messages
+            auth_keywords = [
+                'login',
+                'authentication',
+                'Invalid credentials',
+                'User not found',
+                'FAST LOGIN',
+                'admin'
+            ]
+            
+            print("📋 Recent authentication activity in logs:")
+            for line in log_content.split('\n')[-20:]:  # Last 20 lines
+                for keyword in auth_keywords:
+                    if keyword.lower() in line.lower():
+                        print(f"  {line}")
+                        break
+                        
+        else:
+            print("⚠️ Could not read backend logs")
+            
+    except Exception as e:
+        print(f"⚠️ Could not check backend logs: {str(e)}")
+    
+    # Summary and Diagnosis
+    print(f"\n📊 AUTHENTICATION ERROR DIAGNOSIS SUMMARY:")
+    print(f"🎯 Production Domain: {production_url}")
+    print(f"🎯 Login Endpoint: {login_url}")
+    print(f"🎯 Test Credentials: admin/admin123")
+    
+    if 'session_id' in locals():
+        print("✅ AUTHENTICATION WORKING: Login successful on production domain")
+        print("✅ Backend API is accessible and functional")
+        print("✅ CORS configuration allows requests")
+        print("✅ No authentication errors detected")
+        
+        print(f"\n💡 RECOMMENDATION:")
+        print(f"✅ The backend authentication is working correctly on {production_url}")
+        print(f"✅ If users are still experiencing issues, check:")
+        print(f"   - Frontend configuration (REACT_APP_BACKEND_URL)")
+        print(f"   - Browser cache/cookies")
+        print(f"   - Network connectivity from user location")
+        print(f"   - Frontend error handling and display")
+        
+        return True
+    else:
+        print("❌ AUTHENTICATION FAILED: Login unsuccessful on production domain")
+        print("❌ This confirms the reported authentication error")
+        
+        print(f"\n💡 IMMEDIATE ACTION REQUIRED:")
+        print(f"❌ Fix the authentication issue on {production_url}")
+        print(f"❌ Verify admin user exists and has correct password")
+        print(f"❌ Check backend database connectivity")
+        print(f"❌ Verify backend service is running properly")
+        
+        return False
+
 def test_authentication_endpoints_production():
     """Test authentication endpoints and diagnose login issues on production deployment"""
     print("\n🔍 TESTING FEATURE: Authentication Endpoints and Production Deployment Issues")
