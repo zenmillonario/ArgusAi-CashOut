@@ -251,9 +251,16 @@ async def check_expired_trials():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Create indexes for performance (prevents memory limit errors on free tier)
+    try:
+        await db.messages.create_index([("timestamp", -1)])
+        logger.info("Ensured messages timestamp index exists")
+    except Exception as e:
+        logger.warning(f"Could not create index: {e}")
+    
     # Start background cleanup task
     cleanup_task = asyncio.create_task(periodic_cleanup())
-    logger.info("🧹 Started periodic stale session cleanup (every 10 minutes)")
+    logger.info("Started periodic stale session cleanup (every 10 minutes)")
     yield
     # Clean up on shutdown
     cleanup_task.cancel()
@@ -4383,12 +4390,8 @@ async def get_messages(limit: int = 500, user_id: Optional[str] = None):
                 detail="Chat viewing restricted. Your trial has expired. Upgrade your account to view trader discussions."
             )
     
-    # Use aggregation pipeline with allowDiskUse for large result sets
-    pipeline = [
-        {"$sort": {"timestamp": -1}},
-        {"$limit": limit}
-    ]
-    messages = await db.messages.aggregate(pipeline, allowDiskUse=True).to_list(limit)
+    # Use find().sort() with index for efficient querying
+    messages = await db.messages.find().sort("timestamp", -1).limit(limit).to_list(limit)
     
     # Clean up messages for compatibility
     cleaned_messages = []
@@ -4448,11 +4451,7 @@ async def get_welcome_messages(user_id: Optional[str] = None):
             )
     
     # Get last 500 messages to provide good historical context for new users
-    pipeline = [
-        {"$sort": {"timestamp": -1}},
-        {"$limit": 500}
-    ]
-    messages = await db.messages.aggregate(pipeline, allowDiskUse=True).to_list(500)
+    messages = await db.messages.find().sort("timestamp", -1).limit(500).to_list(500)
     
     # Clean up messages for compatibility (same logic as regular get_messages)
     cleaned_messages = []
