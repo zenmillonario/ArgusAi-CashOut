@@ -7,6 +7,41 @@ import secrets
 from fastapi import File, UploadFile, HTTPException
 import shutil
 
+# Configure logging early
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Import database and app setup early
+from datetime import datetime, timedelta, timezone
+from typing import Optional, List, Dict, Any, Union
+import asyncio
+import motor.motor_asyncio
+from motor.motor_asyncio import AsyncIOMotorClient
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks, Query, Request, status
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import hashlib
+
+# Database setup
+MONGO_URL = os.getenv('MONGO_URL', 'mongodb://localhost:27017/emergent_db')
+DB_NAME = os.getenv('DB_NAME', 'emergent_db')
+
+client = AsyncIOMotorClient(MONGO_URL)
+db = client[DB_NAME]
+
+# Initialize FastAPI app early
+app = FastAPI(title="ArgusAI CashOut API", version="1.0.0")
+
+# CORS setup
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Generate referral code for new users
 def generate_referral_code(username: str) -> str:
     """Generate a unique referral code for a user"""
