@@ -30,7 +30,7 @@ DB_NAME = os.getenv('DB_NAME', 'emergent_db')
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
-# Initialize FastAPI app early
+# Initialize FastAPI app early (lifespan will be set after lifespan function is defined)
 app = FastAPI(title="ArgusAI CashOut API", version="1.0.0")
 
 # CORS setup
