@@ -1247,7 +1247,7 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
                 
                 # Handle cash prize for referral achievement
                 if achievement_id == "referral_master" and achievement.get("cash_prize_eligible"):
-                    await create_pending_cash_prize(user_id, achievement_id, achievement.get("max_cash_prize", 400))
+                    await create_pending_cash_prize(db, user_id, achievement_id, achievement.get("max_cash_prize", 400))
         
         # Update achievements if any new ones were earned
         if new_achievements:
