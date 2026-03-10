@@ -4,16 +4,16 @@ import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 // Your Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDXsZWHiHAhWxZz4TNmonxbG2RD2WNBoqU",
-  authDomain: "cashoutai-notifications.firebaseapp.com",
-  projectId: "cashoutai-notifications",
-  storageBucket: "cashoutai-notifications.firebasestorage.app",
-  messagingSenderId: "1077671941650",
-  appId: "1:1077671941650:web:a48c3dce4bffa8e897aacb"
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID
 };
 
 // VAPID key for push notifications
-const VAPID_KEY = "BCFwFhta05moYQ1dkY6Q1YjWCkGoOOCopnT19IwCzMP62X7RTKIPXUSV4ZQvWAq93QNJKUpV_1yjt42htBcfLvg";
+const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY;
 
 // Mobile browser detection
 const isMobileBrowser = () => {

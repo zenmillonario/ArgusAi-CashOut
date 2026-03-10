@@ -1403,17 +1403,26 @@ async def get_current_stock_price(symbol: str) -> float:
     try:
         # Use FMP API key from environment
         api_key = os.environ.get('FMP_API_KEY')
-        url = f"https://financialmodelingprep.com/stable/quote?symbol={symbol}&apikey={api_key}"
         
+        # Try /stable/quote first
+        url = f"https://financialmodelingprep.com/stable/quote?symbol={symbol}&apikey={api_key}"
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=10.0)
-            data = response.json()
             
-            # Check for API errors
-            if isinstance(data, list) and len(data) > 0:
-                return data[0]['price']
-            else:
-                return await get_mock_stock_price(symbol)
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list) and len(data) > 0:
+                    return data[0]['price']
+            
+            # Fallback to /stable/profile for penny/small stocks
+            url2 = f"https://financialmodelingprep.com/stable/profile?symbol={symbol}&apikey={api_key}"
+            response2 = await client.get(url2, timeout=10.0)
+            if response2.status_code == 200:
+                data2 = response2.json()
+                if isinstance(data2, list) and len(data2) > 0 and data2[0].get('price'):
+                    return data2[0]['price']
+            
+            return await get_mock_stock_price(symbol)
                 
     except Exception as e:
         print(f"Error fetching real price for {symbol}: {e}")
@@ -2712,6 +2721,7 @@ async def get_stock_price(symbol: str):
     
     try:
         async with aiohttp.ClientSession() as session:
+            # Try /stable/quote first
             url = f"https://financialmodelingprep.com/stable/quote?symbol={symbol}&apikey={fmp_api_key}"
             async with session.get(url) as response:
                 if response.status == 200:
@@ -2727,10 +2737,26 @@ async def get_stock_price(symbol: str):
                             "changesPercentage": stock_data.get("changesPercentage", 0),
                             "timestamp": datetime.utcnow().isoformat()
                         }
-                    else:
-                        raise HTTPException(status_code=404, detail=f"Stock symbol {symbol} not found")
-                else:
-                    raise HTTPException(status_code=response.status, detail="Failed to fetch stock data")
+            
+            # Fallback to /stable/profile for penny/small stocks
+            url2 = f"https://financialmodelingprep.com/stable/profile?symbol={symbol}&apikey={fmp_api_key}"
+            async with session.get(url2) as response2:
+                if response2.status == 200:
+                    data2 = await response2.json()
+                    if data2 and len(data2) > 0 and data2[0].get("price"):
+                        raw_price = data2[0]["price"]
+                        return {
+                            "symbol": symbol,
+                            "price": raw_price,
+                            "formatted_price": format_price_display(raw_price),
+                            "change": data2[0].get("changes", 0) or 0,
+                            "changesPercentage": 0,
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+            
+            raise HTTPException(status_code=404, detail=f"Stock symbol {symbol} not found")
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error fetching stock price for {symbol}: {str(e)}")
         raise HTTPException(status_code=500, detail="Error fetching stock price")
