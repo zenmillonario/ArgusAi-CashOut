@@ -338,6 +338,10 @@ async def send_notification_to_user(user_id: str, title: str, body: str, data: O
     try:
         from fcm_service import fcm_service
         
+        if not fcm_service.initialized:
+            logger.warning("FCM service not initialized - user notifications disabled")
+            return False
+        
         # Get FCM token for user
         user_token = await db.fcm_tokens.find_one({"user_id": user_id})
         
