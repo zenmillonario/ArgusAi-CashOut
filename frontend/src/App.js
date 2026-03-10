@@ -1056,7 +1056,7 @@ function App() {
           // Also check for new messages periodically when WebSocket is down
           const messageCheckInterval = setInterval(async () => {
             try {
-              const response = await axios.get(`${API}/messages?limit=20&user_id=${currentUser?.id}`);
+              const response = await axios.get(`${API}/messages?limit=50&user_id=${currentUser?.id}`);
               const latestMessages = response.data;
               
               setMessages(prev => {
@@ -1108,8 +1108,8 @@ function App() {
       console.log('🔄 Starting message load...', new Date().toISOString());
       const startTime = performance.now();
       
-      // PERFORMANCE OPTIMIZATION: Start with smaller limit for faster initial load
-      const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=50` : `${API}/messages?limit=50`;
+      // PERFORMANCE OPTIMIZATION: Load more messages for 4+ weeks of history
+      const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=500` : `${API}/messages?limit=500`;
       const response = await axios.get(url);
       
       const loadTime = performance.now() - startTime;

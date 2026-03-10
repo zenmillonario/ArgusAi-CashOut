@@ -4347,7 +4347,7 @@ async def create_message(message_data: MessageCreate):
     return message
 
 @api_router.get("/messages", response_model=List[Message])
-async def get_messages(limit: int = 100, user_id: Optional[str] = None):
+async def get_messages(limit: int = 500, user_id: Optional[str] = None):
     # TRIAL SYSTEM: Check user access for chat viewing
     if user_id:
         user = await db.users.find_one({"id": user_id})
@@ -4357,7 +4357,12 @@ async def get_messages(limit: int = 100, user_id: Optional[str] = None):
                 detail="Chat viewing restricted. Your trial has expired. Upgrade your account to view trader discussions."
             )
     
-    messages = await db.messages.find().sort("timestamp", -1).limit(limit).to_list(limit)
+    # Use aggregation pipeline with allowDiskUse for large result sets
+    pipeline = [
+        {"$sort": {"timestamp": -1}},
+        {"$limit": limit}
+    ]
+    messages = await db.messages.aggregate(pipeline, allowDiskUse=True).to_list(limit)
     
     # Clean up messages for compatibility
     cleaned_messages = []
@@ -4416,8 +4421,12 @@ async def get_welcome_messages(user_id: Optional[str] = None):
                 detail="Chat viewing restricted. Your trial has expired. Upgrade your account to view trader discussions."
             )
     
-    # Get last 200 messages to provide good historical context for new users
-    messages = await db.messages.find().sort("timestamp", -1).limit(200).to_list(200)
+    # Get last 500 messages to provide good historical context for new users
+    pipeline = [
+        {"$sort": {"timestamp": -1}},
+        {"$limit": 500}
+    ]
+    messages = await db.messages.aggregate(pipeline, allowDiskUse=True).to_list(500)
     
     # Clean up messages for compatibility (same logic as regular get_messages)
     cleaned_messages = []

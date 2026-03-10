@@ -38,45 +38,57 @@ const ChatTab = ({
   const [followingUsers, setFollowingUsers] = useState([]);
   const [followerCounts, setFollowerCounts] = useState({});
 
+  // Helper: parse timestamp as UTC (backend stores UTC without 'Z' suffix)
+  const parseUTC = (ts) => {
+    if (!ts) return new Date();
+    const str = String(ts);
+    return new Date(str.endsWith('Z') ? str : str + 'Z');
+  };
+
   // Function to group messages by date and add daily separators
-  const getMessagesWithDateSeparators = (messages) => {
-    if (!messages || messages.length === 0) return [];
+  const getMessagesWithDateSeparators = (msgs) => {
+    if (!msgs || msgs.length === 0) return [];
     
-    const messagesWithSeparators = [];
-    let currentDate = null;
+    const result = [];
+    let currentDateStr = null;
     
-    // Sort messages by timestamp (newest first, but we'll reverse for display)
-    const sortedMessages = [...messages].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    
-    sortedMessages.forEach((message, index) => {
-      const messageDate = new Date(message.timestamp);
-      const messageDateString = messageDate.toDateString(); // "Thu Oct 09 2025"
+    // Messages come sorted oldest-first from backend
+    msgs.forEach((message) => {
+      const messageDate = parseUTC(message.timestamp);
+      const dateKey = messageDate.toLocaleDateString('en-US', { timeZone: 'America/New_York' });
       
-      // Add date separator if it's a new date
-      if (currentDate !== messageDateString) {
-        currentDate = messageDateString;
+      if (currentDateStr !== dateKey) {
+        currentDateStr = dateKey;
         
-        // Format date as "Thursday, October 09, 2025"
-        const formattedDate = messageDate.toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric', 
-          month: 'long',
-          day: '2-digit',
-          timeZone: 'America/New_York'
-        });
+        const today = new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' });
+        const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('en-US', { timeZone: 'America/New_York' });
         
-        messagesWithSeparators.push({
-          id: `date-separator-${messageDateString}`,
+        let label;
+        if (dateKey === today) {
+          label = 'Today';
+        } else if (dateKey === yesterday) {
+          label = 'Yesterday';
+        } else {
+          label = messageDate.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric', 
+            month: 'long',
+            day: 'numeric',
+            timeZone: 'America/New_York'
+          });
+        }
+        
+        result.push({
+          id: `date-sep-${dateKey}`,
           type: 'date-separator',
-          date: formattedDate,
-          timestamp: message.timestamp
+          date: label,
         });
       }
       
-      messagesWithSeparators.push(message);
+      result.push(message);
     });
     
-    return messagesWithSeparators.reverse(); // Show newest first
+    return result;
   };
 
   // API setup
@@ -236,9 +248,19 @@ const ChatTab = ({
             </div>
           )}
           {/* PERFORMANCE OPTIMIZATION: Use React.memo and limit initial render */}
-          {/* TEMPORARILY SIMPLIFIED - REVERT TO BASIC MESSAGE DISPLAY TO FIX DISAPPEARING MESSAGES */}
-          {displayMessages.slice(0, 100).map((message, index) => (
+          {getMessagesWithDateSeparators(displayMessages).map((message, index) => (
             <div key={message.id} className="group">
+              {/* Date Separator */}
+              {message.type === 'date-separator' ? (
+                <div className={`flex items-center my-3 ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <div className={`flex-1 border-t ${isDarkTheme ? 'border-gray-700' : 'border-gray-300'}`} />
+                  <span className={`px-3 text-xs font-medium ${isDarkTheme ? 'bg-gray-900/50' : 'bg-gray-100'} rounded-full py-1`}>
+                    {message.date}
+                  </span>
+                  <div className={`flex-1 border-t ${isDarkTheme ? 'border-gray-700' : 'border-gray-300'}`} />
+                </div>
+              ) : (
+              <>
               {/* STREAMLINED FORMAT: Username: Message on same line */}
               {message.content_type === 'image' ? (
                 // Image messages get their own layout
@@ -273,7 +295,7 @@ const ChatTab = ({
                         <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">Admin</span>
                       )}
                       <span className="text-xs text-gray-400">
-                        {new Date(message.timestamp).toLocaleTimeString([], {
+                        {parseUTC(message.timestamp).toLocaleTimeString([], {
                         hour: '2-digit', 
                         minute:'2-digit',
                         timeZone: 'America/New_York'
@@ -293,7 +315,7 @@ const ChatTab = ({
                 <div className="flex items-start space-x-1 py-0.5">
                   {/* Compact timestamp */}
                   <span className="text-xs text-gray-500 w-12 flex-shrink-0 text-right">
-                    {new Date(message.timestamp).toLocaleTimeString([], {
+                    {parseUTC(message.timestamp).toLocaleTimeString([], {
                       hour: '2-digit', 
                       minute:'2-digit',
                       timeZone: 'America/New_York'
@@ -384,6 +406,8 @@ const ChatTab = ({
                     </span>
                   </div>
                 </div>
+              )}
+              </>
               )}
             </div>
           ))}
