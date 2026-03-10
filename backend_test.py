@@ -8286,32 +8286,34 @@ if __name__ == "__main__":
             
             sys.exit(0 if result else 1)
     
-    # Run the email service test as requested in the review
-    print("🎯 Running EMAIL SERVICE STATUS AND FUNCTIONALITY TEST")
+    # Run the authentication endpoints test as requested in the review
+    print("🎯 Running AUTHENTICATION ENDPOINTS AND PRODUCTION DEPLOYMENT TEST")
     print("=" * 60)
     
     try:
-        result = test_email_service_status_and_functionality()
-        print(f"\n{'🎉 EMAIL SERVICE TEST PASSED' if result else '❌ EMAIL SERVICE TEST FAILED'}")
+        result = test_authentication_endpoints_production()
+        print(f"\n{'🎉 AUTHENTICATION TEST PASSED' if result else '❌ AUTHENTICATION TEST FAILED'}")
         
         if result:
-            print("\n✅ EMAIL SERVICE VERIFICATION COMPLETE")
-            print("   • Email service is currently available and initialized")
-            print("   • All email environment variables are properly loaded")
-            print("   • Gmail SMTP connection is working correctly")
-            print("   • All required email service methods are available")
-            print("   • Admin notification email functionality is working")
-            print("   • No email service errors found in backend logs")
-            print("   • Email service can connect to Gmail SMTP successfully")
-            print("   • No 'Email service not available' warnings detected")
+            print("\n✅ AUTHENTICATION ENDPOINTS VERIFICATION COMPLETE")
+            print("   • Backend API is reachable on production domain")
+            print("   • Login endpoint working with admin/admin123 credentials")
+            print("   • User registration working (database operations functional)")
+            print("   • CORS settings configured for cross-origin requests")
+            print("   • Environment variables properly configured")
+            print("   • Session validation working for Remember Me functionality")
+            print("   • Mobile compatibility working with mobile User-Agent")
+            print("   • Network performance acceptable")
+            print("   • No authentication errors in backend logs")
         else:
-            print("\n❌ EMAIL SERVICE NEEDS ATTENTION")
-            print("   • Check email service configuration")
-            print("   • Verify environment variables")
-            print("   • Review SMTP connection settings")
+            print("\n❌ AUTHENTICATION ENDPOINTS NEED ATTENTION")
+            print("   • Check backend API connectivity")
+            print("   • Verify login credentials")
+            print("   • Review CORS configuration")
+            print("   • Check environment variables")
             
     except Exception as e:
-        print(f"\n❌ ERROR in email service test: {str(e)}")
+        print(f"\n❌ ERROR in authentication test: {str(e)}")
         result = False
     
     sys.exit(0 if result else 1)
