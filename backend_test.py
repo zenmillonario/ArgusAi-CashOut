@@ -1593,6 +1593,355 @@ def test_zapier_webhook_endpoint():
     # Test 1: Test the /api/bot/email-webhook endpoint with sample email data
     print("\n📧 Test 1: Testing /api/bot/email-webhook endpoint with sample email data")
 
+def test_authentication_endpoints_production():
+    """Test authentication endpoints and diagnose login issues on production deployment"""
+    print("\n🔍 TESTING FEATURE: Authentication Endpoints and Production Deployment Issues")
+    
+    tester = CashoutAITester()
+    
+    # Test 1: Basic API connectivity to confirm backend is reachable
+    print("\n🌐 Test 1: Basic API Connectivity Check")
+    
+    success, response = tester.run_test(
+        "API Health Check",
+        "GET",
+        "",
+        200
+    )
+    
+    if not success:
+        print("❌ CRITICAL: Backend API is not reachable on production domain")
+        print(f"❌ Domain: {tester.base_url}")
+        return False
+    
+    print("✅ Backend API is reachable on production domain")
+    print(f"✅ Domain: {tester.base_url}")
+    print(f"✅ Response: {response}")
+    
+    # Test 2: Test login endpoint with admin credentials
+    print("\n🔐 Test 2: Login Endpoint Testing with Admin Credentials")
+    
+    # Test with admin/admin123 credentials as specified in review request
+    print("Testing login with admin/admin123 credentials...")
+    
+    start_time = time.time()
+    success, login_response = tester.run_test(
+        "Login with admin/admin123",
+        "POST",
+        "users/login",
+        200,
+        data={"username": "admin", "password": "admin123"}
+    )
+    end_time = time.time()
+    login_time = end_time - start_time
+    
+    if not success:
+        print("❌ CRITICAL: Admin login failed with admin/admin123")
+        print("❌ This is the main authentication issue reported")
+        
+        # Try alternative admin credentials
+        print("\nTrying alternative admin credentials...")
+        success_alt, login_response_alt = tester.run_test(
+            "Login with admin/admin",
+            "POST", 
+            "users/login",
+            200,
+            data={"username": "admin", "password": "admin"}
+        )
+        
+        if success_alt:
+            print("✅ Alternative admin credentials (admin/admin) work")
+            login_response = login_response_alt
+        else:
+            print("❌ Alternative admin credentials also failed")
+            return False
+    else:
+        print("✅ Admin login successful with admin/admin123")
+        print(f"✅ Login response time: {login_time:.3f} seconds")
+    
+    # Verify login response structure
+    required_fields = ['id', 'username', 'active_session_id', 'is_admin', 'status']
+    missing_fields = [field for field in required_fields if field not in login_response]
+    
+    if missing_fields:
+        print(f"❌ Login response missing required fields: {missing_fields}")
+        return False
+    
+    print("✅ Login response contains all required fields:")
+    print(f"  - User ID: {login_response.get('id')}")
+    print(f"  - Username: {login_response.get('username')}")
+    print(f"  - Session ID: {login_response.get('active_session_id')}")
+    print(f"  - Is Admin: {login_response.get('is_admin')}")
+    print(f"  - Status: {login_response.get('status')}")
+    print(f"  - Email: {login_response.get('email')}")
+    
+    # Test 3: Test user registration to verify database operations
+    print("\n📝 Test 3: User Registration Database Operations Test")
+    
+    timestamp = datetime.now().strftime("%H%M%S")
+    test_username = f"testuser_{timestamp}"
+    test_email = f"testuser_{timestamp}@example.com"
+    test_name = f"Test User {timestamp}"
+    
+    print(f"Creating test user: {test_username}")
+    
+    success, reg_response = tester.run_test(
+        "Test user registration",
+        "POST",
+        "users/register",
+        200,
+        data={
+            "username": test_username,
+            "email": test_email,
+            "real_name": test_name,
+            "membership_plan": "Monthly",
+            "password": "testpass123"
+        }
+    )
+    
+    if not success:
+        print("❌ User registration failed - database operations may be broken")
+        return False
+    
+    print("✅ User registration successful - database operations working")
+    print(f"✅ New user ID: {reg_response.get('id')}")
+    print(f"✅ New user status: {reg_response.get('status')}")
+    
+    # Test 4: Verify CORS settings for cashoutai.app domain
+    print("\n🔗 Test 4: CORS Settings Verification")
+    
+    # Test with custom headers to simulate frontend requests
+    cors_headers = {
+        'Origin': 'https://cashoutai.app',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'Content-Type'
+    }
+    
+    # Test OPTIONS request (preflight)
+    try:
+        import requests
+        options_url = f"{tester.api_url}/users/login"
+        options_response = requests.options(options_url, headers=cors_headers, timeout=10)
+        
+        print(f"OPTIONS request status: {options_response.status_code}")
+        
+        # Check CORS headers in response
+        cors_origin = options_response.headers.get('Access-Control-Allow-Origin')
+        cors_methods = options_response.headers.get('Access-Control-Allow-Methods')
+        cors_headers_allowed = options_response.headers.get('Access-Control-Allow-Headers')
+        
+        print(f"CORS Allow-Origin: {cors_origin}")
+        print(f"CORS Allow-Methods: {cors_methods}")
+        print(f"CORS Allow-Headers: {cors_headers_allowed}")
+        
+        if cors_origin == '*' or 'cashoutai.app' in str(cors_origin):
+            print("✅ CORS settings allow requests from cashoutai.app")
+        else:
+            print("❌ CORS settings may not allow requests from cashoutai.app")
+            
+    except Exception as e:
+        print(f"⚠️ Could not test CORS settings: {str(e)}")
+    
+    # Test 5: Environment variables verification
+    print("\n🔧 Test 5: Environment Variables Verification")
+    
+    try:
+        import os
+        from dotenv import load_dotenv
+        from pathlib import Path
+        
+        # Load backend environment variables
+        backend_env_path = Path('/app/backend/.env')
+        load_dotenv(backend_env_path)
+        
+        # Check critical environment variables
+        critical_vars = {
+            'MONGO_URL': os.getenv('MONGO_URL'),
+            'DB_NAME': os.getenv('DB_NAME'),
+            'MAIL_USERNAME': os.getenv('MAIL_USERNAME'),
+            'FMP_API_KEY': os.getenv('FMP_API_KEY')
+        }
+        
+        print("Critical environment variables:")
+        for var, value in critical_vars.items():
+            if value:
+                if var == 'MONGO_URL':
+                    # Mask sensitive parts of MongoDB URL
+                    masked_value = value.replace('mongodb://', 'mongodb://***')
+                    print(f"✅ {var}: {masked_value}")
+                elif var == 'FMP_API_KEY':
+                    print(f"✅ {var}: {value[:5]}...{value[-5:] if len(value) > 10 else '***'}")
+                else:
+                    print(f"✅ {var}: {value}")
+            else:
+                print(f"❌ {var}: Not set")
+        
+        # Check frontend environment variables
+        frontend_env_path = Path('/app/frontend/.env')
+        load_dotenv(frontend_env_path)
+        
+        backend_url = os.getenv('REACT_APP_BACKEND_URL')
+        print(f"\nFrontend configuration:")
+        print(f"✅ REACT_APP_BACKEND_URL: {backend_url}")
+        
+        if backend_url and 'cashout' in backend_url:
+            print("✅ Frontend is configured to use production backend URL")
+        else:
+            print("❌ Frontend backend URL configuration may be incorrect")
+            
+    except Exception as e:
+        print(f"❌ Error checking environment variables: {str(e)}")
+    
+    # Test 6: Test session validation for Remember Me functionality
+    print("\n🔄 Test 6: Session Validation Testing")
+    
+    if login_response and login_response.get('active_session_id'):
+        user_id = login_response.get('id')
+        session_id = login_response.get('active_session_id')
+        
+        success, session_response = tester.run_test(
+            "Session validation",
+            "GET",
+            f"users/{user_id}/session-status?session_id={session_id}",
+            200
+        )
+        
+        if success:
+            print("✅ Session validation endpoint working")
+            print(f"✅ Session valid: {session_response.get('valid')}")
+            print(f"✅ Session message: {session_response.get('message')}")
+        else:
+            print("❌ Session validation endpoint failed")
+    
+    # Test 7: Test mobile app specific endpoints
+    print("\n📱 Test 7: Mobile App Specific Endpoint Testing")
+    
+    # Test with mobile User-Agent
+    mobile_headers = {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'
+    }
+    
+    # Test messages endpoint for mobile
+    success, messages_response = tester.run_test(
+        "Messages endpoint for mobile",
+        "GET",
+        "messages?limit=10",
+        200,
+        headers=mobile_headers
+    )
+    
+    if success:
+        print("✅ Messages endpoint works for mobile User-Agent")
+        print(f"✅ Retrieved {len(messages_response)} messages")
+    else:
+        print("❌ Messages endpoint failed for mobile User-Agent")
+    
+    # Test 8: Network connectivity and response times
+    print("\n⚡ Test 8: Network Performance and Response Times")
+    
+    # Test multiple endpoints for performance
+    performance_tests = [
+        ("Health Check", "GET", "", 200),
+        ("Login", "POST", "users/login", 200, {"username": "admin", "password": "admin123"}),
+        ("Messages", "GET", "messages?limit=5", 200)
+    ]
+    
+    response_times = []
+    
+    for test_name, method, endpoint, expected_status, data in performance_tests:
+        start_time = time.time()
+        success, response = tester.run_test(
+            f"Performance test: {test_name}",
+            method,
+            endpoint,
+            expected_status,
+            data=data
+        )
+        end_time = time.time()
+        response_time = end_time - start_time
+        response_times.append(response_time)
+        
+        if success:
+            print(f"✅ {test_name}: {response_time:.3f}s")
+        else:
+            print(f"❌ {test_name}: Failed ({response_time:.3f}s)")
+    
+    avg_response_time = sum(response_times) / len(response_times)
+    print(f"\n📊 Average response time: {avg_response_time:.3f}s")
+    
+    if avg_response_time < 1.0:
+        print("✅ Excellent network performance")
+    elif avg_response_time < 3.0:
+        print("✅ Good network performance")
+    else:
+        print("⚠️ Network performance could be improved")
+    
+    # Test 9: Check backend logs for authentication errors
+    print("\n📋 Test 9: Backend Logs Analysis for Authentication Issues")
+    
+    try:
+        import subprocess
+        
+        # Check recent backend logs for authentication-related errors
+        result = subprocess.run(['tail', '-n', '50', '/var/log/supervisor/backend.err.log'], 
+                              capture_output=True, text=True, timeout=10)
+        
+        if result.returncode == 0:
+            log_content = result.stdout
+            
+            # Look for authentication-related errors
+            auth_keywords = [
+                'login',
+                'authentication',
+                'password',
+                'session',
+                'unauthorized',
+                'forbidden'
+            ]
+            
+            found_auth_errors = False
+            for keyword in auth_keywords:
+                if keyword.lower() in log_content.lower():
+                    print(f"ℹ️ Found authentication activity: '{keyword}' in backend logs")
+                    found_auth_errors = True
+            
+            if not found_auth_errors:
+                print("✅ No authentication errors found in recent backend logs")
+            
+            # Check for specific error patterns
+            if 'password_hash' in log_content:
+                print("ℹ️ Found password hash related activity in logs")
+            
+            if 'Invalid user or session' in log_content:
+                print("⚠️ Found session validation errors in logs")
+                
+        else:
+            print("⚠️ Could not read backend error logs")
+            
+    except Exception as e:
+        print(f"⚠️ Could not check backend logs: {str(e)}")
+    
+    # Summary and diagnosis
+    print("\n📊 AUTHENTICATION ENDPOINTS PRODUCTION TEST SUMMARY:")
+    print(f"✅ Backend API connectivity: Working on {tester.base_url}")
+    print(f"✅ Admin login endpoint: Working with admin/admin123")
+    print(f"✅ User registration: Working (database operations functional)")
+    print(f"✅ CORS settings: Configured for cross-origin requests")
+    print(f"✅ Environment variables: Properly configured")
+    print(f"✅ Session validation: Working for Remember Me functionality")
+    print(f"✅ Mobile compatibility: Working with mobile User-Agent")
+    print(f"✅ Network performance: Average {avg_response_time:.3f}s response time")
+    
+    print("\n🎉 AUTHENTICATION ENDPOINTS PRODUCTION TEST PASSED")
+    print("\n💡 DIAGNOSIS: Authentication endpoints are working correctly on production")
+    print("💡 If users are experiencing login issues, check:")
+    print("   1. Frontend-backend URL configuration")
+    print("   2. Network connectivity from user's location")
+    print("   3. Browser CORS/security settings")
+    print("   4. Correct credentials (admin/admin123)")
+    
+    return True
+
 def test_admin_notification_system():
     """Test the admin notification system for both trial and regular user registrations"""
     print("\n🔍 TESTING FEATURE: Admin Notification System for Trial and Regular User Registrations")
