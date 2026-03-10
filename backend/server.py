@@ -192,10 +192,8 @@ async def send_trial_upgrade_email(email: str, name: str):
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# Database connection already initialized at top of file
+# MongoDB connection moved to top for proper initialization order
 
 # Try to import and initialize email service
 try:
