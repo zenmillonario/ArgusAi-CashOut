@@ -5,11 +5,9 @@ import logging
 # Configure logging
 logger = logging.getLogger(__name__)
 
-async def create_pending_cash_prize(user_id: str, achievement_id: str, amount: float):
+async def create_pending_cash_prize(db, user_id: str, achievement_id: str, amount: float):
     """Create a pending cash prize for admin review"""
     try:
-        from server import db  # Import db from server to avoid circular imports
-        
         pending_prize = {
             "achievement_id": achievement_id,
             "amount": amount,
