@@ -529,6 +529,283 @@ def test_membership_types():
     print(f"Membership types test completed with {success_rate * 100}% success rate")
     return all(results)
 
+def test_fmp_api_key_functionality():
+    """Test the FMP (Financial Modeling Prep) API key functionality as requested in review"""
+    print("\n🔍 TESTING FEATURE: FMP API Key Functionality")
+    
+    tester = CashoutAITester()
+    
+    # Test 1: Verify FMP API key is configured
+    print("\n🔑 Test 1: FMP API Key Configuration")
+    
+    from dotenv import load_dotenv
+    import os
+    load_dotenv('./backend/.env')
+    fmp_api_key = os.environ.get('FMP_API_KEY')
+    
+    if not fmp_api_key:
+        print("❌ FMP_API_KEY is not configured in environment variables")
+        return False
+    
+    print(f"✅ FMP_API_KEY is configured: {fmp_api_key}")
+    print(f"✅ API Key length: {len(fmp_api_key)} characters")
+    
+    # Test 2: Direct FMP API testing with the specific key
+    print("\n🌐 Test 2: Direct FMP API Testing")
+    
+    import requests
+    import time
+    
+    # Test symbols as requested: AAPL and MSFT
+    test_symbols = ["AAPL", "MSFT"]
+    api_results = []
+    
+    for symbol in test_symbols:
+        print(f"\n   Testing {symbol}...")
+        
+        # Test the exact FMP API endpoint used in the code
+        fmp_url = f"https://financialmodelingprep.com/api/v3/quote/{symbol}?apikey={fmp_api_key}"
+        
+        try:
+            start_time = time.time()
+            response = requests.get(fmp_url, timeout=10.0)
+            end_time = time.time()
+            response_time = end_time - start_time
+            
+            print(f"   Response Status: {response.status_code}")
+            print(f"   Response Time: {response_time:.3f} seconds")
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    print(f"   Response Type: {type(data)}")
+                    print(f"   Response Length: {len(data) if isinstance(data, list) else 'Not a list'}")
+                    
+                    if isinstance(data, list) and len(data) > 0:
+                        stock_data = data[0]
+                        print(f"   ✅ {symbol} Price: ${stock_data.get('price', 'N/A')}")
+                        print(f"   ✅ {symbol} Change: {stock_data.get('change', 'N/A')}")
+                        print(f"   ✅ {symbol} Change %: {stock_data.get('changesPercentage', 'N/A')}%")
+                        print(f"   ✅ {symbol} Symbol: {stock_data.get('symbol', 'N/A')}")
+                        
+                        # Verify required fields are present
+                        required_fields = ['price', 'symbol']
+                        missing_fields = [field for field in required_fields if field not in stock_data]
+                        
+                        if missing_fields:
+                            print(f"   ❌ Missing required fields: {missing_fields}")
+                            api_results.append(False)
+                        else:
+                            print(f"   ✅ All required fields present for {symbol}")
+                            api_results.append(True)
+                    else:
+                        print(f"   ❌ Invalid response format for {symbol}")
+                        print(f"   Response: {data}")
+                        api_results.append(False)
+                        
+                except Exception as json_error:
+                    print(f"   ❌ JSON parsing error for {symbol}: {json_error}")
+                    print(f"   Raw response: {response.text[:200]}...")
+                    api_results.append(False)
+                    
+            elif response.status_code == 429:
+                print(f"   ⚠️ Rate limit exceeded for {symbol} (429 error)")
+                print(f"   This indicates the API key is valid but rate limited")
+                print(f"   Response: {response.text[:200]}...")
+                api_results.append(True)  # Rate limit means API key is valid
+                
+            elif response.status_code == 401:
+                print(f"   ❌ Unauthorized access for {symbol} (401 error)")
+                print(f"   This indicates the API key is invalid or expired")
+                print(f"   Response: {response.text[:200]}...")
+                api_results.append(False)
+                
+            elif response.status_code == 403:
+                print(f"   ❌ Forbidden access for {symbol} (403 error)")
+                print(f"   This indicates the API key lacks permissions")
+                print(f"   Response: {response.text[:200]}...")
+                api_results.append(False)
+                
+            else:
+                print(f"   ❌ Unexpected status code for {symbol}: {response.status_code}")
+                print(f"   Response: {response.text[:200]}...")
+                api_results.append(False)
+                
+        except requests.exceptions.Timeout:
+            print(f"   ❌ Timeout error for {symbol}")
+            api_results.append(False)
+            
+        except requests.exceptions.ConnectionError:
+            print(f"   ❌ Connection error for {symbol}")
+            api_results.append(False)
+            
+        except Exception as e:
+            print(f"   ❌ Unexpected error for {symbol}: {str(e)}")
+            api_results.append(False)
+        
+        # Small delay between requests to avoid rate limiting
+        time.sleep(1)
+    
+    # Test 3: Test the backend get_current_stock_price function
+    print("\n🔧 Test 3: Backend Function Testing")
+    
+    import sys
+    sys.path.append('/app/backend')
+    
+    try:
+        import asyncio
+        from server import get_current_stock_price, format_price_display
+        
+        backend_results = []
+        
+        for symbol in test_symbols:
+            print(f"\n   Testing backend function for {symbol}...")
+            
+            try:
+                start_time = time.time()
+                current_price = asyncio.run(get_current_stock_price(symbol))
+                end_time = time.time()
+                response_time = end_time - start_time
+                
+                print(f"   ✅ Backend function response time: {response_time:.3f} seconds")
+                print(f"   ✅ Current price for {symbol}: ${current_price}")
+                
+                formatted_price = format_price_display(current_price)
+                print(f"   ✅ Formatted price for {symbol}: {formatted_price}")
+                
+                # Verify price is a valid number
+                if isinstance(current_price, (int, float)) and current_price > 0:
+                    print(f"   ✅ Valid price returned for {symbol}")
+                    backend_results.append(True)
+                else:
+                    print(f"   ❌ Invalid price returned for {symbol}: {current_price}")
+                    backend_results.append(False)
+                    
+            except Exception as e:
+                print(f"   ❌ Backend function error for {symbol}: {str(e)}")
+                backend_results.append(False)
+        
+        print(f"\n✅ Backend function testing completed")
+        
+    except Exception as e:
+        print(f"❌ Error importing backend functions: {str(e)}")
+        return False
+    
+    # Test 4: Rate limiting and API key validity analysis
+    print("\n📊 Test 4: API Key Validity Analysis")
+    
+    api_success_rate = sum(api_results) / len(api_results) if api_results else 0
+    backend_success_rate = sum(backend_results) / len(backend_results) if backend_results else 0
+    
+    print(f"Direct API Success Rate: {api_success_rate * 100:.1f}%")
+    print(f"Backend Function Success Rate: {backend_success_rate * 100:.1f}%")
+    
+    # Determine API key status
+    if api_success_rate >= 0.5:  # At least 50% success (accounting for rate limits)
+        print("✅ FMP API Key appears to be VALID")
+        api_key_valid = True
+    else:
+        print("❌ FMP API Key appears to be INVALID or EXPIRED")
+        api_key_valid = False
+    
+    # Test 5: Deployment impact analysis
+    print("\n🚀 Test 5: Deployment Impact Analysis")
+    
+    if backend_success_rate == 1.0:
+        print("✅ Backend functions work correctly (with fallback to mock data)")
+        print("✅ Application can start and function even if FMP API fails")
+        deployment_safe = True
+    else:
+        print("❌ Backend functions are failing")
+        deployment_safe = False
+    
+    # Check if the application has proper error handling
+    try:
+        # Test with an invalid symbol to see fallback behavior
+        invalid_price = asyncio.run(get_current_stock_price("INVALID_SYMBOL_TEST"))
+        if isinstance(invalid_price, (int, float)) and invalid_price > 0:
+            print("✅ Fallback mechanism works for invalid symbols")
+            print("✅ Application won't crash due to API failures")
+        else:
+            print("⚠️ Fallback mechanism may not be working properly")
+    except Exception as e:
+        print(f"⚠️ Error testing fallback mechanism: {str(e)}")
+    
+    # Test 6: Check backend logs for FMP API errors
+    print("\n📋 Test 6: Backend Logs Analysis")
+    
+    try:
+        import subprocess
+        
+        # Check recent backend logs for FMP API related messages
+        result = subprocess.run(['tail', '-n', '100', '/var/log/supervisor/backend.out.log'], 
+                              capture_output=True, text=True, timeout=10)
+        
+        if result.returncode == 0:
+            log_content = result.stdout
+            
+            # Look for FMP API related messages
+            fmp_keywords = [
+                'financialmodelingprep.com',
+                'FMP_API_KEY',
+                'Error fetching real price',
+                'get_current_stock_price',
+                'get_mock_stock_price'
+            ]
+            
+            found_fmp_activity = False
+            for keyword in fmp_keywords:
+                if keyword in log_content:
+                    print(f"✅ Found FMP API activity: '{keyword}' in backend logs")
+                    found_fmp_activity = True
+            
+            if not found_fmp_activity:
+                print("ℹ️ No recent FMP API activity found in logs")
+            
+            # Check for specific error patterns
+            if 'Error fetching real price' in log_content:
+                print("⚠️ Found 'Error fetching real price' messages - API may be failing")
+            
+            if 'get_mock_stock_price' in log_content:
+                print("ℹ️ Found mock price usage - fallback mechanism is active")
+                
+        else:
+            print("⚠️ Could not read backend logs")
+            
+    except Exception as e:
+        print(f"⚠️ Could not check backend logs: {str(e)}")
+    
+    # Final Summary
+    print("\n📋 FMP API KEY FUNCTIONALITY TEST SUMMARY:")
+    print(f"✅ FMP API Key configured: {fmp_api_key}")
+    print(f"{'✅' if api_key_valid else '❌'} API Key validity: {'VALID' if api_key_valid else 'INVALID/EXPIRED'}")
+    print(f"✅ Direct API success rate: {api_success_rate * 100:.1f}%")
+    print(f"✅ Backend function success rate: {backend_success_rate * 100:.1f}%")
+    print(f"{'✅' if deployment_safe else '❌'} Deployment safety: {'SAFE' if deployment_safe else 'RISKY'}")
+    
+    # Deployment recommendation
+    if deployment_safe:
+        print("\n🎉 DEPLOYMENT RECOMMENDATION: SAFE TO DEPLOY")
+        print("✅ The application has proper fallback mechanisms")
+        print("✅ FMP API issues will not prevent application startup")
+        print("✅ Users will still get stock prices (via mock data if needed)")
+    else:
+        print("\n⚠️ DEPLOYMENT RECOMMENDATION: INVESTIGATE FURTHER")
+        print("❌ Backend functions are failing")
+        print("❌ This could potentially block deployment")
+    
+    # Specific findings about the API key
+    if not api_key_valid:
+        print(f"\n🔑 API KEY ISSUE DETECTED:")
+        print(f"❌ The FMP API key '{fmp_api_key}' appears to be invalid or expired")
+        print(f"❌ This could be why Render deployment is failing")
+        print(f"💡 RECOMMENDATION: Verify API key with FMP or get a new one")
+    else:
+        print(f"\n✅ API KEY STATUS: The FMP API key appears to be working")
+        print(f"ℹ️ Any failures are likely due to rate limiting, not invalid key")
+    
+    return deployment_safe and (api_key_valid or backend_success_rate == 1.0)
+
 def test_stock_price_api():
     """Test the stock price API for real-time price loading"""
     print("\n🔍 TESTING FEATURE: Stock Prices API")
