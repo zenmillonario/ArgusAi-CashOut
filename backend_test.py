@@ -1841,9 +1841,9 @@ def test_authentication_endpoints_production():
     
     # Test multiple endpoints for performance
     performance_tests = [
-        ("Health Check", "GET", "", 200),
+        ("Health Check", "GET", "", 200, None),
         ("Login", "POST", "users/login", 200, {"username": "admin", "password": "admin123"}),
-        ("Messages", "GET", "messages?limit=5", 200)
+        ("Messages", "GET", "messages?limit=5", 200, None)
     ]
     
     response_times = []
