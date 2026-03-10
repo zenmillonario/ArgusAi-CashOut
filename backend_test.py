@@ -7890,24 +7890,32 @@ def main():
 if __name__ == "__main__":
     print("🚀 Starting CashoutAI Backend Testing Suite")
     
-    # Run the Zapier webhook test as requested in the review
-    print("🎯 Running ZAPIER WEBHOOK ENDPOINT TEST")
+    # Run the FMP API test as requested in the review
+    print("🎯 Running FMP API KEY FUNCTIONALITY TEST")
     
-    if test_zapier_webhook_endpoint():
-        print("\n🎉 ZAPIER WEBHOOK ENDPOINT TEST PASSED!")
-        print("✅ /api/bot/email-webhook endpoint accepts sample email data")
-        print("✅ Endpoint returns 200 status for valid requests")
-        print("✅ cashoutai_bot user exists or gets created automatically")
-        print("✅ Bot user has proper admin privileges and bot role")
-        print("✅ Webhook processes various email field formats")
-        print("✅ Endpoint returns proper response structure for Zapier")
-        print("✅ Error handling works for empty/invalid data")
-        print("✅ Bot messages have correct structure in database")
-        print("✅ Multiple Zapier field name variations supported")
-        print("✅ The webhook endpoint is ready for Zapier integration!")
-    else:
-        print("\n❌ ZAPIER WEBHOOK ENDPOINT TEST FAILED!")
-        print("❌ Please check the output above for specific issues")
+    result = False
+    try:
+        result = test_fmp_api_key_functionality()
+        
+        if result:
+            print("\n🎉 FMP API KEY FUNCTIONALITY TEST PASSED!")
+            print("✅ FMP API key is configured and working")
+            print("✅ Stock price functionality is operational")
+            print("✅ Fallback mechanisms are in place")
+            print("✅ Application is safe to deploy")
+            print("✅ FMP API issues will not block deployment")
+        else:
+            print("\n❌ FMP API KEY FUNCTIONALITY TEST FAILED!")
+            print("❌ There may be issues with the FMP API key")
+            print("❌ This could potentially impact deployment")
+            print("💡 Check the detailed output above for specific issues")
+            print("💡 Consider verifying the API key with Financial Modeling Prep")
+            
+    except Exception as e:
+        print(f"\n❌ ERROR in FMP API test: {str(e)}")
+        result = False
+    
+    sys.exit(0 if result else 1)
     
     print("\n🔚 Testing complete")
     exit()
