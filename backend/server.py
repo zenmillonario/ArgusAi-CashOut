@@ -1747,6 +1747,46 @@ async def calculate_user_performance(user_id: str) -> dict:
 async def root():
     return {"message": "CashoutAI API is running", "status": "success"}
 
+@api_router.post("/email/test")
+async def test_email_service():
+    """Diagnostic endpoint to test email service on deployment"""
+    env_vars = {
+        "MAIL_USERNAME": bool(os.getenv("MAIL_USERNAME")),
+        "MAIL_PASSWORD": bool(os.getenv("MAIL_PASSWORD")),
+        "MAIL_FROM": bool(os.getenv("MAIL_FROM")),
+        "MAIL_SERVER": bool(os.getenv("MAIL_SERVER")),
+        "MAIL_PORT": os.getenv("MAIL_PORT", "not set"),
+        "MAIL_TLS": os.getenv("MAIL_TLS", "not set"),
+    }
+    
+    if not email_service:
+        return {
+            "status": "error",
+            "message": "Email service failed to initialize",
+            "env_vars_present": env_vars,
+            "hint": "Check that all MAIL_* environment variables are set in Render dashboard"
+        }
+    
+    try:
+        admin_email = os.getenv("MAIL_USERNAME")
+        result = await email_service.send_email(
+            admin_email,
+            "CashOutAI Email Test",
+            "This is a test email from CashOutAI to verify email service is working on deployment.",
+            "<h2>CashOutAI Email Test</h2><p>Email service is working correctly on your deployment!</p>"
+        )
+        return {
+            "status": "success" if result else "failed",
+            "message": f"Test email {'sent' if result else 'failed'} to {admin_email}",
+            "env_vars_present": env_vars
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "env_vars_present": env_vars
+        }
+
 @api_router.post("/users/register", response_model=User)
 async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks):
     # Check if username already exists (allow rejected users to register again)

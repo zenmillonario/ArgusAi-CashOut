@@ -27,8 +27,19 @@ class EmailService:
         self.mail_server = os.getenv("MAIL_SERVER")
         self.mail_tls = os.getenv("MAIL_TLS", "true").lower() == "true"
         
-        if not all([self.mail_username, self.mail_password, self.mail_from, self.mail_server]):
-            raise ValueError("Email configuration is incomplete. Check environment variables.")
+        # Log which env vars are present/missing for debugging
+        vars_status = {
+            "MAIL_USERNAME": bool(self.mail_username),
+            "MAIL_PASSWORD": bool(self.mail_password),
+            "MAIL_FROM": bool(self.mail_from),
+            "MAIL_SERVER": bool(self.mail_server),
+            "MAIL_PORT": self.mail_port,
+        }
+        logger.info(f"EmailService init - env vars status: {vars_status}")
+        
+        missing = [k for k, v in vars_status.items() if v is False]
+        if missing:
+            raise ValueError(f"Email configuration incomplete. Missing: {missing}")
     
     async def send_email(
         self, 

@@ -21,6 +21,18 @@ services:
         generateValue: true
       - key: PYTHON_VERSION
         value: 3.11.6
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAIL_PORT
+        sync: false
+      - key: MAIL_SERVER
+        sync: false
+      - key: MAIL_TLS
+        sync: false
     
   # Frontend Service  
   - type: web
