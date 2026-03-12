@@ -172,15 +172,15 @@ const ChatInput = ({
       )}
 
       {/* Message Input */}
-      <form onSubmit={sendMessage} className="space-y-2">
+      <form onSubmit={sendMessage}>
         <div className="flex space-x-2">
           <textarea
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onPaste={handlePaste}
-            placeholder="Type your message... (Use $TSLA for stock tickers, or paste images with Ctrl+V)"
-            rows="3"
-            className={`flex-1 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            placeholder="Type a message..."
+            rows="1"
+            className={`flex-1 px-3 py-2 sm:py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base ${
               isDarkTheme 
                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
@@ -196,7 +196,7 @@ const ChatInput = ({
           />
           
           {/* Image Upload Button */}
-          <label className={`px-4 py-3 rounded-lg cursor-pointer transition-colors ${
+          <label className={`px-3 py-2 sm:py-3 rounded-lg cursor-pointer transition-colors ${
             isDarkTheme 
               ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600' 
               : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
@@ -213,13 +213,13 @@ const ChatInput = ({
           <button
             type="submit"
             disabled={!newMessage.trim() && !imageFile}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
           >
             {imageFile ? 'Send Image' : 'Send'}
           </button>
         </div>
         
-        <div className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'} text-center`}>
+        <div className={`hidden sm:block text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'} text-center mt-1`}>
           Press Enter to send, Shift+Enter for new line
         </div>
       </form>
