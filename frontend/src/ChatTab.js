@@ -229,14 +229,11 @@ const ChatTab = ({
       )}
 
       {/* Messages - STREAMLINED SAME LINE FORMAT - Isolated scroll container */}
-      <div className={`backdrop-blur-lg rounded-2xl border p-4 flex-1 ${
+      <div className={`backdrop-blur-lg rounded-2xl border p-4 flex-1 flex flex-col ${
         isDarkTheme 
           ? 'bg-white/5 border-white/10' 
           : 'bg-white/80 border-gray-200'
-      } overflow-hidden`} style={{
-        minHeight: hideMessageInput ? '400px' : '300px',
-        maxHeight: 'calc(100vh - 300px)' // Adjusted for new header height
-      }}>
+      } overflow-hidden min-h-0`}>
         {/* Timezone Indicator */}
         <div className={`text-xs text-center pb-2 mb-2 border-b ${
           isDarkTheme 
@@ -246,8 +243,9 @@ const ChatTab = ({
           🕐 Times shown in Eastern Time Zone (ET)
         </div>
         
-        {/* Messages container - flex layout */}
-        <div className="flex-1 overflow-y-auto space-y-1 min-h-0" data-chat-messages="true">
+        {/* Messages container */}
+        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col" data-chat-messages="true">
+          <div className="space-y-1 mt-auto">
           {/* CRITICAL UX FIX: Empty State UI */}
           {displayMessages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center py-8">
@@ -429,6 +427,7 @@ const ChatTab = ({
             </div>
           ))}
           <div ref={messagesEndRef} />
+          </div>
         </div>
         
         {/* Simple scroll to bottom button */}
