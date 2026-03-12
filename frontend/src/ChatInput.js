@@ -220,7 +220,7 @@ const ChatInput = ({
         </div>
         
         <div className={`hidden sm:block text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'} text-center mt-1`}>
-          Press Enter to send, Shift+Enter for new line
+          Use $SYMBOL to highlight stock tickers | Paste or attach images | Enter to send
         </div>
       </form>
     </div>
