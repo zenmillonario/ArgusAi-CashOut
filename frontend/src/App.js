@@ -796,7 +796,7 @@ function App() {
 
   // Simple scroll-to-bottom function using container scroll instead of scrollIntoView
   const scrollToBottom = () => {
-    const chatContainer = document.querySelector('.overflow-y-auto');
+    const chatContainer = document.querySelector('[data-chat-messages]');
     if (chatContainer) {
       chatContainer.scrollTop = chatContainer.scrollHeight;
       setShowScrollButton(false);
@@ -811,7 +811,7 @@ function App() {
       // Add delay to wait for ChatTab DOM to render
       const setupScrollListener = () => {
         console.log('✅ Setting up scroll listener...');
-        const chatContainer = document.querySelector('.overflow-y-auto');
+        const chatContainer = document.querySelector('[data-chat-messages]');
         console.log('🔍 Scroll listener setup - container found:', !!chatContainer);
         
         if (chatContainer) {

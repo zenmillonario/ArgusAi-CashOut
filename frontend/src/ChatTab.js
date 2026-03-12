@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const ChatTab = ({ 
@@ -37,6 +37,23 @@ const ChatTab = ({
   const displayMessages = showSearch ? (filteredMessages || []) : (messages || []);
   const [followingUsers, setFollowingUsers] = useState([]);
   const [followerCounts, setFollowerCounts] = useState({});
+  const [hasScrolledOnLoad, setHasScrolledOnLoad] = useState(false);
+
+  // Auto-scroll to bottom when messages first load
+  useEffect(() => {
+    if (displayMessages.length > 0 && !hasScrolledOnLoad) {
+      const scrollAttempt = () => {
+        if (messagesEndRef?.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'instant' });
+          setHasScrolledOnLoad(true);
+        }
+      };
+      const t1 = setTimeout(scrollAttempt, 200);
+      const t2 = setTimeout(scrollAttempt, 1000);
+      const t3 = setTimeout(scrollAttempt, 2500);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    }
+  }, [displayMessages.length, hasScrolledOnLoad, messagesEndRef]);
 
   // Helper: parse timestamp as UTC (backend stores UTC without 'Z' suffix)
   const parseUTC = (ts) => {
@@ -229,8 +246,8 @@ const ChatTab = ({
           🕐 Times shown in Eastern Time Zone (ET)
         </div>
         
-        {/* Messages container with isolated scroll */}
-        <div className="overflow-y-auto space-y-1" style={{ maxHeight: 'calc(100vh - 360px)' }}>
+        {/* Messages container - flex layout */}
+        <div className="flex-1 overflow-y-auto space-y-1 min-h-0" data-chat-messages="true">
           {/* CRITICAL UX FIX: Empty State UI */}
           {displayMessages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center py-8">
