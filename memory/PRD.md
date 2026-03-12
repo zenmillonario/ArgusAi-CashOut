@@ -1,62 +1,56 @@
-# CashOutAI (ArgusAI CashOut) - Product Requirements Document
+# CashOutAi - Product Requirements Document
 
-## Problem Statement
-CashOutAI is a trading community platform with real-time chat, portfolio tracking, and social features. Originally deployed on Render with a custom domain `cashoutai.app`.
-
-## Core Tech Stack
-- **Frontend**: React (served via `serve` on Render)
-- **Backend**: FastAPI (Python)
-- **Database**: MongoDB Atlas (free tier)
-- **Deployment**: Render (2 services: frontend + backend)
-- **DNS**: GoDaddy (`cashoutai.app`)
-- **Integrations**: FMP (stock prices), Gmail SMTP (emails), Firebase (notifications)
+## Original Problem Statement
+Build and maintain the ArgusAI-CashOut trading platform (now named "CashOutAi") - a full-stack application with real-time chat, stock data lookup, user management with admin approval flows, and email notifications.
 
 ## Architecture
-```
-/app/
-├── backend/
-│   ├── server.py          # Monolithic FastAPI (~4900 lines)
-│   ├── email_service.py   # Gmail SMTP
-│   ├── cash_prize.py      # Cash prize logic
-│   └── fcm_service.py     # Firebase push notifications
-├── frontend/
-│   └── src/
-│       ├── App.js         # Main app (~3800 lines)
-│       ├── ChatTab.js     # Chat UI with date separators
-│       ├── ProfileCustomization.js
-│       ├── PublicProfile.js
-│       └── ...
-```
+- **Frontend**: React + Tailwind CSS (deployed on Render as static build)
+- **Backend**: FastAPI (Python) with uvicorn (deployed on Render)
+- **Database**: MongoDB Atlas (free tier)
+- **Hosting**: Render (from GitHub)
+- **DNS**: GoDaddy → cashoutai.app
+- **Integrations**: Gmail SMTP, Financial Modeling Prep (FMP), Firebase Cloud Messaging (FCM)
 
-## Key Credentials
-- **Test login**: admin / admin123
-- **FMP API Key**: In backend/.env
-- **Custom domain**: cashoutai.app
+## Core Features
+- User authentication with admin approval workflow
+- Real-time chat via WebSocket with 500+ message history
+- Stock data lookup (supports penny stocks via FMP fallback)
+- Social media-style profile pages (Twitter/X inspired)
+- Trial user system (14-day auto-approved trials)
+- Email notifications (registration, approval, trial welcome/upgrade)
+- Achievement/XP system
+- Paper trading
 
 ## What's Been Implemented
-### Session 1 (Previous)
-- Admin email notifications for new signups
-- Remember Me session persistence
-- Firebase mobile error fix
-- Custom domain setup on GoDaddy/Render
-- Multiple deployment fixes (env vars, circular imports, MongoDB robustness)
 
-### Session 2 (Current - March 10, 2026)
-- **Fixed Render deployment**: Frontend was running `npm start` (dev mode) instead of production build. Changed start command to `npx serve -s build -p $PORT`
-- **Fixed MongoDB auth**: Corrected MONGO_URL format on Render (removed angle brackets, added database name)
-- **Fixed FMP stock API**: Updated from deprecated `/api/v3/quote/` to new `/stable/quote?symbol=` endpoint
-- **Profile tab redesign**: Twitter/X style with banner, avatar overlay, followers/following, achievements, stats cards
-- **Chat history**: Increased from 50 to 500 messages using MongoDB aggregation with `allowDiskUse=True`
-- **Daily date separators**: "Today", "Yesterday", or full date (e.g., "Friday, October 24, 2025")
-- **Fixed chat timestamps**: Timestamps were 4 hours off because UTC timestamps lacked 'Z' suffix. Added `parseUTC()` helper
+### Completed
+- Authentication and domain fixes (login on cashoutai.app)
+- Stock Price API with penny stock fallback
+- Profile page redesign (Twitter/X-style)
+- Chat history (500+ messages with DB indexing)
+- Chat timestamps with UTC fix + date separators
+- Chat UI/UX fixes (mobile input, gap, auto-scroll)
+- Image/ticker paste functionality
+- Deployment configuration (Firebase env vars, production build)
+- **Email notification system** - Fixed and verified working (March 2026)
+  - Added diagnostic endpoint `/api/email/test`
+  - Better init logging in EmailService
+  - Updated render.yaml with MAIL_* env var declarations
+  - Trial welcome emails, admin notifications, registration confirmations all working
+
+### Key Environment Variables (Render Backend)
+- MONGO_URL, DB_NAME
+- MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM, MAIL_PORT, MAIL_SERVER, MAIL_TLS
+- FMP_API_KEY
+- FIREBASE_* variables
+- SECRET_KEY
 
 ## Backlog
-### P1
-- **Mobile App**: Capacitor/Expo approach abandoned. Consider hiring specialist with "Mobile Developer Brief"
+- **P1**: Mobile app for App Stores (Google Play, Apple App Store)
+- **P2**: Refactor backend/server.py (~4900 lines) into APIRouter modules
 
-### P2
-- **Backend refactoring**: server.py is ~4900 lines, needs to be split into modular routers
-- **Email env vars on Render**: MAIL_USERNAME, MAIL_PASSWORD etc. should be added for email notifications to work on production
-
-### P3
-- **Chat history pagination**: Currently loads all 500 at once. Consider infinite scroll/pagination for better performance
+## Key Technical Notes
+- `.env` files are gitignored; Render uses dashboard env vars
+- MongoDB free tier needs indexes for large sorts (messages.timestamp index exists)
+- Chat UI layout uses complex flexbox - test mobile + desktop after CSS changes
+- Code deploys via: Emergent "Save to Github" → auto-deploy on Render
