@@ -181,7 +181,7 @@ async def send_trial_welcome_email(email: str, name: str, trial_end_date: dateti
     await email_service.send_trial_welcome_email(email, name, trial_end_date)
 
 async def send_trial_upgrade_email(email: str, name: str):
-    """Send upgrade incentive email with Argus20 discount code"""
+    """Send upgrade email to expired trial user"""
     if not email_service:
         print(f"Email service unavailable. Would send trial upgrade email to {email}")
         return

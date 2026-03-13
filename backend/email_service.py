@@ -103,7 +103,7 @@ User Details:
 ⚠️ This user is PENDING and cannot access the platform until you approve them.
 
 Please review and approve this registration in the ArgusAI CashOut admin panel.
-Login at: https://cashoutai-frontend.onrender.com
+Login at: https://www.CashOutAi.App
 
 --
 ArgusAI CashOut System
@@ -193,7 +193,7 @@ New TRIAL User Registration - ArgusAI CashOut
 ✅ This user was automatically approved and can start using the platform immediately.
 🎯 They have 14 days of full access before requiring upgrade.
 
-Login at: https://cashoutai-frontend.onrender.com
+Login at: https://www.CashOutAi.App
 
 --
 ArgusAI CashOut System
@@ -265,7 +265,7 @@ ArgusAI CashOut System
             </div>
         </div>
         <div class="footer">
-            <a href="https://cashoutai-frontend.onrender.com" class="button">View Platform</a>
+            <a href="https://www.CashOutAi.App" class="button">View Platform</a>
             <p style="margin-top: 15px; color: #6b7280; font-size: 14px;">ArgusAI CashOut Admin System</p>
         </div>
     </div>
@@ -412,129 +412,29 @@ ArgusAI CashOut Team
         return await self.send_email(user_email, subject, plain_body, html_body)
     
     
-    async def send_trial_welcome_email(
-        self, 
-        user_email: str, 
-        user_name: str,
-        trial_end_date: datetime
-    ) -> bool:
-        """Send welcome email to trial users"""
-        subject = "🎉 Welcome to ArgusAI CashOut - 14-Day Trial Started!"
-        
-        trial_end_str = trial_end_date.strftime('%B %d, %Y at %I:%M %p UTC')
-        
-        plain_body = f"""
-Hi {user_name},
-
-Welcome to ArgusAI CashOut! 🚀
-
-Your 14-day trial has started and you now have full access to our platform:
-
-• Real-time chat with traders
-• Paper trading practice
-• Portfolio management
-• Stock quotes and analysis
-• Achievement system and rewards
-
-Your trial period ends on: {trial_end_str}
-
-Before your trial expires, you'll receive information about upgrading to a full membership to continue enjoying all features.
-
-Start exploring and happy trading!
-
---
-ArgusAI CashOut Team
-"""
-        
-        html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .header {{ background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 20px; text-align: center; }}
-        .content {{ padding: 20px; background: #f9f9f9; }}
-        .welcome-box {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #8b5cf6; }}
-        .features {{ background: white; padding: 15px; border-radius: 8px; margin: 15px 0; }}
-        .feature-item {{ margin: 8px 0; }}
-        .trial-info {{ background: #fef3c7; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #f59e0b; }}
-        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>🎉 Welcome to ArgusAI CashOut!</h1>
-        <p>Your 14-Day Trial Has Started</p>
-    </div>
-    
-    <div class="content">
-        <div class="welcome-box">
-            <h2>Hi {user_name},</h2>
-            <p>Welcome to ArgusAI CashOut! Your trial account is now active and ready to use.</p>
-        </div>
-        
-        <div class="features">
-            <h3>You now have access to:</h3>
-            <div class="feature-item">💬 Real-time chat with other traders</div>
-            <div class="feature-item">📈 Paper trading practice</div>
-            <div class="feature-item">💼 Portfolio management tools</div>
-            <div class="feature-item">📊 Real-time stock quotes and data</div>
-            <div class="feature-item">🏆 Achievement system and rewards</div>
-            <div class="feature-item">⭐ Favorites and watchlists</div>
-        </div>
-        
-        <div class="trial-info">
-            <h3>⏰ Trial Information</h3>
-            <p><strong>Trial Period:</strong> 14 days</p>
-            <p><strong>Trial Ends:</strong> {trial_end_str}</p>
-            <p>Before your trial expires, you'll receive information about upgrading to continue enjoying all features.</p>
-        </div>
-        
-        <p><strong>Ready to start?</strong> Log in to your account and start exploring!</p>
-        
-        <p>Happy trading! 🚀</p>
-    </div>
-    
-    <div class="footer">
-        <p>ArgusAI CashOut Team</p>
-    </div>
-</body>
-</html>
-"""
-        
-        return await self.send_email(user_email, subject, plain_body, html_body)
-    
     async def send_trial_upgrade_email(
         self, 
         user_email: str, 
         user_name: str
     ) -> bool:
-        """Send trial upgrade email with Square payment links and ARGUS20 discount code"""
-        subject = "🎯 Your ArgusAI Trial Expired - 20% OFF with ARGUS20!"
+        """Send trial upgrade email with Square payment links"""
+        subject = "🎯 Your CashOutAi Trial Has Expired - Upgrade Now!"
         
         plain_body = f"""
 Hi {user_name},
 
-Your 14-day trial with ArgusAI CashOut has ended, but we have an exclusive offer just for you!
-
-🎉 SPECIAL OFFER: 20% OFF any membership plan with code ARGUS20!
+Your 14-day trial with CashOutAi has ended. Upgrade now to keep full access!
 
 💰 CHOOSE YOUR PLAN - ONE CLICK PAYMENT:
 
-💳 MONTHLY PLAN: $199/month → $159.20/month (Save $39.80)
+💳 MONTHLY PLAN: $199/month
    ► PAYMENT LINK: https://square.link/u/dhjuwn84
 
-🏆 YEARLY PLAN: $1,296/year → $1,036.80/year (Save $259.20) [BEST VALUE]
+🏆 YEARLY PLAN: $1,296/year [BEST VALUE]
    ► PAYMENT LINK: https://square.link/u/kKmNauCe
 
-💎 LIFETIME PLAN: $3,969 → $3,175.20 (Save $793.80) [NEVER PAY AGAIN]
+💎 LIFETIME PLAN: $3,969 one-time [NEVER PAY AGAIN]
    ► PAYMENT LINK: https://square.link/u/dRSryNkx
-
-💡 CHECKOUT INSTRUCTIONS:
-1. Click your preferred payment link above
-2. Enter discount code: ARGUS20 (in "Add Coupon" field)
-3. Complete payment and regain full access instantly!
 
 🚀 UPGRADE BENEFITS:
 • Unlimited real-time chat with successful traders
@@ -549,10 +449,10 @@ Your account is now in LIMITED ACCESS mode:
 ✅ Market data viewing
 ❌ Chat access restricted (upgrade to unlock)
 
-Ready to rejoin our trading community? Choose your plan and save 20%!
+Ready to rejoin our trading community? Choose your plan above!
 
 --
-ArgusAI CashOut Team
+CashOutAi Team
 """
         
         html_body = f"""
@@ -564,79 +464,49 @@ ArgusAI CashOut Team
         body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
         .header {{ background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 20px; text-align: center; }}
         .content {{ padding: 20px; background: #f9f9f9; }}
-        .offer-box {{ background: #fef3c7; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #f59e0b; text-align: center; }}
-        .discount-code {{ background: #1f2937; color: #fbbf24; padding: 10px 20px; font-size: 24px; font-weight: bold; border-radius: 8px; display: inline-block; margin: 10px 0; }}
         .plans-section {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; }}
         .plan-card {{ border: 2px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 10px 0; text-align: center; }}
-        .plan-card.featured {{ border-color: #8b5cf6; background: #f3f4f6; }}
         .plan-price {{ font-size: 24px; font-weight: bold; color: #1f2937; margin: 10px 0; }}
-        .plan-original {{ text-decoration: line-through; color: #6b7280; font-size: 18px; }}
-        .plan-discounted {{ color: #ef4444; font-weight: bold; }}
         .plan-button {{ background: #8b5cf6; color: white; padding: 12px 25px; border-radius: 6px; text-decoration: none; display: inline-block; margin: 10px 0; font-weight: bold; transition: background 0.3s; }}
         .plan-button:hover {{ background: #7c3aed; }}
         .restrictions {{ background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ef4444; }}
         .benefits {{ background: white; padding: 15px; border-radius: 8px; margin: 15px 0; }}
-        .discount-instructions {{ background: #e0e7ff; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #6366f1; }}
         .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎯 Exclusive Upgrade Offer!</h1>
-        <p>Your trial has expired - Get 20% OFF any plan</p>
+        <h1>🎯 Time to Upgrade!</h1>
+        <p>Your trial has expired - choose a plan to continue</p>
     </div>
     
     <div class="content">
         <h2>Hi {user_name},</h2>
-        
-        <div class="offer-box">
-            <h2>🎉 SPECIAL TRIAL MEMBER DISCOUNT!</h2>
-            <p>Use code <span class="discount-code">ARGUS20</span> for 20% OFF</p>
-            <p><strong>Limited time offer for trial members only!</strong></p>
-        </div>
-
-        <div class="discount-instructions">
-            <h3>💡 How to Apply Your Discount:</h3>
-            <p>1. Click any plan button below</p>
-            <p>2. At checkout, enter <strong>ARGUS20</strong> in the "Add Coupon" field</p>
-            <p>3. Enjoy 20% savings on your membership!</p>
-        </div>
+        <p>Your 14-day free trial has ended. Upgrade now to keep full access to CashOutAi!</p>
         
         <div class="plans-section">
             <h3 style="text-align: center; margin-bottom: 20px;">💰 Choose Your Plan - One Click Payment:</h3>
             
             <div class="plan-card" style="border: 2px solid #3b82f6;">
                 <h4>📅 Monthly Plan</h4>
-                <div class="plan-price">
-                    <span class="plan-original">$199/month</span><br>
-                    <span class="plan-discounted">$159.20/month with ARGUS20</span>
-                </div>
+                <div class="plan-price">$199/month</div>
                 <p>Perfect for getting started</p>
-                <a href="https://square.link/u/dhjuwn84" class="plan-button" style="background: #3b82f6;">💳 Pay Now - $159.20/month</a>
-                <p style="font-size: 12px; margin-top: 10px; color: #6b7280;">Click → Enter ARGUS20 at checkout → Save 20%</p>
+                <a href="https://square.link/u/dhjuwn84" class="plan-button" style="background: #3b82f6;">💳 Pay Now - $199/month</a>
             </div>
             
-            <div class="plan-card featured" style="border: 3px solid #f59e0b; position: relative;">
+            <div class="plan-card" style="border: 3px solid #f59e0b; position: relative;">
                 <div style="position: absolute; top: -15px; left: 50%; transform: translateX(-50%); background: #ef4444; color: white; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: bold;">🏆 BEST VALUE</div>
                 <h4>🌟 Yearly Plan (Most Popular)</h4>
-                <div class="plan-price">
-                    <span class="plan-original">$1,296/year</span><br>
-                    <span class="plan-discounted">$1,036.80/year with ARGUS20</span>
-                </div>
-                <p>Save $259.20/year + 2 months FREE!</p>
-                <a href="https://square.link/u/kKmNauCe" class="plan-button" style="background: #f59e0b;">🏆 Pay Now - $1,036.80/year</a>
-                <p style="font-size: 12px; margin-top: 10px; color: #6b7280;">Click → Enter ARGUS20 at checkout → Save $259.20</p>
+                <div class="plan-price">$1,296/year</div>
+                <p>Save over $1,000 compared to monthly!</p>
+                <a href="https://square.link/u/kKmNauCe" class="plan-button" style="background: #f59e0b;">🏆 Pay Now - $1,296/year</a>
             </div>
             
             <div class="plan-card" style="border: 2px solid #8b5cf6;">
                 <h4>♾️ Lifetime Plan</h4>
-                <div class="plan-price">
-                    <span class="plan-original">$3,969 one-time</span><br>
-                    <span class="plan-discounted">$3,175.20 with ARGUS20</span>
-                </div>
+                <div class="plan-price">$3,969 one-time</div>
                 <p>Never pay again - lifetime access</p>
-                <a href="https://square.link/u/dRSryNkx" class="plan-button" style="background: #8b5cf6;">💎 Pay Now - $3,175.20</a>
-                <p style="font-size: 12px; margin-top: 10px; color: #6b7280;">Click → Enter ARGUS20 at checkout → Save $793.80</p>
+                <a href="https://square.link/u/dRSryNkx" class="plan-button" style="background: #8b5cf6;">💎 Pay Now - $3,969</a>
             </div>
         </div>
         
@@ -657,11 +527,11 @@ ArgusAI CashOut Team
             <p>🎓 <strong>Access to premium educational content</strong></p>
         </div>
         
-        <p style="text-align: center;"><strong>Ready to rejoin our trading community?</strong><br>Choose your plan above and don't forget to use code <strong>ARGUS20</strong>!</p>
+        <p style="text-align: center;"><strong>Ready to rejoin our trading community?</strong><br>Choose your plan above!</p>
     </div>
     
     <div class="footer">
-        <p>ArgusAI CashOut Team</p>
+        <p>CashOutAi Team</p>
         <p>After payment, your account will be upgraded to full member status within 24 hours.</p>
     </div>
 </body>
@@ -676,18 +546,18 @@ ArgusAI CashOut Team
         user_name: str,
         trial_end_date
     ) -> bool:
-        """Send comprehensive trial welcome email with login info and upgrade incentives"""
-        subject = "🎉 Welcome to ArgusAI CashOut - Your 14-Day FREE Trial Starts Now!"
+        """Send comprehensive trial welcome email with login info"""
+        subject = "🎉 Welcome to CashOutAi - Your 14-Day FREE Trial Starts Now!"
         
         trial_end_formatted = trial_end_date.strftime('%B %d, %Y at %I:%M %p UTC')
         
         plain_body = f"""
-🎉 Welcome to ArgusAI CashOut, {user_name}!
+🎉 Welcome to CashOutAi, {user_name}!
 
 Congratulations! Your 14-day FREE trial has started and you now have FULL ACCESS to our premium trading platform.
 
 🔑 YOUR LOGIN CREDENTIALS:
-• Website: https://cashoutai-frontend.onrender.com/
+• Website: www.CashOutAi.App
 • Email: {user_email}
 • Password: [The password you created during registration]
 
@@ -705,35 +575,29 @@ Congratulations! Your 14-day FREE trial has started and you now have FULL ACCESS
 • Trial Ends: {trial_end_formatted}
 • Full Access: 14 days of unlimited features
 
-💰 EXCLUSIVE TRIAL MEMBER DISCOUNT:
-Use code ARGUS20 for 20% OFF any membership plan (available anytime):
+💰 MEMBERSHIP PLANS (upgrade anytime):
 
-💳 MONTHLY PLAN: $199/month → $159.20/month (Save $39.80)
+💳 MONTHLY PLAN: $199/month
    Payment Link: https://square.link/u/dhjuwn84
 
-🏆 YEARLY PLAN: $1,296/year → $1,036.80/year (Save $259.20) [MOST POPULAR]
+🏆 YEARLY PLAN: $1,296/year [MOST POPULAR]
    Payment Link: https://square.link/u/kKmNauCe
 
-💎 LIFETIME PLAN: $3,969 → $3,175.20 (Save $793.80)
+💎 LIFETIME PLAN: $3,969 one-time
    Payment Link: https://square.link/u/dRSryNkx
 
-💡 HOW TO GET DISCOUNT:
-1. Click any payment link above
-2. Enter ARGUS20 in the "Add Coupon" field at checkout  
-3. Complete payment and enjoy 20% savings!
-
 🚀 GET STARTED:
-1. Login at: https://cashoutai-frontend.onrender.com/
+1. Login at: www.CashOutAi.App
 2. Join the live trading chat
 3. Connect with our community of traders
 4. Start building your portfolio
 
 Questions? Reply to this email for instant support!
 
-Welcome to the ArgusAI trading family! 🎯
+Welcome to the CashOutAi trading family! 🎯
 
 --
-The ArgusAI CashOut Team
+The CashOutAi Team
 """
         
         html_body = f"""
@@ -750,7 +614,6 @@ The ArgusAI CashOut Team
         .login-box {{ background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #8b5cf6; }}
         .features-box {{ background: #e0f2fe; padding: 20px; border-radius: 8px; margin: 20px 0; }}
         .pricing-box {{ background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800; }}
-        .discount-code {{ background: #1f2937; color: #fbbf24; padding: 10px 20px; font-size: 20px; font-weight: bold; border-radius: 6px; display: inline-block; margin: 10px 0; }}
         .cta-button {{ background: #8b5cf6; color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; display: inline-block; margin: 20px 0; font-weight: bold; }}
         .trial-timer {{ background: #fee; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444; margin: 20px 0; }}
         .footer {{ text-align: center; padding: 20px; color: #666; font-size: 14px; background: #f8f9fa; }}
@@ -761,7 +624,7 @@ The ArgusAI CashOut Team
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎉 Welcome to ArgusAI CashOut!</h1>
+            <h1>🎉 Welcome to CashOutAi!</h1>
             <p>Your 14-Day FREE Trial Starts Now</p>
         </div>
         
@@ -771,11 +634,11 @@ The ArgusAI CashOut Team
             
             <div class="login-box">
                 <h3>🔑 Your Login Credentials</h3>
-                <p><strong>Website:</strong> <a href="https://cashoutai-frontend.onrender.com/">https://cashoutai-frontend.onrender.com/</a></p>
+                <p><strong>Website:</strong> <a href="https://www.CashOutAi.App">www.CashOutAi.App</a></p>
                 <p><strong>Email:</strong> {user_email}</p>
                 <p><strong>Password:</strong> [The password you created during registration]</p>
                 <div style="text-align: center; margin: 20px 0;">
-                    <a href="https://cashoutai-frontend.onrender.com/" class="cta-button">🚀 Start Trading Now</a>
+                    <a href="https://www.CashOutAi.App" class="cta-button">🚀 Start Trading Now</a>
                 </div>
             </div>
             
@@ -800,56 +663,41 @@ The ArgusAI CashOut Team
             </div>
             
             <div class="pricing-box">
-                <h3>💰 Exclusive Trial Member Discount</h3>
-                <p>Use this code <strong>anytime</strong> for <strong>20% OFF</strong> any membership plan:</p>
-                <div style="text-align: center;">
-                    <div class="discount-code">ARGUS20</div>
-                </div>
+                <h3>💰 Membership Plans</h3>
+                <p>Upgrade anytime to keep full access after your trial:</p>
                 
-                <h4>💎 Choose Your Membership Plan:</h4>
-                
-                <!-- Monthly Plan Button -->
                 <div style="background: white; padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #e5e7eb; text-align: center;">
                     <h4 style="margin: 0; color: #1f2937;">🗓️ Monthly Plan</h4>
-                    <p style="margin: 5px 0; color: #6b7280;"><s>$199/month</s> → <strong style="color: #ef4444;">$159.20/month</strong></p>
-                    <p style="margin: 5px 0; font-size: 14px; color: #10b981;">Save $39.80/month</p>
-                    <a href="https://square.link/u/dhjuwn84" style="background: #3b82f6; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">💳 Choose Monthly - $159.20</a>
+                    <p style="margin: 5px 0; font-size: 20px; font-weight: bold; color: #1f2937;">$199/month</p>
+                    <a href="https://square.link/u/dhjuwn84" style="background: #3b82f6; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">💳 Choose Monthly</a>
                 </div>
                 
-                <!-- Yearly Plan Button (Featured) -->
                 <div style="background: linear-gradient(135deg, #fef3c7 0%, #fbbf24 100%); padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #f59e0b; text-align: center; position: relative;">
                     <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #ef4444; color: white; padding: 4px 12px; border-radius: 15px; font-size: 12px; font-weight: bold;">MOST POPULAR</div>
                     <h4 style="margin: 0; color: #1f2937;">📅 Yearly Plan</h4>
-                    <p style="margin: 5px 0; color: #6b7280;"><s>$1,296/year</s> → <strong style="color: #ef4444;">$1,036.80/year</strong></p>
-                    <p style="margin: 5px 0; font-size: 14px; color: #10b981;">Save $259.20/year + 2 months FREE!</p>
-                    <a href="https://square.link/u/kKmNauCe" style="background: #f59e0b; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">🏆 Choose Yearly - $1,036.80</a>
+                    <p style="margin: 5px 0; font-size: 20px; font-weight: bold; color: #1f2937;">$1,296/year</p>
+                    <a href="https://square.link/u/kKmNauCe" style="background: #f59e0b; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">🏆 Choose Yearly</a>
                 </div>
                 
-                <!-- Lifetime Plan Button -->
                 <div style="background: white; padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #e5e7eb; text-align: center;">
                     <h4 style="margin: 0; color: #1f2937;">♾️ Lifetime Plan</h4>
-                    <p style="margin: 5px 0; color: #6b7280;"><s>$3,969 one-time</s> → <strong style="color: #ef4444;">$3,175.20 one-time</strong></p>
-                    <p style="margin: 5px 0; font-size: 14px; color: #10b981;">Save $793.80 + Never pay again!</p>
-                    <a href="https://square.link/u/dRSryNkx" style="background: #8b5cf6; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">💎 Choose Lifetime - $3,175.20</a>
-                </div>
-                
-                <div style="text-align: center; margin: 15px 0; padding: 10px; background: #e0f2fe; border-radius: 6px;">
-                    <p style="margin: 0; font-size: 14px; color: #0369a1;"><strong>💡 Remember:</strong> Enter code <strong>ARGUS20</strong> at checkout for your 20% discount!</p>
+                    <p style="margin: 5px 0; font-size: 20px; font-weight: bold; color: #1f2937;">$3,969 one-time</p>
+                    <a href="https://square.link/u/dRSryNkx" style="background: #8b5cf6; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">💎 Choose Lifetime</a>
                 </div>
             </div>
             
             <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
                 <h3>🚀 Ready to Get Started?</h3>
                 <p>Join our community of successful traders and start building your portfolio today!</p>
-                <a href="https://cashoutai-frontend.onrender.com/" class="cta-button">Login & Start Trading</a>
+                <a href="https://www.CashOutAi.App" class="cta-button">Login & Start Trading</a>
             </div>
             
             <p>Questions? Simply reply to this email for instant support from our team!</p>
-            <p><strong>Welcome to the ArgusAI trading family!</strong> 🎯</p>
+            <p><strong>Welcome to the CashOutAi trading family!</strong> 🎯</p>
         </div>
         
         <div class="footer">
-            <p>The ArgusAI CashOut Team</p>
+            <p>The CashOutAi Team</p>
             <p>This trial gives you full access to our premium features for 14 days.</p>
         </div>
     </div>
@@ -875,7 +723,7 @@ The ArgusAI CashOut Team
 Great news! Your account has been approved and you now have full access to our premium trading platform.
 
 🔑 YOUR LOGIN CREDENTIALS:
-• Website: https://cashoutai-frontend.onrender.com/
+• Website: https://www.CashOutAi.App/
 • Username: {username}
 • Email: {user_email}
 • Password: [The password you created during registration]
@@ -893,7 +741,7 @@ Great news! Your account has been approved and you now have full access to our p
 • WhatsApp trading alerts
 
 💡 GET STARTED:
-1. Login at: https://cashoutai-frontend.onrender.com/
+1. Login at: https://www.CashOutAi.App/
 2. Join the live trading chat
 3. Connect with our community of traders
 4. Start building and tracking your portfolio
@@ -950,13 +798,13 @@ The ArgusAI CashOut Team
             
             <div class="login-box">
                 <h3>🔑 Your Login Credentials</h3>
-                <p><strong>Website:</strong> <a href="https://cashoutai-frontend.onrender.com/">https://cashoutai-frontend.onrender.com/</a></p>
+                <p><strong>Website:</strong> <a href="https://www.CashOutAi.App/">https://www.CashOutAi.App/</a></p>
                 <p><strong>Username:</strong> {username}</p>
                 <p><strong>Email:</strong> {user_email}</p>
                 <p><strong>Password:</strong> [Your registration password]</p>
                 <p><strong>Membership:</strong> {membership_plan}</p>
                 <div style="text-align: center; margin: 20px 0;">
-                    <a href="https://cashoutai-frontend.onrender.com/" class="cta-button">🚀 Login & Start Trading</a>
+                    <a href="https://www.CashOutAi.App/" class="cta-button">🚀 Login & Start Trading</a>
                 </div>
             </div>
             
