@@ -1838,75 +1838,37 @@ async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks
         user_dict["approved_by"] = "system"
         user = User(**user_dict)
     else:
-        # TRIAL SYSTEM: Handle trial vs regular registration
-        if user_data.is_trial:
-            # Auto-approve trial users
-            trial_start = datetime.utcnow()
-            trial_end = trial_start + timedelta(days=14)  # 2 weeks
-            
-            user = User(
-                **user_dict, 
-                status=UserStatus.TRIAL,
-                trial_start_date=trial_start,
-                trial_end_date=trial_end,
-                trial_upgrade_email_sent=False
-            )
-            
-            logger.info(f"✨ TRIAL USER REGISTERED: {user.username} - Trial ends: {trial_end}")
-            
-            # Send welcome email to trial user
-            logger.info(f"📧 EMAIL SERVICE CHECK: email_service is {'available' if email_service else 'None'}")
-            if email_service:
-                try:
-                    logger.info(f"📧 Attempting to send trial welcome email to {user_data.email}")
-                    result = await email_service.send_trial_welcome_email(user_data.email, user_dict.get('real_name', user_data.username), trial_end)
-                    logger.info(f"✅ Trial welcome email result: {result} - sent to {user_data.email}")
-                except Exception as e:
-                    logger.error(f"❌ Failed to send trial welcome email to {user_data.email}: {e}")
-                    import traceback
-                    logger.error(f"❌ Full traceback: {traceback.format_exc()}")
-            else:
-                logger.error(f"❌ Email service not available - cannot send welcome email to {user_data.email}")
-            
-            # Send admin notification for trial registration
-            if email_service:
-                admin_email = os.getenv("MAIL_USERNAME")
-                background_tasks.add_task(
-                    email_service.send_trial_registration_notification,
-                    admin_email,
-                    user_dict
-                )
-                logger.info(f"📧 Scheduled admin notification for trial user registration: {user_data.username}")
-            
-        else:
-            # Regular registration - requires admin approval
-            user = User(**user_dict, status=UserStatus.PENDING)
-            
-            # Send email notification to admin for new registration
-            if email_service:
-                admin_email = os.getenv("MAIL_USERNAME")
-                background_tasks.add_task(
-                    email_service.send_registration_notification,
-                    admin_email,
-                    user_dict
-                )
-                
-                # Send confirmation email to user
-                background_tasks.add_task(
-                    send_registration_confirmation_to_user,
-                    user_data.email,
-                    user_dict.get('real_name', user_data.username)
-                )
-            else:
-                print(f"Email service unavailable. Would send registration notification to admin for user: {user_data.username}")
-                
-            # Send push notification to admins
+        # All registrations require admin approval
+        user = User(**user_dict, status=UserStatus.PENDING)
+        logger.info(f"📋 NEW USER REGISTERED (pending approval): {user.username} - Plan: {user_data.membership_plan}")
+        
+        # Send email notification to admin for new registration
+        if email_service:
+            admin_email = os.getenv("MAIL_USERNAME")
             background_tasks.add_task(
-                send_notification_to_admins,
-                "🔔 New User Registration",
-                f"{user_dict.get('real_name', user_data.username)} has registered and needs approval",
-                {"type": "new_registration", "username": user_data.username}
+                email_service.send_registration_notification,
+                admin_email,
+                user_dict
             )
+            logger.info(f"📧 Scheduled admin notification for registration: {user_data.username}")
+            
+            # Send confirmation email to user
+            background_tasks.add_task(
+                send_registration_confirmation_to_user,
+                user_data.email,
+                user_dict.get('real_name', user_data.username)
+            )
+            logger.info(f"📧 Scheduled user confirmation email to: {user_data.email}")
+        else:
+            logger.warning(f"Email service unavailable. Would send registration notification for user: {user_data.username}")
+            
+        # Send push notification to admins
+        background_tasks.add_task(
+            send_notification_to_admins,
+            "🔔 New User Registration",
+            f"{user_dict.get('real_name', user_data.username)} has registered and needs approval",
+            {"type": "new_registration", "username": user_data.username}
+        )
     
     # Insert user into database
     await db.users.insert_one(user.dict())
