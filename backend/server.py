@@ -1747,6 +1747,21 @@ async def calculate_user_performance(user_id: str) -> dict:
 async def root():
     return {"message": "CashoutAI API is running", "status": "success"}
 
+@api_router.get("/email/check")
+async def check_email_config():
+    """Quick check - no email sent, just shows config status"""
+    return {
+        "email_service_initialized": email_service is not None,
+        "env_vars": {
+            "MAIL_USERNAME": os.getenv("MAIL_USERNAME", "NOT SET"),
+            "MAIL_PASSWORD": "***set***" if os.getenv("MAIL_PASSWORD") else "NOT SET",
+            "MAIL_FROM": os.getenv("MAIL_FROM", "NOT SET"),
+            "MAIL_SERVER": os.getenv("MAIL_SERVER", "NOT SET"),
+            "MAIL_PORT": os.getenv("MAIL_PORT", "NOT SET"),
+            "MAIL_TLS": os.getenv("MAIL_TLS", "NOT SET"),
+        }
+    }
+
 @api_router.get("/email/test")
 async def test_email_service():
     """Diagnostic endpoint to test email service on deployment"""
@@ -1771,9 +1786,9 @@ async def test_email_service():
         admin_email = os.getenv("MAIL_USERNAME")
         result = await email_service.send_email(
             admin_email,
-            "CashOutAI Email Test",
-            "This is a test email from CashOutAI to verify email service is working on deployment.",
-            "<h2>CashOutAI Email Test</h2><p>Email service is working correctly on your deployment!</p>"
+            "CashOutAi Email Test",
+            "This is a test email from CashOutAi to verify email service is working on deployment.",
+            "<h2>CashOutAi Email Test</h2><p>Email service is working correctly on your deployment!</p>"
         )
         return {
             "status": "success" if result else "failed",
