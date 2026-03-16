@@ -1765,42 +1765,57 @@ async def check_email_config():
 @api_router.get("/email/test")
 async def test_email_service():
     """Diagnostic endpoint to test email service on deployment"""
+    import smtplib
+    from email.mime.text import MIMEText
+    
+    mail_server = os.getenv("MAIL_SERVER")
+    mail_port = int(os.getenv("MAIL_PORT", 587))
+    mail_username = os.getenv("MAIL_USERNAME")
+    mail_password = os.getenv("MAIL_PASSWORD")
+    mail_from = os.getenv("MAIL_FROM")
+    mail_tls = os.getenv("MAIL_TLS", "true").lower() == "true"
+    
     env_vars = {
-        "MAIL_USERNAME": bool(os.getenv("MAIL_USERNAME")),
-        "MAIL_PASSWORD": bool(os.getenv("MAIL_PASSWORD")),
-        "MAIL_FROM": bool(os.getenv("MAIL_FROM")),
-        "MAIL_SERVER": bool(os.getenv("MAIL_SERVER")),
-        "MAIL_PORT": os.getenv("MAIL_PORT", "not set"),
-        "MAIL_TLS": os.getenv("MAIL_TLS", "not set"),
+        "MAIL_USERNAME": bool(mail_username),
+        "MAIL_PASSWORD": bool(mail_password),
+        "MAIL_FROM": bool(mail_from),
+        "MAIL_SERVER": bool(mail_server),
+        "MAIL_PORT": str(mail_port),
+        "MAIL_TLS": str(mail_tls),
     }
     
-    if not email_service:
-        return {
-            "status": "error",
-            "message": "Email service failed to initialize",
-            "env_vars_present": env_vars,
-            "hint": "Check that all MAIL_* environment variables are set in Render dashboard"
-        }
+    if not all([mail_username, mail_password, mail_from, mail_server]):
+        return {"status": "error", "message": "Missing env vars", "env_vars_present": env_vars}
     
+    steps = []
     try:
-        admin_email = os.getenv("MAIL_USERNAME")
-        result = await email_service.send_email(
-            admin_email,
-            "CashOutAi Email Test",
-            "This is a test email from CashOutAi to verify email service is working on deployment.",
-            "<h2>CashOutAi Email Test</h2><p>Email service is working correctly on your deployment!</p>"
-        )
-        return {
-            "status": "success" if result else "failed",
-            "message": f"Test email {'sent' if result else 'failed'} to {admin_email}",
-            "env_vars_present": env_vars
-        }
+        steps.append("Connecting to SMTP server...")
+        server = smtplib.SMTP(mail_server, mail_port, timeout=15)
+        steps.append(f"Connected to {mail_server}:{mail_port}")
+        
+        if mail_tls:
+            steps.append("Starting TLS...")
+            server.starttls()
+            steps.append("TLS started")
+        
+        steps.append("Logging in...")
+        server.login(mail_username, mail_password)
+        steps.append("Login successful")
+        
+        msg = MIMEText("<h2>CashOutAi Email Test</h2><p>Email is working!</p>", "html")
+        msg["From"] = mail_from
+        msg["To"] = mail_username
+        msg["Subject"] = "CashOutAi Email Test"
+        
+        steps.append("Sending email...")
+        server.send_message(msg)
+        steps.append("Email sent!")
+        server.quit()
+        
+        return {"status": "success", "message": f"Email sent to {mail_username}", "steps": steps}
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e),
-            "env_vars_present": env_vars
-        }
+        steps.append(f"ERROR: {type(e).__name__}: {str(e)}")
+        return {"status": "error", "message": str(e), "error_type": type(e).__name__, "steps": steps, "env_vars_present": env_vars}
 
 @api_router.post("/users/register", response_model=User)
 async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks):
