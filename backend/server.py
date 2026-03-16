@@ -1747,7 +1747,7 @@ async def calculate_user_performance(user_id: str) -> dict:
 async def root():
     return {"message": "CashoutAI API is running", "status": "success"}
 
-@api_router.post("/email/test")
+@api_router.get("/email/test")
 async def test_email_service():
     """Diagnostic endpoint to test email service on deployment"""
     env_vars = {
