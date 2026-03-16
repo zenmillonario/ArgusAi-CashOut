@@ -199,7 +199,7 @@ function App() {
           
           // Enhanced session validation with remember me support
           const sessionCreated = user.sessionCreated || user.session_created_at;
-          const sessionDuration = user.sessionDuration || 1; // Default 1 day
+          const sessionDuration = user.sessionDuration || 30; // Default 30 days
           const maxSessionHours = sessionDuration * 24; // Convert days to hours
           
           const sessionAge = sessionCreated ? 
@@ -230,11 +230,9 @@ function App() {
               console.error('Error initializing Firebase notifications for saved user:', error);
             }
             
-            // Set up automatic session refresh for remember me sessions
-            if (user.rememberMe) {
-              console.log('🔄 Setting up automatic session refresh for remember me session');
-              setupSessionRefresh(user);
-            }
+            // Set up automatic session refresh
+            console.log('🔄 Setting up automatic session refresh');
+            setupSessionRefresh(user);
           } else {
             // Session expired, clear storage
             localStorage.removeItem('cashoutai_user');
@@ -1279,18 +1277,16 @@ function App() {
           ...response.data,
           rememberMe: rememberMe,
           sessionCreated: new Date().toISOString(),
-          sessionDuration: rememberMe ? 30 : 1 // 30 days if remember me, 1 day otherwise
+          sessionDuration: 30 // Always 30 days
         };
         localStorage.setItem('cashoutai_user', JSON.stringify(sessionData));
         
         console.log('💾 User data saved to localStorage');
         console.log('🎯 Login complete, should now show main app interface');
         
-        // Set up automatic session refresh for remember me sessions
-        if (rememberMe) {
-          console.log('🔄 Setting up automatic session refresh for new remember me session');
-          setupSessionRefresh(sessionData);
-        }
+        // Set up automatic session refresh to keep session alive
+        console.log('🔄 Setting up automatic session refresh');
+        setupSessionRefresh(sessionData);
         
         // PERFORMANCE OPTIMIZATION: Initialize Firebase push notifications asynchronously in background
         // Don't await this - let it run in background so login completes immediately
