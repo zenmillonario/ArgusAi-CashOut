@@ -66,11 +66,17 @@ class EmailService:
                 msg.attach(html_part)
             
             # Connect to server and send email
-            with smtplib.SMTP(self.mail_server, self.mail_port, timeout=15) as server:
-                if self.mail_tls:
-                    server.starttls()
-                server.login(self.mail_username, self.mail_password)
-                server.send_message(msg)
+            use_ssl = os.getenv("MAIL_SSL", "false").lower() == "true"
+            if use_ssl:
+                with smtplib.SMTP_SSL(self.mail_server, self.mail_port, timeout=15) as server:
+                    server.login(self.mail_username, self.mail_password)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(self.mail_server, self.mail_port, timeout=15) as server:
+                    if self.mail_tls:
+                        server.starttls()
+                    server.login(self.mail_username, self.mail_password)
+                    server.send_message(msg)
             
             logger.info(f"Email sent successfully to {recipient}")
             return True

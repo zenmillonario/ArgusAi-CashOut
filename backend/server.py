@@ -1789,14 +1789,20 @@ async def test_email_service():
     
     steps = []
     try:
-        steps.append("Connecting to SMTP server...")
-        server = smtplib.SMTP(mail_server, mail_port, timeout=15)
-        steps.append(f"Connected to {mail_server}:{mail_port}")
+        use_ssl = os.getenv("MAIL_SSL", "false").lower() == "true"
         
-        if mail_tls:
-            steps.append("Starting TLS...")
-            server.starttls()
-            steps.append("TLS started")
+        if use_ssl:
+            steps.append(f"Connecting via SSL to {mail_server}:{mail_port}...")
+            server = smtplib.SMTP_SSL(mail_server, mail_port, timeout=15)
+            steps.append(f"SSL connected to {mail_server}:{mail_port}")
+        else:
+            steps.append(f"Connecting to {mail_server}:{mail_port}...")
+            server = smtplib.SMTP(mail_server, mail_port, timeout=15)
+            steps.append(f"Connected to {mail_server}:{mail_port}")
+            if mail_tls:
+                steps.append("Starting TLS...")
+                server.starttls()
+                steps.append("TLS started")
         
         steps.append("Logging in...")
         server.login(mail_username, mail_password)
