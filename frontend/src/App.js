@@ -883,7 +883,7 @@ function App() {
 
   // WebSocket connection with auto-reconnect
   useEffect(() => {
-    const connectWebSocket = () => {
+    const connectWebSocket = async () => {
       if (!currentUser || !currentUser.active_session_id) return;
       
       // Don't reconnect if already connected
@@ -892,6 +892,15 @@ function App() {
       // Clean up existing connection
       if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
         wsRef.current.close();
+      }
+
+      // Wake up backend with HTTP ping before WebSocket attempt
+      try {
+        await axios.get(`${API}/`, { timeout: 10000 });
+        console.log('✅ Backend is awake');
+      } catch (e) {
+        // Backend might still be waking up, try WebSocket anyway
+        console.log('⏳ Backend ping failed, attempting WebSocket anyway...');
       }
 
       const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
@@ -1061,55 +1070,34 @@ function App() {
     };
   }, [currentUser]);
 
-  const loadMessages = async () => {
+  const loadMessages = async (retries = 3) => {
     try {
-      console.log('🔄 Starting message load...', new Date().toISOString());
-      const startTime = performance.now();
-      
-      // PERFORMANCE OPTIMIZATION: Load more messages for 4+ weeks of history
+      console.log('🔄 Loading messages...', new Date().toISOString());
       const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=500` : `${API}/messages?limit=500`;
-      const response = await axios.get(url);
+      const response = await axios.get(url, { timeout: 15000 });
       
-      const loadTime = performance.now() - startTime;
-      console.log(`⚡ API Response received in ${loadTime.toFixed(2)}ms`);
-      
-      // Process messages immediately
-      const processStart = performance.now();
       setMessages(response.data || []);
-      const processTime = performance.now() - processStart;
-      console.log(`📊 Messages processed in ${processTime.toFixed(2)}ms`);
+      if (response.data && response.data.length > 0) {
+        console.log(`✅ ${response.data.length} messages loaded`);
+      }
+    } catch (error) {
+      console.error('❌ Error loading messages:', error.message);
       
-      // CRITICAL UX FIX: Handle empty message state
-      if (!response.data || response.data.length === 0) {
-        console.log('📭 No messages in database - showing empty state');
-        setMessages([]); // Ensure empty array to trigger empty state UI
-      } else {
-        console.log(`✅ FAST LOAD: ${response.data.length} messages loaded in ${loadTime.toFixed(2)}ms for ${currentUser?.username || 'user'}`);
+      // Retry on network errors (handles Render cold starts)
+      if (retries > 0 && (!error.response || error.code === 'ECONNABORTED' || error.message.includes('Network'))) {
+        const delay = (4 - retries) * 3000;
+        console.log(`🔄 Backend may be waking up, retrying in ${delay/1000}s... (${retries} left)`);
+        setTimeout(() => loadMessages(retries - 1), delay);
+        return;
       }
       
-      console.log(`🏁 Total load time: ${(performance.now() - startTime).toFixed(2)}ms`);
-      
-    } catch (error) {
-      console.error('❌ Error loading messages:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        url: error.config?.url,
-        timeout: error.code === 'ECONNABORTED' ? 'Request timeout' : 'No timeout'
-      });
-      setMessages([]); // Set empty array on error to avoid infinite loading
-      
-      // If there's an access error, try the regular endpoint
+      setMessages([]);
       if (error.response?.status === 403) {
         try {
-          console.log('🔄 Trying fallback endpoint...');
           const response = await axios.get(`${API}/messages?limit=50`);
           setMessages(response.data || []);
-          console.log(`✅ Fallback loaded ${response.data?.length || 0} messages`);
-        } catch (fallbackError) {
-          console.error('❌ Fallback message loading failed:', fallbackError);
-          setMessages([]); // Ensure empty state on complete failure
+        } catch (e) {
+          setMessages([]);
         }
       }
     }
