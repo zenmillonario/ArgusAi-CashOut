@@ -1037,15 +1037,20 @@ function App() {
           return;
         }
         
-        // Auto-reconnect with exponential backoff
-        if (currentUser && currentUser.active_session_id) {
+        // Auto-reconnect with exponential backoff (max 5 attempts, then rely on HTTP polling)
+        if (currentUser && currentUser.active_session_id && wsReconnectAttempts.current < 5) {
           const delay = Math.min(2000 * Math.pow(2, wsReconnectAttempts.current), 30000); // Max 30s
-          console.log(`🔄 Reconnecting in ${delay/1000}s...`);
+          console.log(`🔄 Reconnecting in ${delay/1000}s... (attempt ${wsReconnectAttempts.current + 1}/5)`);
           setConnectionMode('reconnecting');
           wsReconnectTimer.current = setTimeout(() => {
             wsReconnectAttempts.current += 1;
             connectWebSocket();
           }, delay);
+        } else if (wsReconnectAttempts.current >= 5) {
+          // Stop trying WebSocket, rely on HTTP polling
+          console.log('📡 WebSocket unavailable, using HTTP polling mode');
+          setConnectionMode('polling');
+          setIsConnected(true);
         }
       };
       
@@ -1057,14 +1062,38 @@ function App() {
       wsRef.current = ws;
     };
     
+    // Start polling for online users via HTTP (works even without WebSocket)
+    const pollOnlineUsers = async () => {
+      try {
+        const response = await axios.get(`${API}/users/online`);
+        if (response.data) {
+          setOnlineUsers(response.data);
+        }
+      } catch (e) {
+        // Silently fail - not critical
+      }
+    };
+    
     connectWebSocket();
     
     // Also load messages via HTTP immediately (don't wait for WebSocket)
     if (currentUser) {
       loadMessages();
+      pollOnlineUsers();
     }
     
+    // Poll online users every 15s as backup for WebSocket
+    const onlinePollInterval = setInterval(pollOnlineUsers, 15000);
+    // Poll for new messages every 5s when WebSocket is not connected
+    const messagePollInterval = setInterval(() => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        loadMessages();
+      }
+    }, 5000);
+    
     return () => {
+      clearInterval(onlinePollInterval);
+      clearInterval(messagePollInterval);
       if (wsReconnectTimer.current) {
         clearTimeout(wsReconnectTimer.current);
         wsReconnectTimer.current = null;

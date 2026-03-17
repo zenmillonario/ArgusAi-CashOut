@@ -529,9 +529,16 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str
     # Validate user and session
     user = await db.users.find_one({"id": user_id, "active_session_id": session_id})
     if not user:
+        # Log why the connection was rejected
+        user_check = await db.users.find_one({"id": user_id}, {"_id": 0, "username": 1, "active_session_id": 1})
+        if user_check:
+            logger.warning(f"❌ WS rejected for user {user_check.get('username')}: session mismatch. Expected: {user_check.get('active_session_id')}, Got: {session_id}")
+        else:
+            logger.warning(f"❌ WS rejected: user_id {user_id} not found in database")
         await websocket.close(code=1008, reason="Invalid user or session")
         return
     
+    logger.info(f"✅ WS connected: {user.get('username')} (user_id: {user_id})")
     await manager.connect(websocket, user_id)
     
     # Update user as online
@@ -2126,6 +2133,19 @@ async def process_login_rewards_async(user_id: str, streak: int, xp_added: int):
     except Exception as e:
         logger.error(f"Error processing login rewards: {e}")
         # Don't let background task errors affect login
+
+@api_router.get("/users/online")
+async def get_online_users():
+    """Get currently online users for HTTP polling fallback"""
+    try:
+        online_users = await db.users.find(
+            {"is_online": True},
+            {"_id": 0, "id": 1, "username": 1, "real_name": 1, "screen_name": 1, "is_admin": 1, "avatar_url": 1, "last_seen": 1}
+        ).to_list(100)
+        return online_users
+    except Exception as e:
+        logger.error(f"Error getting online users: {e}")
+        return []
 
 @api_router.get("/users/online-count")
 async def get_online_count():
