@@ -214,22 +214,11 @@ function App() {
             setCurrentUser(user);
             setShowLogin(false);
             
-            // Initialize Firebase push notifications for saved user
-            try {
-              console.log('Initializing Firebase notifications for saved user:', user.id);
-              let notificationSuccess = false;
-              if (!capacitorManager.isMobile()) {
-                notificationSuccess = await notificationService.initializeForUser(user.id);
-              } else {
-                console.log('📱 Skipping Firebase in mobile WebView');
-              }
-              if (notificationSuccess) {
-                console.log('✅ Firebase notifications initialized successfully for saved user');
-              } else {
-                console.log('⚠️ Firebase notifications failed to initialize for saved user');
-              }
-            } catch (error) {
-              console.error('Error initializing Firebase notifications for saved user:', error);
+            // Initialize Firebase push notifications for saved user (non-blocking)
+            if (!capacitorManager.isMobile()) {
+              notificationService.initializeForUser(user.id)
+                .then(success => console.log(success ? '✅ Firebase notifications initialized' : '⚠️ Firebase notifications unavailable'))
+                .catch(err => console.log('⚠️ Firebase init skipped:', err.message));
             }
             
             // Set up automatic session refresh
