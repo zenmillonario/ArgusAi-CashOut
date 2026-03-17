@@ -144,6 +144,8 @@ function App() {
   const [showProfileCustomization, setShowProfileCustomization] = useState(false);
   const [viewingUserId, setViewingUserId] = useState(null);
   const wsRef = useRef(null);
+  const wsReconnectTimer = useRef(null);
+  const wsReconnectAttempts = useRef(0);
   const messagesEndRef = useRef(null);
 
   // Filter messages based on search query
@@ -879,39 +881,35 @@ function App() {
 
 
 
-  // WebSocket connection
+  // WebSocket connection with auto-reconnect
   useEffect(() => {
-    if (currentUser && !wsRef.current && currentUser.active_session_id) {
-      // Build WebSocket URL correctly for different deployment environments
-      let wsUrl;
+    const connectWebSocket = () => {
+      if (!currentUser || !currentUser.active_session_id) return;
       
-      if (BACKEND_URL.includes('onrender.com')) {
-        // For Render deployment, use the backend URL directly with /api prefix
-        const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
-        const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
-        wsUrl = `${wsProtocol}${wsHost}/api/ws/${currentUser.id}/${currentUser.active_session_id}`;
-      } else {
-        // For other deployments (Emergent, etc.) with /api prefix
-        const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
-        const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
-        wsUrl = `${wsProtocol}${wsHost}/api/ws/${currentUser.id}/${currentUser.active_session_id}`;
+      // Don't reconnect if already connected
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
+      
+      // Clean up existing connection
+      if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+        wsRef.current.close();
       }
-      
-      // MOBILE OPTIMIZATION: Use mobile-friendly WebSocket URL
+
+      const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
+      const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
       const baseWsUrl = capacitorManager.isNative 
         ? capacitorManager.getWebSocketUrl(BACKEND_URL)
-        : wsUrl.replace(`/${currentUser.id}/${currentUser.active_session_id}`, '');
-          
+        : `${wsProtocol}${wsHost}/api/ws`;
+      
       const finalWsUrl = `${baseWsUrl}/${currentUser.id}/${currentUser.active_session_id}`;
-      console.log('🔌 Connecting to WebSocket:', finalWsUrl);
+      console.log('🔌 Connecting to WebSocket:', finalWsUrl, `(attempt ${wsReconnectAttempts.current + 1})`);
       
       const ws = new WebSocket(finalWsUrl);
       
       ws.onopen = () => {
         setIsConnected(true);
         setConnectionMode('websocket');
+        wsReconnectAttempts.current = 0; // Reset on success
         console.log('WebSocket connected successfully');
-        // Send a heartbeat to establish connection
         ws.send(JSON.stringify({ type: 'heartbeat', message: 'Hello' }));
       };
       
@@ -1012,88 +1010,50 @@ function App() {
         console.log('WebSocket disconnected', event);
         wsRef.current = null;
         
-        // Handle session invalidation close codes
+        // Handle session invalidation close codes - don't reconnect
         if (event.code === 4002 || event.code === 4003) {
           alert('🔒 Your session has expired or been invalidated. Please log in again.');
           logout();
+          return;
+        }
+        
+        // Auto-reconnect with exponential backoff
+        if (currentUser && currentUser.active_session_id) {
+          const delay = Math.min(2000 * Math.pow(2, wsReconnectAttempts.current), 30000); // Max 30s
+          console.log(`🔄 Reconnecting in ${delay/1000}s...`);
+          setConnectionMode('reconnecting');
+          wsReconnectTimer.current = setTimeout(() => {
+            wsReconnectAttempts.current += 1;
+            connectWebSocket();
+          }, delay);
         }
       };
       
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        setIsConnected(false);
-        
-        // Add fallback mechanism for session validation when WebSocket fails
-        if (currentUser?.active_session_id) {
-          console.log('WebSocket failed, falling back to polling mode...');
-          
-          // Set connected status to show as "Polling" instead of "Disconnected"
-          setTimeout(() => {
-            if (!wsRef.current || wsRef.current.type === 'polling') {
-              setIsConnected(true); // Show as connected since polling works
-              setConnectionMode('polling');
-            }
-          }, 1000);
-          
-          const sessionCheckInterval = setInterval(async () => {
-            try {
-              const response = await axios.get(`${API}/users/${currentUser.id}/session-status?session_id=${currentUser.active_session_id}`);
-              if (!response.data.valid) {
-                console.log('Session invalidated via polling, logging out...');
-                alert('🔒 Your session has been terminated due to login from another location.');
-                logout();
-                clearInterval(sessionCheckInterval);
-              }
-            } catch (error) {
-              console.error('Session validation error:', error);
-              setIsConnected(false);
-              setConnectionMode('disconnected');
-            }
-          }, 10000); // Check every 10 seconds
-          
-          // Also check for new messages periodically when WebSocket is down
-          const messageCheckInterval = setInterval(async () => {
-            try {
-              const response = await axios.get(`${API}/messages?limit=50&user_id=${currentUser?.id}`);
-              const latestMessages = response.data;
-              
-              setMessages(prev => {
-                const existingIds = prev.map(m => m.id);
-                const newMessages = latestMessages.filter(m => !existingIds.includes(m.id));
-                
-                // Check for admin messages in new messages
-                newMessages.forEach(message => {
-                  if (message.is_admin && message.user_id !== currentUser.id) {
-                    console.log('🔔 Admin message detected via polling:', message.screen_name || message.username);
-                    playSimpleAdminSound();
-                  }
-                });
-                
-                return [...prev, ...newMessages];
-              });
-            } catch (error) {
-              console.error('Message polling error:', error);
-            }
-          }, 8000); // Check for new messages every 8 seconds
-          
-          // Store interval IDs to clean up later
-          wsRef.current = { 
-            type: 'polling', 
-            sessionInterval: sessionCheckInterval,
-            messageInterval: messageCheckInterval
-          };
-        }
+        // onclose will fire after onerror, reconnect logic is there
       };
       
       wsRef.current = ws;
+    };
+    
+    connectWebSocket();
+    
+    // Also load messages via HTTP immediately (don't wait for WebSocket)
+    if (currentUser) {
+      loadMessages();
     }
     
     return () => {
+      if (wsReconnectTimer.current) {
+        clearTimeout(wsReconnectTimer.current);
+        wsReconnectTimer.current = null;
+      }
       if (wsRef.current) {
         if (wsRef.current.type === 'polling') {
           clearInterval(wsRef.current.sessionInterval);
           clearInterval(wsRef.current.messageInterval);
-        } else {
+        } else if (wsRef.current.close) {
           wsRef.current.close();
         }
         wsRef.current = null;
@@ -1742,8 +1702,13 @@ function App() {
     setCurrentUser(null);
     setShowLogin(true);
     setMessages([]);
+    if (wsReconnectTimer.current) {
+      clearTimeout(wsReconnectTimer.current);
+      wsReconnectTimer.current = null;
+    }
+    wsReconnectAttempts.current = 0;
     if (wsRef.current) {
-      wsRef.current.close();
+      if (wsRef.current.close) wsRef.current.close();
       wsRef.current = null;
     }
   };
@@ -2134,12 +2099,12 @@ function App() {
                 <div className={`w-2 h-2 rounded-full ${
                   isConnected ? 
                     (connectionMode === 'websocket' ? 'bg-green-400' : 'bg-yellow-400') 
-                    : 'bg-red-400'
+                    : (connectionMode === 'reconnecting' ? 'bg-yellow-400 animate-pulse' : 'bg-red-400')
                 }`}></div>
                 <span className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
                   {isConnected ? 
                     (connectionMode === 'websocket' ? 'Connected' : 'Polling') 
-                    : 'Disconnected'
+                    : (connectionMode === 'reconnecting' ? 'Reconnecting...' : 'Disconnected')
                   }
                 </span>
               </div>
