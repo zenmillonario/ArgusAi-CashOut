@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const LoadingScreen = ({ onComplete, isDarkTheme }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [dots, setDots] = useState('');
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   // Matrix code characters
   const matrixChars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
@@ -48,13 +50,13 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
   const [matrixColumns] = useState(() => generateMatrixColumns());
 
   useEffect(() => {
-    // Matrix code rain animation duration: 8 seconds (reduced for faster loading)
+    // Matrix code rain animation duration: 8 seconds
     const timeout = setTimeout(() => {
       setIsVisible(false);
       setTimeout(() => {
-        onComplete();
+        onCompleteRef.current();
       }, 500);
-    }, 8000); // Reduced from 10000 to 8000ms for faster loading
+    }, 8000);
 
     // Animated dots for loading effect
     const dotInterval = setInterval(() => {
@@ -65,7 +67,7 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
       clearTimeout(timeout);
       clearInterval(dotInterval);
     };
-  }, [onComplete]);
+  }, []);
 
   // Early return AFTER all hooks are called
   if (!isVisible) {
