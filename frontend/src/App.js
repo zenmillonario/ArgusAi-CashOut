@@ -1071,14 +1071,27 @@ function App() {
       pollOnlineUsers();
     }
     
-    // Poll online users every 15s as backup for WebSocket
-    const onlinePollInterval = setInterval(pollOnlineUsers, 15000);
-    // Poll for new messages every 5s when WebSocket is not connected
+    // Poll online users every 30s as lightweight backup
+    const onlinePollInterval = setInterval(pollOnlineUsers, 30000);
+    // Poll for new messages every 15s ONLY when WebSocket is not connected (fetch only latest 20)
     const messagePollInterval = setInterval(() => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        loadMessages();
+        const fetchLatest = async () => {
+          try {
+            const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=20` : `${API}/messages?limit=20`;
+            const response = await axios.get(url, { timeout: 10000 });
+            if (response.data && response.data.length > 0) {
+              setMessages(prev => {
+                const existingIds = new Set(prev.map(m => m.id));
+                const newMsgs = response.data.filter(m => !existingIds.has(m.id));
+                return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev;
+              });
+            }
+          } catch (e) { /* silent */ }
+        };
+        fetchLatest();
       }
-    }, 5000);
+    }, 15000);
     
     return () => {
       clearInterval(onlinePollInterval);
