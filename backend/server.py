@@ -583,15 +583,21 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str
     
     try:
         while True:
-            # Keep connection alive and handle heartbeat
-            data = await websocket.receive_text()
+            # Keep connection alive - wait for messages with timeout for server-side ping
             try:
-                message = json.loads(data)
-                if message.get("type") == "heartbeat":
-                    # Respond to heartbeat
-                    await websocket.send_text(json.dumps({"type": "heartbeat_ack"}))
-            except:
-                pass  # Ignore invalid JSON messages
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=45)
+                try:
+                    message = json.loads(data)
+                    if message.get("type") == "heartbeat":
+                        await websocket.send_text(json.dumps({"type": "heartbeat_ack"}))
+                except:
+                    pass
+            except asyncio.TimeoutError:
+                # No message received in 45s, send a server ping to keep connection alive
+                try:
+                    await websocket.send_text(json.dumps({"type": "ping"}))
+                except:
+                    break  # Connection is dead
     except WebSocketDisconnect:
         manager.disconnect(websocket, user_id)
         

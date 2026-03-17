@@ -917,9 +917,19 @@ function App() {
       ws.onopen = () => {
         setIsConnected(true);
         setConnectionMode('websocket');
-        wsReconnectAttempts.current = 0; // Reset on success
+        wsReconnectAttempts.current = 0;
         console.log('WebSocket connected successfully');
         ws.send(JSON.stringify({ type: 'heartbeat', message: 'Hello' }));
+        
+        // Send heartbeat every 30s to keep connection alive (Render proxy kills idle connections)
+        const heartbeatInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'heartbeat' }));
+          } else {
+            clearInterval(heartbeatInterval);
+          }
+        }, 30000);
+        ws._heartbeatInterval = heartbeatInterval;
       };
       
       ws.onmessage = async (event) => {
@@ -1017,6 +1027,7 @@ function App() {
         setIsConnected(false);
         setConnectionMode('disconnected');
         console.log('WebSocket disconnected', event);
+        if (ws._heartbeatInterval) clearInterval(ws._heartbeatInterval);
         wsRef.current = null;
         
         // Handle session invalidation close codes - don't reconnect
@@ -1059,6 +1070,7 @@ function App() {
         wsReconnectTimer.current = null;
       }
       if (wsRef.current) {
+        if (wsRef.current._heartbeatInterval) clearInterval(wsRef.current._heartbeatInterval);
         if (wsRef.current.type === 'polling') {
           clearInterval(wsRef.current.sessionInterval);
           clearInterval(wsRef.current.messageInterval);
