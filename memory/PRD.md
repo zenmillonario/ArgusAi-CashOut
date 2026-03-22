@@ -51,15 +51,27 @@ Build and maintain the CashOutAi trading platform - a full-stack application wit
 - Loading screen timer fix (useRef prevents re-render reset)
 - Firebase init non-blocking (won't hang app startup)
 
+### Firebase Push Notifications (Fixed 2026-03-22)
+- Backend: FCM service via firebase-admin SDK (credentials from file or FIREBASE_ADMIN_CREDENTIALS env var)
+- Backend endpoints: /api/fcm/register-token, /api/fcm/test-notification, /api/fcm/status (diagnostic)
+- Frontend: Unified to single Service Worker (firebase-messaging-sw.js)
+- Fixes applied:
+  - Removed AudioContext from Service Worker (not available in SW scope)
+  - Removed conflicting push event listener (was interfering with Firebase's onBackgroundMessage)
+  - Eliminated dual Service Worker conflict (sw.js vs firebase-messaging-sw.js) — now only firebase-messaging-sw.js
+  - Added SW lifecycle management (skipWaiting + clients.claim for immediate activation)
+  - Improved FCM token acquisition with SW active state waiting
+  - Added VAPID key validation before requesting token
+
 ### Render Environment Variables (Backend)
 - MONGO_URL, DB_NAME
 - RESEND_API_KEY, SENDER_EMAIL (noreply@cashoutai.app), ADMIN_EMAIL
 - FMP_API_KEY
-- FIREBASE_* variables
+- FIREBASE_ADMIN_CREDENTIALS (JSON string for firebase-admin SDK)
 
 ## Backlog
-- Refactor backend/server.py (~4900 lines) into APIRouter modules
-- Mobile app for App Stores
-- WebSocket reconnection improvements (currently relies on polling fallback)
-- Add pytest test suite for critical endpoints
-- Add .env.example file
+- P2: Refactor backend/server.py (~4900 lines) into APIRouter modules
+- P1 (Future): Mobile app for App Stores
+- P3: WebSocket reconnection improvements
+- P3: Add pytest test suite for critical endpoints
+- P3: Add .env.example file
