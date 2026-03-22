@@ -24,12 +24,10 @@ const isMobileBrowser = () => {
 
 // Check if Firebase messaging is supported
 const isFirebaseSupported = () => {
-  // Don't initialize Firebase messaging on mobile browsers due to compatibility issues
   if (isMobileBrowser()) {
-    console.log('🚫 Firebase messaging disabled on mobile browsers for compatibility');
+    console.log('[FCM] Disabled on mobile browsers for compatibility');
     return false;
   }
-  
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 };
 
@@ -41,166 +39,169 @@ let messaging = null;
 if (isFirebaseSupported()) {
   try {
     messaging = getMessaging(app);
-    console.log('✅ Firebase messaging initialized for desktop');
+    console.log('[FCM] Firebase messaging initialized');
   } catch (error) {
-    console.log('⚠️ Firebase messaging initialization failed:', error.message);
+    console.warn('[FCM] Messaging initialization failed:', error.message);
     messaging = null;
   }
-} else {
-  console.log('🚫 Firebase messaging not supported or disabled');
 }
+
+// Wait for service worker to become active
+const waitForSWActive = (registration) => {
+  return new Promise((resolve) => {
+    if (registration.active) {
+      resolve(registration);
+      return;
+    }
+    const sw = registration.installing || registration.waiting;
+    if (sw) {
+      sw.addEventListener('statechange', () => {
+        if (sw.state === 'activated') {
+          resolve(registration);
+        }
+      });
+    } else {
+      resolve(registration);
+    }
+  });
+};
 
 class NotificationService {
   constructor() {
     this.token = null;
-    this.isSupported = this.checkSupport();
+    this.isSupported = messaging !== null;
     this.messaging = messaging;
   }
 
-  // Check if push notifications are supported
-  checkSupport() {
-    return messaging !== null && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
-  }
-
-  // Request notification permission
   async requestPermission() {
-    if (!this.isSupported) {
-      console.log('Push notifications not supported');
-      return false;
-    }
-
+    if (!this.isSupported) return false;
     try {
       const permission = await Notification.requestPermission();
-      console.log('Notification permission:', permission);
+      console.log('[FCM] Notification permission:', permission);
       return permission === 'granted';
     } catch (error) {
-      console.error('Error requesting notification permission:', error);
+      console.error('[FCM] Error requesting permission:', error);
       return false;
     }
   }
 
-  // Register service worker
   async registerServiceWorker() {
     if (!this.isSupported) return false;
-
     try {
+      // Unregister stale service workers to ensure the latest version is used
+      const existingRegistrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of existingRegistrations) {
+        if (reg.active && reg.active.scriptURL.includes('firebase-messaging-sw.js')) {
+          await reg.update();
+        }
+      }
+      
       const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-      console.log('Service Worker registered:', registration);
+      console.log('[FCM] Service Worker registered, scope:', registration.scope);
+      
+      // Wait for SW to be active before returning
+      await waitForSWActive(registration);
+      console.log('[FCM] Service Worker is active');
       return registration;
     } catch (error) {
-      console.error('Service Worker registration failed:', error);
+      console.error('[FCM] Service Worker registration failed:', error);
       return false;
     }
   }
 
-  // Get FCM token
   async getNotificationToken() {
     if (!this.isSupported) return null;
 
     try {
-      // Register service worker first
       const registration = await this.registerServiceWorker();
       if (!registration) return null;
 
-      // Request permission
       const hasPermission = await this.requestPermission();
       if (!hasPermission) return null;
 
-      // Get token (only if messaging is available)
       if (!this.messaging) {
-        console.log('🚫 Firebase messaging not available');
+        console.warn('[FCM] Messaging not available');
         return null;
       }
       
+      if (!VAPID_KEY) {
+        console.error('[FCM] VAPID key is missing — check REACT_APP_FIREBASE_VAPID_KEY');
+        return null;
+      }
+
       const token = await getToken(this.messaging, {
         vapidKey: VAPID_KEY,
         serviceWorkerRegistration: registration
       });
 
       if (token) {
-        console.log('FCM Token:', token);
+        console.log('[FCM] Token obtained:', token.substring(0, 20) + '...');
         this.token = token;
         return token;
       } else {
-        console.log('No registration token available');
+        console.warn('[FCM] No registration token available');
         return null;
       }
     } catch (error) {
-      console.error('Error getting FCM token:', error);
+      console.error('[FCM] Error getting token:', error);
       return null;
     }
   }
 
-  // Send token to backend
   async sendTokenToBackend(token, userId) {
     try {
       const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
       const API_URL = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
       const response = await fetch(`${API_URL}/fcm/register-token`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token: token,
-          user_id: userId
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, user_id: userId })
       });
 
       if (response.ok) {
-        console.log('Token registered with backend');
+        console.log('[FCM] Token registered with backend');
         return true;
       } else {
-        console.error('Failed to register token with backend');
+        const errText = await response.text();
+        console.error('[FCM] Failed to register token:', errText);
         return false;
       }
     } catch (error) {
-      console.error('Error sending token to backend:', error);
+      console.error('[FCM] Error sending token to backend:', error);
       return false;
     }
   }
 
-  // Initialize notifications for a user
   async initializeForUser(userId) {
     if (!this.isSupported) {
-      console.log('Push notifications not supported');
+      console.log('[FCM] Push notifications not supported in this browser');
       return false;
     }
 
     try {
-      // Get FCM token
       const token = await this.getNotificationToken();
       if (!token) return false;
 
-      // Send token to backend
       const success = await this.sendTokenToBackend(token, userId);
       if (!success) return false;
 
-      // Listen for foreground messages
       this.setupForegroundListener();
-
-      console.log('Notifications initialized successfully');
+      console.log('[FCM] Notifications initialized for user:', userId);
       return true;
     } catch (error) {
-      console.error('Error initializing notifications:', error);
+      console.error('[FCM] Error initializing notifications:', error);
       return false;
     }
   }
 
-  // Setup listener for foreground messages
   setupForegroundListener() {
-    if (!this.messaging) {
-      console.log('🚫 Firebase messaging not available for foreground listener');
-      return;
-    }
+    if (!this.messaging) return;
     
     onMessage(this.messaging, (payload) => {
-      console.log('Message received in foreground:', payload);
+      console.log('[FCM] Foreground message received:', payload);
 
-      // Play WhatsApp-like sound
       this.playNotificationSound();
 
-      // Show custom notification or use browser's
       if (Notification.permission === 'granted') {
         const notification = new Notification(
           payload.notification?.title || 'ArgusAI CashOut',
@@ -215,62 +216,44 @@ class NotificationService {
           }
         );
 
-        // Handle notification click
         notification.onclick = () => {
           window.focus();
           notification.close();
-          // You can add custom logic here based on payload.data
         };
 
-        // Auto-close after 5 seconds
-        setTimeout(() => {
-          notification.close();
-        }, 5000);
+        setTimeout(() => notification.close(), 5000);
       }
     });
   }
 
-  // Play WhatsApp-like notification sound
   playNotificationSound() {
     try {
-      // Create audio context
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       
-      // WhatsApp-like notification sound (double beep)
       const createBeep = (frequency, duration, delay = 0) => {
         return new Promise((resolve) => {
           setTimeout(() => {
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
-            
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
-            
             oscillator.frequency.value = frequency;
             oscillator.type = 'sine';
-            
             gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-            
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + duration);
-            
             setTimeout(resolve, duration * 1000);
           }, delay);
         });
       };
       
-      // Play double beep like WhatsApp
-      createBeep(800, 0.15).then(() => {
-        createBeep(600, 0.15);
-      });
-      
+      createBeep(800, 0.15).then(() => createBeep(600, 0.15));
     } catch (error) {
-      console.log('Could not play notification sound:', error);
+      console.log('[FCM] Could not play notification sound:', error);
     }
   }
 
-  // Test notification
   async testNotification() {
     if (this.token) {
       try {
@@ -278,37 +261,31 @@ class NotificationService {
         const API_URL = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
         const response = await fetch(`${API_URL}/fcm/test-notification`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            token: this.token
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: this.token })
         });
 
         if (response.ok) {
-          console.log('Test notification sent');
+          console.log('[FCM] Test notification sent');
           return true;
         } else {
-          console.error('Failed to send test notification');
+          console.error('[FCM] Test notification failed');
           return false;
         }
       } catch (error) {
-        console.error('Error sending test notification:', error);
+        console.error('[FCM] Error sending test notification:', error);
         return false;
       }
     }
+    console.warn('[FCM] No token available for test notification');
     return false;
   }
 }
 
-// Create global instance
 const notificationService = new NotificationService();
 
-// Export for use in React components
 export default notificationService;
 
-// Export individual functions
 export const {
   initializeForUser,
   testNotification,

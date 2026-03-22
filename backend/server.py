@@ -335,6 +335,21 @@ async def register_fcm_token(token_data: Dict[str, str]):
         logger.error(f"Error registering FCM token: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to register token")
 
+@api_router.get("/fcm/status")
+async def fcm_status():
+    """Check FCM service initialization status"""
+    try:
+        from fcm_service import fcm_service
+        has_creds = bool(os.getenv("FIREBASE_ADMIN_CREDENTIALS"))
+        token_count = await db.fcm_tokens.count_documents({})
+        return {
+            "initialized": fcm_service.initialized,
+            "credentials_configured": has_creds,
+            "registered_tokens": token_count
+        }
+    except Exception as e:
+        return {"initialized": False, "error": str(e)}
+
 @api_router.post("/fcm/test-notification")
 async def test_notification(test_data: Dict[str, str]):
     """Send test notification"""
@@ -348,23 +363,21 @@ async def test_notification(test_data: Dict[str, str]):
         
         if not fcm_service.initialized:
             logger.warning("FCM service not initialized - push notifications disabled")
-            return {"success": False, "message": "Push notifications not available"}
+            return {"success": False, "message": "Push notifications not available - FIREBASE_ADMIN_CREDENTIALS not configured"}
         
-        # In test mode, just log and return success
-        logger.info(f"Sending test notification to token: {token}")
+        logger.info(f"Sending test notification to token: {token[:20]}...")
         
-        # This will now succeed even in test environment
         success = await fcm_service.send_notification(
             token=token,
-            title="🎉 Test Notification",
+            title="Test Notification",
             body="This is a test notification from ArgusAI CashOut!",
             data={"type": "test"}
         )
         
-        return {"message": "Test notification sent successfully"}
+        return {"success": success, "message": "Test notification sent" if success else "Failed to send"}
     except Exception as e:
         logger.error(f"Error sending test notification: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to send test notification")
+        raise HTTPException(status_code=500, detail=f"Failed to send test notification: {str(e)}")
 
 async def send_notification_to_admins(title: str, body: str, data: Optional[Dict[str, str]] = None):
     """Send notification to all admin users"""

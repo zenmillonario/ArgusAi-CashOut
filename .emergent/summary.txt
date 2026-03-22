@@ -1,157 +1,140 @@
-<analysis>**original_problem_statement:** The user's goal is to enhance the ArgusAI-CashOut trading platform, now named CashOutAi.
+<analysis>**original_problem_statement**: The user's goal is to enhance the CashOutAi trading platform. Initial requests involved fixing registration email notifications, redesigning email templates, adjusting session timeouts, and resolving UI bugs (infinite loading screens, aggressive page auto-scrolling). Later, the user requested a full code security audit and the activation of Firebase Push Notifications for admin alerts and user messages.
 
-Initial problem statement from the last fork:
-Fixing a series of deployment, domain, and authentication issues on the production site .
+**User's preferred language**: English (INSTRUCT NEXT AGENT: Respond in English)
 
-Subsequent user requests during this session included:
-1.  Fixing Price unavailable for stocks, especially penny stocks.
-2.  Redesigning the profile tab to a social media (Twitter/X) style.
-3.  Increasing the chat message history to 4+ weeks.
-4.  Fixing incorrect chat timestamps (timezone issue).
-5.  Adding daily date separators to the chat.
-6.  Fixing various chat UI bugs on mobile and desktop (input box size, gaps, auto-scroll).
-7.  Restoring the instructional tip text below the chat input.
-8.  Verifying image paste/upload functionality.
-9.  Fixing the non-functional user registration email notifications.
-
-**User's preferred language**: English
-
-**what currently exists?**
-The project is a full-stack application with a React frontend and a FastAPI backend, deployed on Render and connected to a MongoDB Atlas database. The application is live and accessible at the custom domain .
-
-Key functionalities include user authentication, a real-time chat with extended history and date separators, a stock data lookup feature that now supports penny stocks, and a redesigned user profile page with a social media-style layout. Most of the critical bugs related to deployment, authentication, and core features have been resolved.
+**what currently exists?** 
+A live full-stack application (React + FastAPI + MongoDB) deployed on Render. In this session, the email system was migrated from SMTP to the Resend API (because Render blocks outbound SMTP ports). The app features a real-time chat with Load More functionality, an admin message deletion feature, 365-day user sessions, bcrypt password hashing, and rate-limiting on registration. All new users now default to a pending status requiring manual admin approval. 
 
 **Last working item**:
-- **Last item agent was working**: Investigating why email notifications for new user registrations are not working. This is a regression, as the feature was previously functional.
+- **Last item agent was working**: Troubleshooting Firebase Push Notifications on the frontend. The backend FCM integration was verified and credentials were added to Render, but the user reported that in-app push notifications are still not working. The agent had just started inspecting  and .
 - **Status**: IN PROGRESS
 - **Agent Testing Done**: N
-- **Which testing method agent to use?**: Manual testing. The agent needs to guide the user to register a new account while monitoring the Render backend logs for errors related to the email service. If that fails, the agent should use  to test the  endpoint directly.
-- **User Testing Done**: Y (User reported that they did not receive a registration email).
+- **Which testing method agent to use?**: Manual testing via browser console logs and checking the  endpoint using curl/Python.
+- **User Testing Done**: Y (User stated push notifications are not working).
 
-**All Pending/In progress Issue list**:
-- **Issue 1: Registration Email Notifications Not Working (P0)**
-  - **Description**: When a new user registers, neither the new user receives a welcome email nor the admin receives a notification email. This functionality is broken on the live Render deployment.
-  - **Attempted fixes**: The agent identified that the email service requires several environment variables (, , , , , ). The user confirmed these were added to Render, but the issue persists. The agent has started viewing  and  to re-examine the implementation.
-  - **Next debug checklist**:
-    1.  Ask the user to trigger a new registration and immediately check the Render backend logs for any specific errors from  or .
-    2.  Verify the correctness of the SMTP credentials and settings added by the user on Render.
-    3.  Add temporary logging inside the  function in  to trace the execution flow and variable values.
-    4.  If no logs appear, check the  endpoint in  to ensure the email-sending functions are being called as expected.
-  - **Why fix this issue and what will be achieved with the fix?**: This is a critical user onboarding feature. Fixing it will ensure new users get a welcome confirmation and the admin is aware of new sign-ups.
-  - **Status**: IN PROGRESS
-  - **Is recurring issue?** Y
-  - **Should Test frontend/backend/both after fix?** Backend.
+**All Pending/In progress Issue list**: 
+Issue 1: In-App Firebase Push Notifications Not Working (P0)
+- **Attempted fixes**: Backend  environment variable was successfully configured. Agent checked backend FCM logic and it is firing. Agent was about to debug the frontend Service Worker and Firebase config.
+- **Next debug checklist**: 
+  - Check  to ensure the VAPID key and messaging initialization are correct.
+  - Check  to ensure background message handling is working.
+  - Verify if the browser is successfully registering the FCM token via the  endpoint.
+  - Review browser console logs to see if notification permissions are being requested and granted.
+- **Why fix this issue and what will be achieved with the fix?**: Admins need to be alerted of new registrations, and users need to be alerted when an admin posts a message in the chat.
+- **Status**: IN PROGRESS
+- **Is recurring issue?** N
+- **Should Test frontend/backend/both after fix?** Both (End-to-End flow).
 
 **In progress Task List**:
-There are no other tasks currently in progress.
+None currently, aside from the P0 Push Notification issue.
 
-**Upcoming and Future Tasks**
-- **Mobile App for App Stores (P1)**: The original high-priority goal to get the app on Google Play and the Apple App Store remains outstanding. Previous attempts were abandoned. The Mobile Developer Brief created in a prior session can be used to hire a specialist, or a new attempt can be made with a clean Expo migration.
-- **Refactor  (P2)**: This monolithic file (over 4800 lines) contains almost all backend logic. It should be broken down into smaller, maintainable modules using FastAPI's  for different domains (users, chat, stocks, etc.).
+**Upcoming and Future Tasks**:
+Upcoming Tasks:
+- Mobile App for App Stores: Getting the app on Google Play and Apple App Store (P1) (Future phase).
+- Refactor : Break down the monolithic 4900+ line file into smaller modules using FastAPI's  (users, chat, stocks, etc.) (P2).
 
-**Completed work in this session**
-- **Authentication and Domain Fixes (DONE)**: Resolved a cascade of critical errors preventing login on . This involved fixing Render start commands, MongoDB authentication failures ( format and credentials), and backend crashes that were being masked as frontend CORS errors.
-- **Stock Price API Fix (DONE)**: Updated the deprecated FMP API endpoint. Implemented a fallback to a different free endpoint () to successfully fetch prices for penny stocks, resolving the Price unavailable error.
-- **Profile Page Redesign (DONE)**: Rebuilt the  tab with a modern, Twitter/X-inspired UI, including a banner, circular avatar, bio, and user stats.
-- **Chat History and Performance (DONE)**: Successfully increased chat history to over 500 messages by creating a MongoDB index on the  field. This fixed a critical database memory limit error that occurred when fetching and sorting more than 100 messages.
-- **Chat Timestamps and Date Separators (DONE)**: Fixed a timezone bug by ensuring UTC timestamps were parsed correctly. Added dynamic date separators (Today, Yesterday, specific dates) to the chat interface.
-- **Chat UI/UX Bugs (DONE)**:
-    - Fixed the mobile chat input, which was too large and hid the last message.
-    - Eliminated a large empty gap that appeared between the message list and the input box on both desktop and mobile.
-    - Fixed the auto-scroll behavior to ensure the chat view always starts at the newest message.
-- **Image and Ticker Functionality (DONE)**: Restored the tip text below the chat input and verified that the UI and backend handlers for pasting/uploading images are in place.
-- **Deployment Configuration (DONE)**: Guided the user to externalize Firebase credentials into environment variables and corrected Render's frontend service to run a production build (yarn run v1.22.22
-info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.) instead of a development server ().
+**Completed work in this session**:
+- **Email Migration to Resend API (DONE)**: Replaced SMTP with Resend HTTP API ( package) because Render blocks outbound SMTP (ports 587/465). 
+- **Email Template & Logic Updates (DONE)**: Removed promo codes, updated URLs, and set standard pricing in email templates. Changed registration logic so *all* tiers (including trials) require manual admin approval (status: ).
+- **Session Persistence (DONE)**: Increased session duration to 365 days to prevent unexpected logouts. 
+- **Infinite Loading Screen Fix (DONE)**: Fixed a bug where Firebase initialization blocked the app thread, and fixed a dependency array loop in .
+- **Scroll Hijacking Fix (DONE)**: Changed  to  in  so the chat auto-scrolls without pulling the whole webpage down and hiding top menus.
+- **Chat Improvements (DONE)**: Added an admin-only Trash icon to delete chat messages. Changed initial message load to 50 messages (for speed) and added a Load More button.
+- **Security Audit Implementation (DONE)**: 
+  - Migrated  to  (with auto-migration for existing users on login).
+  - Restricted CORS to the specific app domain.
+  - Added  rate limiting to the registration endpoint.
+  - Added MongoDB index for .
+  - Added  endpoint.
 
-**Earlier issues found/mentioned but not fixed**
-- None from this session. All reported issues were addressed.
+**Earlier issues found/mentioned but not fixed**:
+None. All raised bugs were addressed.
 
-**Known issue recurrence from previous fork**
-- **Issue**: Deployment failures on Render due to environment configuration.
-- **Recurrence count**: High. This session involved multiple cycles of debugging issues caused by missing or incorrect environment variables on Render for MongoDB, Firebase, and Email services.
-- **Status**: RESOLVED (for now). The key takeaway is that any feature relying on external services needs its environment variables to be meticulously configured on Render.
+**Known issue recurrence from previous fork**:
+- **Issue recurrence in previous fork**: Render free/starter tier memory limits.
+- **Recurrence count**: 1 in this session.
+- **Status**: RESOLVED.
+- **Note**: *CRITICAL WARNING FOR NEXT AGENT*: Do NOT implement aggressive HTTP polling (e.g., fetching 500 messages every 5 seconds) as a fallback for WebSockets. The previous agent tried this and it crashed the Render backend due to memory exhaustion. Stick to the current WebSocket implementation.
 
-**Code Architecture**
+**Code Architecture**:
 
 
-**Key Technical Concepts**
-- **Frontend**: React, Tailwind CSS
-- **Backend**: FastAPI (Python)
-- **Database**: MongoDB (on MongoDB Atlas)
-- **Deployment**: Render (from GitHub)
-- **DNS Management**: GoDaddy
-- **Integrations**: Gmail (SMTP), Financial Modeling Prep (FMP), Firebase Cloud Messaging (FCM)
+**Key Technical Concepts**:
+- Frontend: React, Tailwind CSS
+- Backend: FastAPI, Python
+- Database: MongoDB (Atlas)
+- Authentication: Custom JWT / Session IDs, Bcrypt password hashing.
+- Cloud Hosting: Render.
 
-**key DB schema**
-- : {, , , ...}
-- : {, , , }
-  - **Note**: A new index has been created on the  field to optimize sorting and fetching of large message histories.
-- : {, , }
+**key DB schema**:
+- : 
+- :  (Indexed on )
+- : 
 
-**changes in tech stack**
-- None.
+**changes in tech stack**:
+- **Email**: Removed Gmail SMTP dependency; integrated **Resend API**.
+- **Security**: Added  for password hashing and  for rate-limiting.
 
-**All files of reference**
-- : Modified to create a MongoDB index on startup, add a fallback for the stock price API, and use environment variables for Firebase.
-- : Modified to implement the new profile page UI, fix auto-scrolling logic, and adjust overall layout.
-- : Major refactoring to add date separators, fix UTC timestamp parsing, and resolve layout bugs (the gap).
-- : Modified to create a more compact input on mobile and restore the instructional tip text.
-- : Currently being investigated for the registration email bug.
+**All files of reference**:
+- : Heavily modified for security, admin message deletion, and rate limiting.
+- : Rewritten to use the Resend API.
+- : Updated for session duration, non-blocking Firebase init, and chat state management.
+- : Added Load More logic and admin delete (🗑️) button.
+- : Modified to accept Firebase credentials from an environment variable string.
+-  & : Current targets for debugging push notifications.
 
-**Areas that need refactoring**
--  remains a large monolithic file that handles all API routes, WebSocket connections, and background tasks. It is the primary source of technical debt and should be broken down into smaller, route-specific modules.
+**Areas that need refactoring**:
+- : Still a monolithic 4900+ line file. Future task is to break it down using .
 
-**key api endpoints**
+**key api endpoints**:
+-  (Rate limited)
+-  (Auto-migrates old SHA-256 hashes to bcrypt)
 - 
--  (Currently under investigation for email issue)
--  (Now supports fetching 500+ messages thanks to DB indexing)
--  (Updated to use new FMP endpoints and a fallback for penny stocks)
--  (WebSocket for real-time chat)
+-  (GET: loads 50 initially. DELETE: Admin only)
+-  (Resend diagnostic)
 
-**Critical Info for New Agent**
-- **Environment Variables on Render are CRITICAL**: Nearly every major bug in this session was ultimately traced back to missing or incorrect environment variables on Render's backend or frontend services (for MongoDB, Firebase, Email, etc.). Always verify them first when debugging the live site.
-- **Code Deployment Workflow**: The user must click Save to Github in the Emergent chat. This pushes the code, which then automatically triggers a new deployment on Render. Simply restarting a Render service will redeploy the *old* code.
-- **MongoDB Free Tier Limits**: The MongoDB Atlas free tier cannot perform large in-memory sorts. The  index on the  collection is essential for the chat history feature to work. If other performance issues arise, check for missing indexes.
-- **Chat UI is Fragile**: The chat layout uses complex flexbox and height calculations (). Small changes can re-introduce gaps or scrolling issues. Test on both mobile and desktop views after any CSS change.
+**Critical Info for New Agent**:
+1. **Email Service**: Render blocks outbound SMTP. The app now strictly relies on the **Resend API**. Do not attempt to revert to SMTP.
+2. **Firebase Credentials**: Because  is gitignored, the backend reads the Firebase service account JSON from a single-line environment variable called .
+3. **Password Hashing**: The system currently supports a hybrid state. On login, if a user has an old  (SHA-256), the system verifies it, generates a new  hash, and updates the database automatically. Do not remove this backward-compatibility logic.
 
-**documents and test reports created in this job**
-- : Generated by the testing agent, confirming the success of the profile redesign and chat fixes.
+**documents and test reports created in this job**:
+- 
 
-**Last 10 User Messages and any pending HUMAN messages**
-1.  **user**: The chat input has a huge gap above it on PC. (COMPLETED - Fixed layout)
-2.  **user**: Can you make sure the tip text about  is visible and that images can be pasted/attached? (COMPLETED - Tip restored, functionality verified)
-3.  **agent**: Confirmed tip text is visible and image upload functionality is present. (COMPLETED)
-4.  **user**: Registration with a new email didn't work, I didn't get an alert email. (IN PROGRESS)
-5.  **agent**: Started investigating the email service and required environment variables. (IN PROGRESS)
-6.  **user**: I've saved and redeployed the email variables on Render. (COMPLETED)
-7.  **agent**: Confirmed the backend is up and the message history fix (DB index) is working on Render, loading 500 messages. (COMPLETED)
-8.  **user**: The last chat message is cut off on mobile because the input box is too big. (COMPLETED - Fixed via CSS)
-9.  **agent**: Fixed the mobile input box and verified the fix with screenshots. (COMPLETED)
-10. **user**: Now there's a huge gap between the text box and the chat area. (COMPLETED - Fixed via CSS)
+**Last 10 User Messages and any pending HUMAN messages**:
+1. **user**: OK. APP SEEMS TO BE WORKING... (Noticed trial still said auto-approved and dropdown UI issues)
+2. **agent**: Fixed the dropdown UI and removed auto-approved text.
+3. **user**: walk me to setting up resend for the emails
+4. **agent**: Provided Resend setup steps.
+5. **user**: Provided Resend API key and verified domain.
+6. **user**: Reported Zapier integration error dumping debug text into chat.
+7. **agent**: Removed debug text from chat rendering, added Admin delete message capability, added Load More messages.
+8. **user**: Page forces scroll to bottom on load.
+9. **agent**: Fixed scroll hijacking ( -> ).
+10. **user**: Asked for a full code audit without breaking the app.
+11. **agent**: Performed audit, implemented Bcrypt, rate limiting, CORS, health checks.
+12. **user**: yes, set up push notification alerts for new user registrations...
+13. **agent**: Set up backend FCM via Env Var.
+14. **user** (Latest): app loads faster after all changes, email works fine only the push notifications in app not working
 
-**Project Health Check:**
-- **Broken**:
-  - The email notification system for new user registrations.
-- **Mocked**:
-  - None.
+**Project Health Check**:
+- Broken: Frontend Firebase Push Notifications logic.
+- Mocked: None.
 
-**3rd Party Integrations**
-- **Render**: Cloud hosting.
-- **MongoDB Atlas**: Cloud database.
-- **GoDaddy**: DNS provider.
-- **Gmail (SMTP)**: For transactional emails. Requires  environment variables on Render. Currently not working.
-- **Financial Modeling Prep (FMP)**: For stock data. Requires  environment variable.
-- **Firebase**: For push notifications (FCM). Requires multiple  environment variables on both frontend and backend Render services.
+**3rd Party Integrations**:
+- Resend (Emails) — requires User API Key ()
+- Firebase Admin SDK (Push Notifications) — requires User JSON Key ( env var)
+- Financial Modeling Prep (Stocks) — requires User API Key ()
 
-**Testing status**
-- **Testing agent used after significant changes**: YES. Used to validate the profile redesign, chat history, and timestamp fixes. It returned a 100% success rate.
-- **Troubleshoot agent used after agent stuck in loop**: NO.
-- **Test files created**: None.
-- **Known regressions**: The registration email notification system has regressed and is currently broken.
+**Testing status**:
+- Testing agent used after significant changes: NO (Agent relied on manual testing and user feedback for the later half of the session).
+- Troubleshoot agent used after agent stuck in loop: NO.
+- Test files created: None.
+- Known regressions: In-app push notifications.
 
-**Credentials to test flow:**
-- **Username**: 
-- **Password**: 
+**Credentials to test flow**:
+- Username:  (or register a new user to test flows)
+- Note: New users are set to  status. To test full access, change status in DB or via admin UI if available.
 
-**What agent forgot to execute**
-- The agent has correctly prioritized all user requests and systematically worked through them. The current pending task (email notifications) is the immediate next step and has not been forgotten.</analysis>
+**What agent forgot to execute**:
+The agent successfully configured the backend FCM but ran out of context while attempting to debug the frontend Firebase configuration ( and ). The next agent must immediately pick up this debugging step.</analysis>

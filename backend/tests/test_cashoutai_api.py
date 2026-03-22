@@ -14,7 +14,7 @@ import time
 # Get BASE_URL from environment - this is the public URL
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://trade-sandbox-8.preview.emergentagent.com"
+    BASE_URL = "https://notification-system-18.preview.emergentagent.com"
 
 
 class TestHealthCheck:

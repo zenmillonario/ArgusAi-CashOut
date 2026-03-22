@@ -1,11 +1,11 @@
 // Firebase messaging service worker for background notifications
 /* global importScripts, firebase, self, clients */
 
-// Import Firebase scripts - Updated to match package.json version
+// Import Firebase scripts - must match installed package version
 importScripts('https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/11.10.0/firebase-messaging-compat.js');
 
-// Your Firebase configuration
+// Firebase configuration (must be hardcoded - SW cannot access process.env)
 const firebaseConfig = {
   apiKey: "AIzaSyDXsZWHiHAhWxZz4TNmonxbG2RD2WNBoqU",
   authDomain: "cashoutai-notifications.firebaseapp.com",
@@ -50,10 +50,6 @@ messaging.onBackgroundMessage((payload) => {
     ]
   };
 
-  // Play WhatsApp-like notification sound
-  playNotificationSound();
-
-  // Show notification
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
@@ -67,12 +63,10 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  // Open the app when notification is clicked
   const url = event.notification.data?.url || '/';
   
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Check if app is already open
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           client.focus();
@@ -83,7 +77,6 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       
-      // Open new window if app is not open
       if (clients.openWindow) {
         return clients.openWindow(self.location.origin + url);
       }
@@ -91,64 +84,10 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Play WhatsApp-like notification sound
-function playNotificationSound() {
-  try {
-    // Create audio context for playing sound
-    const audioContext = new (self.AudioContext || self.webkitAudioContext)();
-    
-    // WhatsApp-like notification sound (simple beep sequence)
-    const createBeep = (frequency, duration, delay = 0) => {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          const oscillator = audioContext.createOscillator();
-          const gainNode = audioContext.createGain();
-          
-          oscillator.connect(gainNode);
-          gainNode.connect(audioContext.destination);
-          
-          oscillator.frequency.value = frequency;
-          oscillator.type = 'sine';
-          
-          gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-          
-          oscillator.start(audioContext.currentTime);
-          oscillator.stop(audioContext.currentTime + duration);
-          
-          setTimeout(resolve, duration * 1000);
-        }, delay);
-      });
-    };
-    
-    // Play WhatsApp-like double beep
-    createBeep(800, 0.15).then(() => {
-      createBeep(600, 0.15);
-    });
-    
-  } catch (error) {
-    console.log('Could not play notification sound:', error);
-  }
-}
-
-// Handle push events (for additional sound control)
-self.addEventListener('push', (event) => {
-  if (event.data) {
-    try {
-      const payload = event.data.json();
-      console.log('[firebase-messaging-sw.js] Push event received:', payload);
-      
-      // Play sound for push notifications
-      playNotificationSound();
-    } catch (error) {
-      console.log('Error parsing push data:', error);
-    }
-  }
-});
-
 // Service Worker activation
 self.addEventListener('activate', (event) => {
   console.log('[firebase-messaging-sw.js] Service Worker activated');
+  event.waitUntil(self.clients.claim());
 });
 
 // Service Worker installation  

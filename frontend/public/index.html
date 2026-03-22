@@ -32,24 +32,16 @@
         <noscript>You need to enable JavaScript to run this app.</noscript>
         <div id="root"></div>
         
-        <!-- Service Worker registration -->
+        <!-- Service Worker registration (Firebase messaging) -->
         <script>
-          // Register Service Worker for background notifications
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-              navigator.serviceWorker.register('/sw.js')
+              navigator.serviceWorker.register('/firebase-messaging-sw.js')
                 .then(function(registration) {
-                  console.log('SW registered: ', registration);
-                  
-                  // Request notification permission
-                  if ('Notification' in window && Notification.permission === 'default') {
-                    Notification.requestPermission().then(function(permission) {
-                      console.log('Notification permission: ', permission);
-                    });
-                  }
+                  console.log('Firebase SW registered:', registration.scope);
                 })
-                .catch(function(registrationError) {
-                  console.log('SW registration failed: ', registrationError);
+                .catch(function(err) {
+                  console.log('Firebase SW registration failed:', err);
                 });
             });
           }
