@@ -62,6 +62,7 @@ Build and maintain the CashOutAi trading platform - a full-stack application wit
   - Added SW lifecycle management (skipWaiting + clients.claim for immediate activation)
   - Improved FCM token acquisition with SW active state waiting
   - Added VAPID key validation before requesting token
+  - **Hardcoded Firebase client config as fallback** — .env files are gitignored, so env vars were undefined on Render production builds. Firebase client keys are public, so hardcoding is safe.
 
 ### Render Environment Variables (Backend)
 - MONGO_URL, DB_NAME

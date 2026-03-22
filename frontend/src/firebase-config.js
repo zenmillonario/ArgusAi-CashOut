@@ -2,18 +2,19 @@
 import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
-// Your Firebase configuration
+// Firebase client config (public keys — safe to include in client code)
+// These must match the config in firebase-messaging-sw.js
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.REACT_APP_FIREBASE_APP_ID
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyDXsZWHiHAhWxZz4TNmonxbG2RD2WNBoqU",
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "cashoutai-notifications.firebaseapp.com",
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "cashoutai-notifications",
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "cashoutai-notifications.firebasestorage.app",
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "1077671941650",
+  appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:1077671941650:web:a48c3dce4bffa8e897aacb"
 };
 
 // VAPID key for push notifications
-const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY;
+const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY || "BCFwFhta05moYQ1dkY6Q1YjWCkGoOOCopnT19IwCzMP62X7RTKIPXUSV4ZQvWAq93QNJKUpV_1yjt42htBcfLvg";
 
 // Mobile browser detection
 const isMobileBrowser = () => {
@@ -32,11 +33,17 @@ const isFirebaseSupported = () => {
 };
 
 // Initialize Firebase app
-const app = initializeApp(firebaseConfig);
+let app = null;
+try {
+  app = initializeApp(firebaseConfig);
+  console.log('[FCM] Firebase app initialized');
+} catch (error) {
+  console.error('[FCM] Firebase app init failed:', error.message);
+}
 
-// Initialize messaging only if supported
+// Initialize messaging only if supported and app was created
 let messaging = null;
-if (isFirebaseSupported()) {
+if (app && isFirebaseSupported()) {
   try {
     messaging = getMessaging(app);
     console.log('[FCM] Firebase messaging initialized');
