@@ -991,6 +991,9 @@ function App() {
             if (document.hidden) {
               document.title = `🔔 ${data.admin_real_name || data.admin_username} - CashoutAI`;
             }
+          } else if (data.type === 'message_deleted') {
+            // Remove deleted message from state
+            setMessages(prev => prev.filter(m => m.id !== data.data.id));
           }
         } catch (e) {
           console.error('Error parsing WebSocket message:', e);
@@ -1098,7 +1101,7 @@ function App() {
       const startTime = performance.now();
       
       // PERFORMANCE OPTIMIZATION: Load more messages for 4+ weeks of history
-      const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=500` : `${API}/messages?limit=500`;
+      const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=50` : `${API}/messages?limit=50`;
       const response = await axios.get(url);
       
       const loadTime = performance.now() - startTime;
@@ -1341,6 +1344,17 @@ function App() {
       alert(error.response?.data?.detail || 'Error removing user');
     }
   };
+
+  const deleteMessage = async (messageId) => {
+    if (!currentUser?.is_admin) return;
+    try {
+      await axios.delete(`${API}/messages/${messageId}?user_id=${currentUser.id}`);
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+    } catch (error) {
+      console.error('Failed to delete message:', error);
+    }
+  };
+
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -2524,6 +2538,7 @@ function App() {
                   hideMessageInput={true}
                   mobileUserListOpen={mobileUserListOpen}
                   setMobileUserListOpen={setMobileUserListOpen}
+                  deleteMessage={deleteMessage}
                   showScrollButton={showScrollButton}
                   scrollToBottom={scrollToBottom}
                 />

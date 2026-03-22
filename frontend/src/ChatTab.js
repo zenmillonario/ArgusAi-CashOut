@@ -32,7 +32,8 @@ const ChatTab = ({
   mobileUserListOpen,
   setMobileUserListOpen,
   showScrollButton,
-  scrollToBottom
+  scrollToBottom,
+  deleteMessage
 }) => {
   const displayMessages = showSearch ? (filteredMessages || []) : (messages || []);
   const [followingUsers, setFollowingUsers] = useState([]);
@@ -404,6 +405,16 @@ const ChatTab = ({
                             {reaction}
                           </button>
                         ))}
+                        {currentUser?.is_admin && deleteMessage && (
+                          <button
+                            onClick={() => { if (window.confirm('Delete this message?')) deleteMessage(message.id); }}
+                            className="text-sm hover:scale-110 transition-transform px-1 text-red-400"
+                            title="Delete message"
+                            data-testid={`delete-msg-${message.id}`}
+                          >
+                            🗑️
+                          </button>
+                        )}
                       </span>
                       
                       {/* Show existing reactions */}

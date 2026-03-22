@@ -4368,8 +4368,37 @@ async def create_message(message_data: MessageCreate):
     
     return message
 
+@api_router.delete("/messages/{message_id}")
+async def delete_message(message_id: str, user_id: str):
+    """Delete a message - admin only"""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.messages.delete_one({"id": message_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Message not found")
+    
+    # Broadcast deletion to all connected clients
+    await manager.broadcast(json.dumps({
+        "type": "message_deleted",
+        "data": {"id": message_id}
+    }))
+    
+    return {"message": "Message deleted", "id": message_id}
+
+@api_router.delete("/messages/cleanup/debug")
+async def cleanup_debug_messages(user_id: str):
+    """Delete all debug messages from chat - admin only"""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.messages.delete_many({"content": {"$regex": "DEBUG:"}})
+    return {"message": f"Deleted {result.deleted_count} debug message(s)"}
+
 @api_router.get("/messages", response_model=List[Message])
-async def get_messages(limit: int = 500, user_id: Optional[str] = None):
+async def get_messages(limit: int = 50, user_id: Optional[str] = None):
     # TRIAL SYSTEM: Check user access for chat viewing
     if user_id:
         user = await db.users.find_one({"id": user_id})
