@@ -44,17 +44,17 @@ const ChatTab = ({
   useEffect(() => {
     if (displayMessages.length > 0 && !hasScrolledOnLoad) {
       const scrollAttempt = () => {
-        if (messagesEndRef?.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'instant' });
+        const chatContainer = document.querySelector('[data-chat-messages]');
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
           setHasScrolledOnLoad(true);
         }
       };
       const t1 = setTimeout(scrollAttempt, 200);
       const t2 = setTimeout(scrollAttempt, 1000);
-      const t3 = setTimeout(scrollAttempt, 2500);
-      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+      return () => { clearTimeout(t1); clearTimeout(t2); };
     }
-  }, [displayMessages.length, hasScrolledOnLoad, messagesEndRef]);
+  }, [displayMessages.length, hasScrolledOnLoad]);
 
   // Helper: parse timestamp as UTC (backend stores UTC without 'Z' suffix)
   const parseUTC = (ts) => {
