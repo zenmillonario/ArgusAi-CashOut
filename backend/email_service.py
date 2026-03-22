@@ -1,14 +1,11 @@
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
 from dotenv import load_dotenv
 from pathlib import Path
+import resend
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -20,26 +17,14 @@ load_dotenv(ROOT_DIR / '.env')
 
 class EmailService:
     def __init__(self):
-        self.mail_username = os.getenv("MAIL_USERNAME")
-        self.mail_password = os.getenv("MAIL_PASSWORD")
-        self.mail_from = os.getenv("MAIL_FROM")
-        self.mail_port = int(os.getenv("MAIL_PORT", 587))
-        self.mail_server = os.getenv("MAIL_SERVER")
-        self.mail_tls = os.getenv("MAIL_TLS", "true").lower() == "true"
+        self.resend_api_key = os.getenv("RESEND_API_KEY")
+        self.sender_email = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
         
-        # Log which env vars are present/missing for debugging
-        vars_status = {
-            "MAIL_USERNAME": bool(self.mail_username),
-            "MAIL_PASSWORD": bool(self.mail_password),
-            "MAIL_FROM": bool(self.mail_from),
-            "MAIL_SERVER": bool(self.mail_server),
-            "MAIL_PORT": self.mail_port,
-        }
-        logger.info(f"EmailService init - env vars status: {vars_status}")
+        if not self.resend_api_key:
+            raise ValueError("RESEND_API_KEY is missing from environment variables")
         
-        missing = [k for k, v in vars_status.items() if v is False]
-        if missing:
-            raise ValueError(f"Email configuration incomplete. Missing: {missing}")
+        resend.api_key = self.resend_api_key
+        logger.info(f"EmailService init - using Resend API, sender: {self.sender_email}")
     
     async def send_email(
         self, 
@@ -48,37 +33,17 @@ class EmailService:
         body: str, 
         html_body: Optional[str] = None
     ) -> bool:
-        """Send email using Gmail SMTP"""
+        """Send email using Resend API"""
         try:
-            # Create message
-            msg = MIMEMultipart('alternative')
-            msg['From'] = self.mail_from
-            msg['To'] = recipient
-            msg['Subject'] = subject
+            params = {
+                "from": self.sender_email,
+                "to": [recipient],
+                "subject": subject,
+                "html": html_body or body,
+            }
             
-            # Add plain text part
-            text_part = MIMEText(body, 'plain')
-            msg.attach(text_part)
-            
-            # Add HTML part if provided
-            if html_body:
-                html_part = MIMEText(html_body, 'html')
-                msg.attach(html_part)
-            
-            # Connect to server and send email
-            use_ssl = os.getenv("MAIL_SSL", "false").lower() == "true"
-            if use_ssl:
-                with smtplib.SMTP_SSL(self.mail_server, self.mail_port, timeout=15) as server:
-                    server.login(self.mail_username, self.mail_password)
-                    server.send_message(msg)
-            else:
-                with smtplib.SMTP(self.mail_server, self.mail_port, timeout=15) as server:
-                    if self.mail_tls:
-                        server.starttls()
-                    server.login(self.mail_username, self.mail_password)
-                    server.send_message(msg)
-            
-            logger.info(f"Email sent successfully to {recipient}")
+            email = await asyncio.to_thread(resend.Emails.send, params)
+            logger.info(f"Email sent successfully to {recipient} (id: {email.get('id', 'unknown')})")
             return True
             
         except Exception as e:

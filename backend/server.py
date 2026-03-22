@@ -1760,75 +1760,36 @@ async def check_email_config():
     return {
         "email_service_initialized": email_service is not None,
         "env_vars": {
-            "MAIL_USERNAME": os.getenv("MAIL_USERNAME", "NOT SET"),
-            "MAIL_PASSWORD": "***set***" if os.getenv("MAIL_PASSWORD") else "NOT SET",
-            "MAIL_FROM": os.getenv("MAIL_FROM", "NOT SET"),
-            "MAIL_SERVER": os.getenv("MAIL_SERVER", "NOT SET"),
-            "MAIL_PORT": os.getenv("MAIL_PORT", "NOT SET"),
-            "MAIL_TLS": os.getenv("MAIL_TLS", "NOT SET"),
+            "RESEND_API_KEY": "***set***" if os.getenv("RESEND_API_KEY") else "NOT SET",
+            "SENDER_EMAIL": os.getenv("SENDER_EMAIL", "NOT SET"),
+            "ADMIN_EMAIL": os.getenv("ADMIN_EMAIL", "NOT SET"),
         }
     }
 
 @api_router.get("/email/test")
 async def test_email_service():
-    """Diagnostic endpoint to test email service on deployment"""
-    import smtplib
-    from email.mime.text import MIMEText
+    """Diagnostic endpoint to test email service"""
+    if not email_service:
+        return {
+            "status": "error",
+            "message": "Email service failed to initialize",
+            "hint": "Check RESEND_API_KEY environment variable"
+        }
     
-    mail_server = os.getenv("MAIL_SERVER")
-    mail_port = int(os.getenv("MAIL_PORT", 587))
-    mail_username = os.getenv("MAIL_USERNAME")
-    mail_password = os.getenv("MAIL_PASSWORD")
-    mail_from = os.getenv("MAIL_FROM")
-    mail_tls = os.getenv("MAIL_TLS", "true").lower() == "true"
-    
-    env_vars = {
-        "MAIL_USERNAME": bool(mail_username),
-        "MAIL_PASSWORD": bool(mail_password),
-        "MAIL_FROM": bool(mail_from),
-        "MAIL_SERVER": bool(mail_server),
-        "MAIL_PORT": str(mail_port),
-        "MAIL_TLS": str(mail_tls),
-    }
-    
-    if not all([mail_username, mail_password, mail_from, mail_server]):
-        return {"status": "error", "message": "Missing env vars", "env_vars_present": env_vars}
-    
-    steps = []
     try:
-        use_ssl = os.getenv("MAIL_SSL", "false").lower() == "true"
-        
-        if use_ssl:
-            steps.append(f"Connecting via SSL to {mail_server}:{mail_port}...")
-            server = smtplib.SMTP_SSL(mail_server, mail_port, timeout=15)
-            steps.append(f"SSL connected to {mail_server}:{mail_port}")
-        else:
-            steps.append(f"Connecting to {mail_server}:{mail_port}...")
-            server = smtplib.SMTP(mail_server, mail_port, timeout=15)
-            steps.append(f"Connected to {mail_server}:{mail_port}")
-            if mail_tls:
-                steps.append("Starting TLS...")
-                server.starttls()
-                steps.append("TLS started")
-        
-        steps.append("Logging in...")
-        server.login(mail_username, mail_password)
-        steps.append("Login successful")
-        
-        msg = MIMEText("<h2>CashOutAi Email Test</h2><p>Email is working!</p>", "html")
-        msg["From"] = mail_from
-        msg["To"] = mail_username
-        msg["Subject"] = "CashOutAi Email Test"
-        
-        steps.append("Sending email...")
-        server.send_message(msg)
-        steps.append("Email sent!")
-        server.quit()
-        
-        return {"status": "success", "message": f"Email sent to {mail_username}", "steps": steps}
+        admin_email = os.getenv("ADMIN_EMAIL")
+        result = await email_service.send_email(
+            admin_email,
+            "CashOutAi Email Test",
+            "Email is working!",
+            "<h2>CashOutAi Email Test</h2><p>Resend email service is working correctly!</p>"
+        )
+        return {
+            "status": "success" if result else "failed",
+            "message": f"Test email {'sent' if result else 'failed'} to {admin_email}"
+        }
     except Exception as e:
-        steps.append(f"ERROR: {type(e).__name__}: {str(e)}")
-        return {"status": "error", "message": str(e), "error_type": type(e).__name__, "steps": steps, "env_vars_present": env_vars}
+        return {"status": "error", "message": str(e)}
 
 @api_router.post("/users/register", response_model=User)
 async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks):
@@ -1887,7 +1848,7 @@ async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks
         
         # Send email notification to admin for new registration
         if email_service:
-            admin_email = os.getenv("MAIL_USERNAME")
+            admin_email = os.getenv("ADMIN_EMAIL")
             background_tasks.add_task(
                 email_service.send_registration_notification,
                 admin_email,
