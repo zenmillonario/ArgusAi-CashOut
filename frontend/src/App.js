@@ -79,6 +79,8 @@ function App() {
   // PERFORMANCE OPTIMIZATION: Loading states for better UX
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [messages, setMessages] = useState([]);
+  // Expose setMessages for ChatTab's load-more feature
+  window.__setMessages = setMessages;
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [connectionMode, setConnectionMode] = useState('disconnected'); // 'websocket', 'polling', 'disconnected'
@@ -199,7 +201,7 @@ function App() {
           
           // Enhanced session validation with remember me support
           const sessionCreated = user.sessionCreated || user.session_created_at;
-          const sessionDuration = user.sessionDuration || 30; // Default 30 days
+          const sessionDuration = user.sessionDuration || 365; // Default 365 days
           const maxSessionHours = sessionDuration * 24; // Convert days to hours
           
           const sessionAge = sessionCreated ? 
@@ -1271,7 +1273,7 @@ function App() {
           ...response.data,
           rememberMe: rememberMe,
           sessionCreated: new Date().toISOString(),
-          sessionDuration: 30 // Always 30 days
+          sessionDuration: 365 // Stay logged in for 1 year
         };
         localStorage.setItem('cashoutai_user', JSON.stringify(sessionData));
         

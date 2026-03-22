@@ -1,56 +1,65 @@
 # CashOutAi - Product Requirements Document
 
 ## Original Problem Statement
-Build and maintain the ArgusAI-CashOut trading platform (now named "CashOutAi") - a full-stack application with real-time chat, stock data lookup, user management with admin approval flows, and email notifications.
+Build and maintain the CashOutAi trading platform - a full-stack application with real-time chat, stock data lookup, user management with admin approval flows, and email notifications.
 
 ## Architecture
 - **Frontend**: React + Tailwind CSS (deployed on Render as static build)
 - **Backend**: FastAPI (Python) with uvicorn (deployed on Render)
 - **Database**: MongoDB Atlas (free tier)
-- **Hosting**: Render (from GitHub)
+- **Hosting**: Render (Starter plan) from GitHub
 - **DNS**: GoDaddy → cashoutai.app
-- **Integrations**: Gmail SMTP, Financial Modeling Prep (FMP), Firebase Cloud Messaging (FCM)
-
-## Core Features
-- User authentication with admin approval workflow
-- Real-time chat via WebSocket with 500+ message history
-- Stock data lookup (supports penny stocks via FMP fallback)
-- Social media-style profile pages (Twitter/X inspired)
-- Trial user system (14-day auto-approved trials)
-- Email notifications (registration, approval, trial welcome/upgrade)
-- Achievement/XP system
-- Paper trading
+- **Email**: Resend API (noreply@cashoutai.app)
+- **Integrations**: Financial Modeling Prep (FMP), Firebase Cloud Messaging (FCM), Zapier
 
 ## What's Been Implemented
 
-### Completed
-- Authentication and domain fixes (login on cashoutai.app)
-- Stock Price API with penny stock fallback
-- Profile page redesign (Twitter/X-style)
-- Chat history (500+ messages with DB indexing)
-- Chat timestamps with UTC fix + date separators
-- Chat UI/UX fixes (mobile input, gap, auto-scroll)
-- Image/ticker paste functionality
-- Deployment configuration (Firebase env vars, production build)
-- **Email notification system** - Fixed and verified working (March 2026)
-  - Added diagnostic endpoint `/api/email/test`
-  - Better init logging in EmailService
-  - Updated render.yaml with MAIL_* env var declarations
-  - Trial welcome emails, admin notifications, registration confirmations all working
+### Authentication & Security
+- User registration with admin manual approval (no auto-approve for any plan)
+- Bcrypt password hashing (with auto-migration from legacy SHA-256)
+- CORS locked to cashoutai.app domain only
+- Rate limiting on registration (5/minute) to prevent abuse
+- Sessions last 365 days (essentially permanent until device clear)
 
-### Key Environment Variables (Render Backend)
+### Email System (Resend)
+- Switched from SMTP (blocked on Render) to Resend HTTP API
+- Domain verified: noreply@cashoutai.app
+- Emails: registration confirmation, admin notification, trial welcome, upgrade prompts
+- All plans show regular prices: Monthly $199, Yearly $1,296, Lifetime $3,969
+- No promo codes/discounts
+- Test endpoint: GET /api/email/test, GET /api/email/check
+
+### Chat System
+- Real-time chat via WebSocket
+- Initial load: 50 messages (fast), "Load older messages" button for pagination
+- Date separators (Today, Yesterday, specific dates)
+- Admin can delete any message (trash icon on hover)
+- Debug/bot messages no longer leak raw content to chat
+- Image paste/upload support
+- Scroll fixed: only scrolls chat container, not entire page
+
+### Stock Data
+- FMP API with penny stock fallback
+- Zapier price alert integration
+
+### Profile
+- Twitter/X-style redesigned profile page
+
+### Performance
+- MongoDB indexes on: messages.timestamp, users.id, users.username, users.email, users.is_online
+- Health check endpoint: GET /api/health
+- Loading screen timer fix (useRef prevents re-render reset)
+- Firebase init non-blocking (won't hang app startup)
+
+### Render Environment Variables (Backend)
 - MONGO_URL, DB_NAME
-- MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM, MAIL_PORT, MAIL_SERVER, MAIL_TLS
+- RESEND_API_KEY, SENDER_EMAIL (noreply@cashoutai.app), ADMIN_EMAIL
 - FMP_API_KEY
 - FIREBASE_* variables
-- SECRET_KEY
 
 ## Backlog
-- **P1**: Mobile app for App Stores (Google Play, Apple App Store)
-- **P2**: Refactor backend/server.py (~4900 lines) into APIRouter modules
-
-## Key Technical Notes
-- `.env` files are gitignored; Render uses dashboard env vars
-- MongoDB free tier needs indexes for large sorts (messages.timestamp index exists)
-- Chat UI layout uses complex flexbox - test mobile + desktop after CSS changes
-- Code deploys via: Emergent "Save to Github" → auto-deploy on Render
+- Refactor backend/server.py (~4900 lines) into APIRouter modules
+- Mobile app for App Stores
+- WebSocket reconnection improvements (currently relies on polling fallback)
+- Add pytest test suite for critical endpoints
+- Add .env.example file

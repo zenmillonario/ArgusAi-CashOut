@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import hashlib
+import bcrypt
 
 # Database setup
 MONGO_URL = os.getenv('MONGO_URL', 'mongodb://localhost:27017/emergent_db')
@@ -33,10 +34,29 @@ db = client[DB_NAME]
 # Initialize FastAPI app early (lifespan will be set after lifespan function is defined)
 app = FastAPI(title="ArgusAI CashOut API", version="1.0.0")
 
+# Rate limiting - only on registration to prevent abuse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # CORS setup
+ALLOWED_ORIGINS = [
+    "https://cashoutai.app",
+    "https://www.cashoutai.app",
+    "https://www.CashOutAi.App",
+    "https://cashoutai.onrender.com",
+]
+# Add preview URL if set
+preview_url = os.getenv("REACT_APP_BACKEND_URL", "")
+if preview_url:
+    ALLOWED_ORIGINS.append(preview_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -105,7 +125,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException, File, UploadFile, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -251,9 +270,13 @@ async def check_expired_trials():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create indexes for performance (prevents memory limit errors on free tier)
+    # Create indexes for performance
     try:
         await db.messages.create_index([("timestamp", -1)])
+        await db.users.create_index("id", unique=True)
+        await db.users.create_index("username")
+        await db.users.create_index("email")
+        await db.users.create_index("is_online")
         logger.info("Ensured messages timestamp index exists")
     except Exception as e:
         logger.warning(f"Could not create index: {e}")
@@ -1396,12 +1419,21 @@ async def handle_message_mentions(message_content: str, sender_user: dict, messa
 
 # Utility functions for authentication and image processing
 def hash_password(password: str) -> str:
-    """Hash a password for storing in database"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash a password using bcrypt"""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def verify_password(password: str, hashed: str) -> bool:
-    """Verify a password against its hash"""
-    return hash_password(password) == hashed
+    """Verify a password - supports both bcrypt and legacy SHA-256"""
+    if hashed.startswith('$2b$') or hashed.startswith('$2a$'):
+        return bcrypt.checkpw(password.encode(), hashed.encode())
+    # Legacy SHA-256 fallback
+    return hashlib.sha256(password.encode()).hexdigest() == hashed
+
+async def migrate_password_if_needed(user_id: str, password: str, stored_hash: str):
+    """Auto-migrate SHA-256 hash to bcrypt on successful login"""
+    if not (stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$')):
+        new_hash = hash_password(password)
+        await db.users.update_one({"id": user_id}, {"$set": {"hashed_password": new_hash}})
 
 def process_uploaded_image(file_content: bytes, max_size: int = 1024 * 1024) -> str:
     """Process uploaded image and return base64 data URL"""
@@ -1754,6 +1786,15 @@ async def calculate_user_performance(user_id: str) -> dict:
 async def root():
     return {"message": "CashoutAI API is running", "status": "success"}
 
+@api_router.get("/health")
+async def health_check():
+    """Health check for monitoring"""
+    try:
+        await db.command("ping")
+        return {"status": "healthy", "db": "connected"}
+    except Exception:
+        return {"status": "unhealthy", "db": "disconnected"}
+
 @api_router.get("/email/check")
 async def check_email_config():
     """Quick check - no email sent, just shows config status"""
@@ -1792,7 +1833,8 @@ async def test_email_service():
         return {"status": "error", "message": str(e)}
 
 @api_router.post("/users/register", response_model=User)
-async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks):
+@limiter.limit("5/minute")
+async def register_user(request: Request, user_data: UserCreate, background_tasks: BackgroundTasks):
     # Check if username already exists (allow rejected users to register again)
     existing_user = await db.users.find_one({"username": user_data.username})
     if existing_user and existing_user.get("status") != UserStatus.REJECTED:
@@ -1902,6 +1944,8 @@ async def login_user(login_data: UserLogin):
     if 'password_hash' in user:
         if not verify_password(login_data.password, user['password_hash']):
             raise HTTPException(status_code=401, detail="Invalid credentials")
+        # Auto-migrate legacy SHA-256 to bcrypt
+        await migrate_password_if_needed(user['id'], login_data.password, user['password_hash'])
     
     user_obj = User(**user)
     
@@ -4398,7 +4442,7 @@ async def cleanup_debug_messages(user_id: str):
     return {"message": f"Deleted {result.deleted_count} debug message(s)"}
 
 @api_router.get("/messages", response_model=List[Message])
-async def get_messages(limit: int = 50, user_id: Optional[str] = None):
+async def get_messages(limit: int = 50, user_id: Optional[str] = None, before: Optional[str] = None):
     # TRIAL SYSTEM: Check user access for chat viewing
     if user_id:
         user = await db.users.find_one({"id": user_id})
@@ -4409,7 +4453,11 @@ async def get_messages(limit: int = 50, user_id: Optional[str] = None):
             )
     
     # Use find().sort() with index for efficient querying
-    messages = await db.messages.find().sort("timestamp", -1).limit(limit).to_list(limit)
+    query = {}
+    if before:
+        # Load messages older than the given timestamp for pagination
+        query["timestamp"] = {"$lt": before}
+    messages = await db.messages.find(query).sort("timestamp", -1).limit(limit).to_list(limit)
     
     # Clean up messages for compatibility
     cleaned_messages = []
@@ -4914,14 +4962,6 @@ async def upload_intro_video(video: UploadFile = File(...)):
 
 # Include the router in the main app
 app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Configure logging
 logging.basicConfig(

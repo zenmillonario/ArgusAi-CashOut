@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
 const ChatTab = ({ 
   messages, 
@@ -39,6 +42,48 @@ const ChatTab = ({
   const [followingUsers, setFollowingUsers] = useState([]);
   const [followerCounts, setFollowerCounts] = useState({});
   const [hasScrolledOnLoad, setHasScrolledOnLoad] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (loadingMore || !hasMore || !messages || messages.length === 0) return;
+    setLoadingMore(true);
+    try {
+      const oldestTimestamp = messages[0]?.timestamp;
+      const url = currentUser 
+        ? `${API}/messages?user_id=${currentUser.id}&limit=50&before=${oldestTimestamp}`
+        : `${API}/messages?limit=50&before=${oldestTimestamp}`;
+      const response = await axios.get(url);
+      if (response.data && response.data.length > 0) {
+        // Prepend older messages (they come newest-first, so reverse)
+        const chatContainer = document.querySelector('[data-chat-messages]');
+        const prevHeight = chatContainer?.scrollHeight || 0;
+        
+        // Use the parent's setMessages if available, otherwise merge locally
+        if (window.__setMessages) {
+          window.__setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newMsgs = response.data.filter(m => !existingIds.has(m.id));
+            return [...newMsgs, ...prev];
+          });
+        }
+        
+        // Maintain scroll position after prepending
+        requestAnimationFrame(() => {
+          if (chatContainer) {
+            chatContainer.scrollTop = chatContainer.scrollHeight - prevHeight;
+          }
+        });
+        
+        if (response.data.length < 50) setHasMore(false);
+      } else {
+        setHasMore(false);
+      }
+    } catch (e) {
+      console.error('Error loading older messages:', e);
+    }
+    setLoadingMore(false);
+  }, [loadingMore, hasMore, messages, currentUser]);
 
   // Auto-scroll to bottom when messages first load
   useEffect(() => {
@@ -247,6 +292,21 @@ const ChatTab = ({
         {/* Messages container */}
         <div className="flex-1 overflow-y-auto min-h-0 flex flex-col" data-chat-messages="true">
           <div className="space-y-1 mt-auto">
+          {/* Load More button at top of messages */}
+          {hasMore && displayMessages.length > 0 && !showSearch && (
+            <div className="text-center py-2">
+              <button
+                onClick={loadOlderMessages}
+                disabled={loadingMore}
+                className={`text-sm px-4 py-1.5 rounded-full ${
+                  isDarkTheme ? 'bg-white/10 hover:bg-white/20 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                } transition-colors`}
+                data-testid="load-more-messages"
+              >
+                {loadingMore ? 'Loading...' : 'Load older messages'}
+              </button>
+            </div>
+          )}
           {/* CRITICAL UX FIX: Empty State UI */}
           {displayMessages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center py-8">
