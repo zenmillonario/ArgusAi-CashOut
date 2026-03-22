@@ -16,28 +16,35 @@ class FCMService:
     def __init__(self):
         self.initialized = False
         try:
-            # Try to initialize Firebase Admin SDK
-            cred_path = "/app/backend/firebase-admin.json"
-            
-            # Check if credentials file exists
-            if not os.path.exists(cred_path):
-                logger.warning("Firebase credentials file not found. Push notifications will be disabled.")
-                self.initialized = False
-                return
-            
             # Check if Firebase is already initialized
             try:
                 firebase_admin.get_app()
                 logger.info("Firebase Admin SDK already initialized")
                 self.initialized = True
+                return
             except ValueError:
-                # Not initialized yet, so initialize it
-                cred = credentials.Certificate(cred_path)
+                pass
+            
+            # Try env var first (for Render), then file
+            cred = None
+            firebase_creds_json = os.getenv("FIREBASE_ADMIN_CREDENTIALS")
+            if firebase_creds_json:
+                cred_dict = json.loads(firebase_creds_json)
+                cred = credentials.Certificate(cred_dict)
+                logger.info("Firebase Admin SDK initialized from env var")
+            else:
+                cred_path = "/app/backend/firebase-admin.json"
+                if os.path.exists(cred_path):
+                    cred = credentials.Certificate(cred_path)
+                    logger.info("Firebase Admin SDK initialized from file")
+            
+            if cred:
                 initialize_app(cred)
-                logger.info("Firebase Admin SDK initialized successfully")
                 self.initialized = True
+            else:
+                logger.warning("No Firebase credentials found. Push notifications disabled.")
         except Exception as e:
-            logger.warning(f"Firebase Admin SDK initialization failed: {str(e)}. Push notifications will be disabled.")
+            logger.warning(f"Firebase Admin SDK initialization failed: {str(e)}")
             self.initialized = False
     
     async def send_notification(self, token: str, title: str, body: str, 
