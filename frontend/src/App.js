@@ -1890,18 +1890,18 @@ function App() {
                     <select
                       className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                         isDarkTheme 
-                          ? 'bg-white/10 border border-white/20 text-white' 
-                          : 'bg-white border border-gray-200 text-gray-900'
+                          ? 'bg-white/10 border border-white/20 text-white [&>option]:bg-gray-800 [&>option]:text-white' 
+                          : 'bg-white border border-gray-200 text-gray-900 [&>option]:bg-white [&>option]:text-gray-900'
                       }`}
                       value={loginForm.membership_plan}
                       onChange={(e) => setLoginForm({...loginForm, membership_plan: e.target.value})}
                       required
                     >
                       <option value="">Select Membership Plan</option>
-                      <option value="14-Day Trial">🎯 14-Day FREE Trial (Auto-Approved)</option>
-                      <option value="Monthly">Monthly</option>
-                      <option value="Yearly">Yearly</option>
-                      <option value="Lifetime">Lifetime</option>
+                      <option value="14-Day Trial">14-Day FREE Trial</option>
+                      <option value="Monthly">Monthly - $199/month</option>
+                      <option value="Yearly">Yearly - $1,296/year</option>
+                      <option value="Lifetime">Lifetime - $3,969</option>
                     </select>
                   </div>
                 </>
@@ -1959,8 +1959,8 @@ function App() {
                 }`}>
                   <p className="text-sm">
                     {loginForm.membership_plan === "14-Day Trial" 
-                      ? '🎯 Trial accounts are approved instantly! Start trading immediately after registration.' 
-                      : '📝 Your account will be approved within 5 minutes after registration.'
+                      ? '📝 Your trial account will be reviewed and approved by an admin.' 
+                      : '📝 Your account will be reviewed and approved by an admin.'
                     }
                   </p>
                 </div>
