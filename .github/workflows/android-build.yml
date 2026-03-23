@@ -39,7 +39,7 @@ jobs:
       - name: Build React app
         working-directory: frontend
         env:
-          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL || 'https://cashoutai.app' }}
+          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL || 'https://cashoutai.onrender.com' }}
         run: yarn build
 
       - name: Sync Capacitor

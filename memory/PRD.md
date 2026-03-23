@@ -72,7 +72,17 @@ Build and maintain the CashOutAi trading platform - a full-stack application wit
 
 ## Backlog
 - P2: Refactor backend/server.py (~4900 lines) into APIRouter modules
-- P1 (Future): Mobile app for App Stores
 - P3: WebSocket reconnection improvements
 - P3: Add pytest test suite for critical endpoints
 - P3: Add .env.example file
+
+## Android App (Capacitor) — Setup Complete (2026-03-22)
+- App ID: `com.argusai.cashout`
+- Capacitor v7.4.3 wrapping existing React frontend
+- Firebase push notifications configured (google-services.json)
+- Custom app icons from CashoutAI branding (all densities + adaptive icon)
+- Splash screen with app icon on dark background
+- Backend URL: `https://cashoutai.onrender.com`
+- GitHub Actions workflow: `.github/workflows/android-build.yml` — auto-builds APK/AAB on push
+- To build: Push to GitHub → Actions tab → "Build Android APK" → Download artifacts
+- Play Store publishing requires: signed AAB + store listing (screenshots, description, privacy policy)
