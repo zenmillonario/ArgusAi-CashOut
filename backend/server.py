@@ -43,16 +43,21 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS setup
-ALLOWED_ORIGINS = [
-    "https://cashoutai.app",
-    "https://www.cashoutai.app",
-    "https://www.CashOutAi.App",
-    "https://cashoutai.onrender.com",
-]
-# Add preview URL if set
-preview_url = os.getenv("REACT_APP_BACKEND_URL", "")
-if preview_url:
-    ALLOWED_ORIGINS.append(preview_url)
+cors_env = os.getenv("CORS_ORIGINS", "")
+if cors_env == "*":
+    ALLOWED_ORIGINS = ["*"]
+else:
+    ALLOWED_ORIGINS = [
+        "https://cashoutai.app",
+        "https://www.cashoutai.app",
+        "https://www.CashOutAi.App",
+        "https://cashoutai.onrender.com",
+    ]
+    if cors_env:
+        ALLOWED_ORIGINS.extend([o.strip() for o in cors_env.split(",") if o.strip()])
+    preview_url = os.getenv("REACT_APP_BACKEND_URL", "")
+    if preview_url:
+        ALLOWED_ORIGINS.append(preview_url)
 
 app.add_middleware(
     CORSMiddleware,
