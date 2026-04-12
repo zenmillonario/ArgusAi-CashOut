@@ -1,0 +1,8 @@
+# CashOutAi Environment Configuration
+# This will be a demo version - you can add a real backend later
+
+# Demo mode (no real backend needed for showcase)
+REACT_APP_DEMO_MODE=true
+
+# If you want to add a real backend later, uncomment and update this:
+# REACT_APP_BACKEND_URL=https://your-backend.vercel.app

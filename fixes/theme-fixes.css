@@ -1,0 +1,246 @@
+/* Light Theme Tab Visibility Fix */
+/* Add these CSS classes to your App.css */
+
+/* Fix for light theme tab visibility */
+.tab-button-light {
+  background: rgba(59, 130, 246, 0.1);
+  color: #1f2937;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.tab-button-light:hover {
+  background: rgba(59, 130, 246, 0.2);
+  color: #111827;
+}
+
+.tab-button-light.active {
+  background: #3b82f6;
+  color: white;
+  border: 1px solid #3b82f6;
+}
+
+.tab-button-dark {
+  background: rgba(255, 255, 255, 0.1);
+  color: #d1d5db;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tab-button-dark:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #f9fafb;
+}
+
+.tab-button-dark.active {
+  background: #3b82f6;
+  color: white;
+  border: 1px solid #3b82f6;
+}
+
+/* Compact message styling */
+.message-compact {
+  margin-bottom: 8px !important; /* Reduced from 15px */
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.message-compact:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.message-username-small {
+  font-size: 0.875rem; /* 14px */
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.message-timestamp-small {
+  font-size: 0.75rem; /* 12px */
+  opacity: 0.6;
+  margin-left: 8px;
+}
+
+.message-content-compact {
+  font-size: 0.95rem;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+/* Avatar sizing for compact messages */
+.avatar-compact {
+  width: 32px !important;
+  height: 32px !important;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+/* Image message styling */
+.message-image {
+  max-width: 300px;
+  max-height: 200px;
+  border-radius: 8px;
+  margin-top: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.message-image:hover {
+  transform: scale(1.02);
+}
+
+/* GIF indicator */
+.gif-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+/* Trade log compact styling */
+.trade-log-compact {
+  font-size: 0.875rem;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  border-left: 3px solid;
+}
+
+.trade-log-buy {
+  border-left-color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.trade-log-sell {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Portfolio position enhanced styling */
+.position-card-enhanced {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.position-card-enhanced:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.position-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.position-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.position-btn-buy {
+  background: #10b981;
+  color: white;
+}
+
+.position-btn-buy:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.position-btn-sell {
+  background: #ef4444;
+  color: white;
+}
+
+.position-btn-sell:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.position-btn-add {
+  background: #3b82f6;
+  color: white;
+}
+
+.position-btn-add:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+/* Admin panel user list styling */
+.user-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  margin-bottom: 8px;
+}
+
+.user-status-online {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.user-status-offline {
+  color: #6b7280;
+}
+
+.user-role-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.role-admin {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+.role-moderator {
+  background: rgba(139, 92, 246, 0.2);
+  color: #8b5cf6;
+}
+
+.role-member {
+  background: rgba(107, 114, 128, 0.2);
+  color: #9ca3af;
+}
+
+/* Upload area styling */
+.upload-area {
+  border: 2px dashed rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.upload-area:hover {
+  border-color: rgba(59, 130, 246, 0.6);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.upload-area.dragover {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CashOutAi - Trading Team Chat</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            animation: fadeIn 1s ease-in;
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        .logo {
+            animation: bounce 2s infinite;
+        }
+        .app-frame {
+            width: 100%;
+            height: 80vh;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            background: white;
+            transition: opacity 0.5s ease;
+        }
+        .loading {
+            text-align: center;
+            color: white;
+            margin: 20px 0;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .app-frame { height: 70vh; }
+            .header h1 { font-size: 2rem; }
+        }
+        .error {
+            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            color: white;
+            margin: 20px 0;
+        }
+        .retry-btn {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: transform 0.2s ease;
+        }
+        .retry-btn:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span class="logo">🦚</span>
+                CashOutAi
+            </h1>
+            <p>Trade Together, Win Together</p>
+            <p style="font-size: 0.9rem; opacity: 0.8;">Private Trading Team Platform</p>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Loading your trading platform...</p>
+        </div>
+        
+        <div class="error" id="error" style="display: none;">
+            <h3>🔧 Platform Temporarily Unavailable</h3>
+            <p>Our trading platform is being updated. Please try again in a few moments.</p>
+            <button class="retry-btn" onclick="retryLoad()">Retry Loading</button>
+        </div>
+        
+        <iframe 
+            src="REPLACE_WITH_YOUR_DEPLOYED_URL" 
+            class="app-frame"
+            id="app-frame"
+            title="CashOutAi Trading Platform"
+            onload="handleLoad()"
+            onerror="handleError()">
+        </iframe>
+    </div>
+
+    <script>
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        function handleLoad() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('app-frame').style.opacity = '1';
+        }
+
+        function handleError() {
+            if (retryCount < maxRetries) {
+                retryCount++;
+                setTimeout(() => {
+                    retryLoad();
+                }, 2000);
+            } else {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+            }
+        }
+
+        function retryLoad() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('app-frame').src = document.getElementById('app-frame').src;
+        }
+
+        // Hide loading after 10 seconds as fallback
+        setTimeout(() => {
+            document.getElementById('loading').style.display = 'none';
+        }, 10000);
+    </script>
+</body>
+</html>
