@@ -1,34 +1,503 @@
-from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException, File, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
 import uuid
-from datetime import datetime
-import json
-import re
-from enum import Enum
-import base64
+import secrets
+from fastapi import File, UploadFile, HTTPException
+import shutil
+
+# Configure logging early
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Import database and app setup early
+from datetime import datetime, timedelta, timezone
+from typing import Optional, List, Dict, Any, Union
+import asyncio
+import motor.motor_asyncio
+from motor.motor_asyncio import AsyncIOMotorClient
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks, Query, Request, status
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 import hashlib
+import bcrypt
+
+# Database setup
+MONGO_URL = os.getenv('MONGO_URL', 'mongodb://localhost:27017/emergent_db')
+DB_NAME = os.getenv('DB_NAME', 'emergent_db')
+
+client = AsyncIOMotorClient(MONGO_URL)
+db = client[DB_NAME]
+
+# Initialize FastAPI app early (lifespan will be set after lifespan function is defined)
+app = FastAPI(title="ArgusAI CashOut API", version="1.0.0")
+
+# Rate limiting - only on registration to prevent abuse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS setup
+cors_env = os.getenv("CORS_ORIGINS", "")
+if cors_env == "*":
+    ALLOWED_ORIGINS = ["*"]
+else:
+    ALLOWED_ORIGINS = [
+        "https://cashoutai.app",
+        "https://www.cashoutai.app",
+        "https://www.CashOutAi.App",
+        "https://cashoutai.onrender.com",
+    ]
+    if cors_env:
+        ALLOWED_ORIGINS.extend([o.strip() for o in cors_env.split(",") if o.strip()])
+    preview_url = os.getenv("REACT_APP_BACKEND_URL", "")
+    if preview_url:
+        ALLOWED_ORIGINS.append(preview_url)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Generate referral code for new users
+def generate_referral_code(username: str) -> str:
+    """Generate a unique referral code for a user"""
+    # Use first 4 chars of username + 4 random chars
+    username_part = username[:4].upper()
+    random_part = secrets.token_hex(2).upper()
+    return f"{username_part}{random_part}"
+
+async def handle_referral_signup(new_user_id: str, referral_code: str):
+    """Handle referral when a new user signs up with a referral code"""
+    try:
+        # Find the referring user
+        referring_user = await db.users.find_one({"referral_code": referral_code})
+        if not referring_user:
+            logger.warning(f"Invalid referral code used: {referral_code}")
+            return False
+        
+        referring_user_id = referring_user["id"]
+        
+        # Update the new user's referred_by field
+        await db.users.update_one(
+            {"id": new_user_id},
+            {"$set": {"referred_by": referring_user_id}}
+        )
+        
+        # Add new user to referring user's referrals list
+        await db.users.update_one(
+            {"id": referring_user_id},
+            {
+                "$push": {"referrals": new_user_id},
+                "$inc": {"successful_referrals": 1}
+            }
+        )
+        
+        logger.info(f"User {new_user_id} was referred by {referring_user_id} using code {referral_code}")
+        
+        # Check for referral achievements for the referring user
+        await check_achievements(referring_user_id, "referral_success", {"referred_user": new_user_id})
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error handling referral signup: {e}")
+        return False
+import hashlib
+import json
+from enum import Enum
+from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any
+import aiohttp
+import re
+import base64
+import httpx
+import asyncio
+import sys
+from contextlib import asynccontextmanager
+from cash_prize import create_pending_cash_prize
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException, File, UploadFile, BackgroundTasks
+from dotenv import load_dotenv
+from motor.motor_asyncio import AsyncIOMotorClient
+
+async def send_registration_confirmation_to_user(email: str, name: str):
+    """Send registration confirmation email to user"""
+    if not email_service:
+        print(f"Email service unavailable. Would send registration confirmation to {email}")
+        return
+        
+    subject = "🎉 Welcome to ArgusAI CashOut - Registration Received"
+    
+    plain_body = f"""
+Hi {name},
+
+Thank you for registering with ArgusAI CashOut!
+
+Your account has been created and is pending admin approval. We'll review your registration and get back to you soon.
+
+You will receive another email once your account is approved and you can start trading with our community.
+
+Thanks for joining us!
+
+--
+ArgusAI CashOut Team
+"""
+    
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background: #f9f9f9; }}
+        .welcome-box {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #667eea; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎉 Welcome to ArgusAI CashOut!</h1>
+        <p>Registration Received</p>
+    </div>
+    
+    <div class="content">
+        <div class="welcome-box">
+            <h2>Hi {name},</h2>
+            <p>Thank you for registering with ArgusAI CashOut!</p>
+            <p>Your account has been created and is pending admin approval.</p>
+        </div>
+        
+        <p>We'll review your registration and get back to you soon. You will receive another email once your account is approved and you can start trading with our community.</p>
+        
+        <p>Thanks for joining us! 🚀</p>
+    </div>
+    
+    <div class="footer">
+        <p>ArgusAI CashOut Team</p>
+    </div>
+</body>
+</html>
+"""
+    
+    await email_service.send_email(email, subject, plain_body, html_body)
+
+async def send_trial_welcome_email(email: str, name: str, trial_end_date: datetime):
+    """Send trial welcome email to user"""
+    if not email_service:
+        print(f"Email service unavailable. Would send trial welcome email to {email}")
+        return
+        
+    await email_service.send_trial_welcome_email(email, name, trial_end_date)
+
+async def send_trial_upgrade_email(email: str, name: str):
+    """Send upgrade email to expired trial user"""
+    if not email_service:
+        print(f"Email service unavailable. Would send trial upgrade email to {email}")
+        return
+        
+    await email_service.send_trial_upgrade_email(email, name)
 
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# Database connection already initialized at top of file
+# MongoDB connection moved to top for proper initialization order
 
-# Create the main app without a prefix
-app = FastAPI()
+# Try to import and initialize email service
+try:
+    sys.path.append(str(ROOT_DIR))
+    from email_service import email_service
+    print("Email service initialized successfully")
+except Exception as e:
+    email_service = None
+    print(f"Warning: Email service not available. Email notifications will be disabled. Error: {e}")
+
+# ONLINE USERS FIX: Background task for periodic cleanup
+async def periodic_cleanup():
+    """Run periodic cleanup of stale sessions every 10 minutes"""
+    while True:
+        try:
+            await asyncio.sleep(600)  # 10 minutes
+            await cleanup_stale_sessions()
+            await check_expired_trials()  # Check for expired trials
+        except Exception as e:
+            logger.error(f"Error in periodic cleanup: {e}")
+
+async def check_expired_trials():
+    """Check for expired trials and update status"""
+    try:
+        current_time = datetime.utcnow()
+        
+        # Find trials that have expired but haven't been processed
+        expired_trials = await db.users.find({
+            "status": UserStatus.TRIAL,
+            "trial_end_date": {"$lt": current_time}
+        }).to_list(100)
+        
+        if expired_trials:
+            logger.info(f"🕒 Found {len(expired_trials)} expired trials to process")
+            
+            for user in expired_trials:
+                # Update status to trial_expired
+                await db.users.update_one(
+                    {"id": user["id"]},
+                    {"$set": {"status": UserStatus.TRIAL_EXPIRED}}
+                )
+                
+                # Send upgrade email if not already sent
+                if not user.get("trial_upgrade_email_sent", False):
+                    await send_trial_upgrade_email(user["email"], user.get("real_name", user["username"]))
+                    await db.users.update_one(
+                        {"id": user["id"]},
+                        {"$set": {"trial_upgrade_email_sent": True}}
+                    )
+                
+                logger.info(f"⏰ TRIAL EXPIRED: {user['username']} - Status updated to trial_expired")
+        
+    except Exception as e:
+        logger.error(f"Error checking expired trials: {e}")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create indexes for performance
+    try:
+        await db.messages.create_index([("timestamp", -1)])
+        await db.users.create_index("id", unique=True)
+        await db.users.create_index("username")
+        await db.users.create_index("email")
+        await db.users.create_index("is_online")
+        logger.info("Ensured messages timestamp index exists")
+    except Exception as e:
+        logger.warning(f"Could not create index: {e}")
+    
+    # Create default admin if none exists
+    admin_exists = await db.users.find_one({"is_admin": True})
+    if not admin_exists:
+        admin_user = {
+            "id": str(uuid.uuid4()),
+            "username": "admin",
+            "email": "admin@cashoutai.com",
+            "password_hash": hash_password("admin123"),
+            "is_admin": True,
+            "status": "approved",
+            "real_name": "Admin",
+            "screen_name": "Admin",
+            "avatar_url": None,
+            "total_profit": 0.0,
+            "win_percentage": 0.0,
+            "trades_count": 0,
+            "average_gain": 0.0,
+            "created_at": datetime.utcnow(),
+            "is_online": False,
+            "experience_points": 0,
+            "level": 1
+        }
+        await db.users.insert_one(admin_user)
+        logger.info("Created default admin user: admin / admin123")
+    
+    # Start background cleanup task
+    cleanup_task = asyncio.create_task(periodic_cleanup())
+    logger.info("Started periodic stale session cleanup (every 10 minutes)")
+    yield
+    # Clean up on shutdown
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
+
+# Use the existing app initialized at the top and add lifespan
+app.router.lifespan_context = lifespan
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
+
+# FCM Token storage model
+class FCMToken(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    token: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+@api_router.post("/fcm/register-token")
+async def register_fcm_token(token_data: Dict[str, str]):
+    """Register FCM token for a user"""
+    user_id = token_data.get("user_id")
+    token = token_data.get("token")
+    
+    if not user_id or not token:
+        raise HTTPException(status_code=400, detail="user_id and token are required")
+    
+    try:
+        # Check if token already exists for this user
+        existing_token = await db.fcm_tokens.find_one({"user_id": user_id})
+        
+        if existing_token:
+            # Update existing token
+            await db.fcm_tokens.update_one(
+                {"user_id": user_id},
+                {"$set": {"token": token, "updated_at": datetime.utcnow()}}
+            )
+        else:
+            # Create new token entry
+            fcm_token = FCMToken(user_id=user_id, token=token)
+            await db.fcm_tokens.insert_one(fcm_token.dict())
+        
+        return {"message": "Token registered successfully"}
+    except Exception as e:
+        logger.error(f"Error registering FCM token: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to register token")
+
+@api_router.get("/fcm/status")
+async def fcm_status():
+    """Check FCM service initialization status"""
+    try:
+        from fcm_service import fcm_service
+        has_creds = bool(os.getenv("FIREBASE_ADMIN_CREDENTIALS"))
+        token_count = await db.fcm_tokens.count_documents({})
+        return {
+            "initialized": fcm_service.initialized,
+            "credentials_configured": has_creds,
+            "registered_tokens": token_count
+        }
+    except Exception as e:
+        return {"initialized": False, "error": str(e)}
+
+@api_router.post("/fcm/test-notification")
+async def test_notification(test_data: Dict[str, str]):
+    """Send test notification"""
+    token = test_data.get("token")
+    
+    if not token:
+        raise HTTPException(status_code=400, detail="token is required")
+    
+    try:
+        from fcm_service import fcm_service
+        
+        if not fcm_service.initialized:
+            logger.warning("FCM service not initialized - push notifications disabled")
+            return {"success": False, "message": "Push notifications not available - FIREBASE_ADMIN_CREDENTIALS not configured"}
+        
+        logger.info(f"Sending test notification to token: {token[:20]}...")
+        
+        success = await fcm_service.send_notification(
+            token=token,
+            title="Test Notification",
+            body="This is a test notification from ArgusAI CashOut!",
+            data={"type": "test"}
+        )
+        
+        return {"success": success, "message": "Test notification sent" if success else "Failed to send"}
+    except Exception as e:
+        logger.error(f"Error sending test notification: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send test notification: {str(e)}")
+
+async def send_notification_to_admins(title: str, body: str, data: Optional[Dict[str, str]] = None):
+    """Send notification to all admin users"""
+    try:
+        from fcm_service import fcm_service
+        
+        if not fcm_service.initialized:
+            logger.warning("FCM service not initialized - admin notifications disabled")
+            return
+        
+        # Get all admin users
+        admin_users = await db.users.find({"is_admin": True}).to_list(1000)
+        admin_user_ids = [user["id"] for user in admin_users]
+        
+        # Get FCM tokens for admin users
+        admin_tokens = await db.fcm_tokens.find({"user_id": {"$in": admin_user_ids}}).to_list(1000)
+        token_list = [token["token"] for token in admin_tokens]
+        
+        if token_list:
+            result = await fcm_service.send_to_multiple(
+                tokens=token_list,
+                title=title,
+                body=body,
+                data=data
+            )
+            logger.info(f"Sent notification to {result.get('success_count', 0)} admin users")
+            return result
+    except Exception as e:
+        logger.error(f"Error sending notification to admins: {str(e)}")
+        return None
+
+async def send_notification_to_user(user_id: str, title: str, body: str, data: Optional[Dict[str, str]] = None):
+    """Send notification to a specific user"""
+    try:
+        from fcm_service import fcm_service
+        
+        if not fcm_service.initialized:
+            logger.warning("FCM service not initialized - user notifications disabled")
+            return False
+        
+        # Get FCM token for user
+        user_token = await db.fcm_tokens.find_one({"user_id": user_id})
+        
+        if user_token:
+            success = await fcm_service.send_notification(
+                token=user_token["token"],
+                title=title,
+                body=body,
+                data=data
+            )
+            logger.info(f"Sent notification to user {user_id}: {success}")
+            return success
+    except Exception as e:
+        logger.error(f"Error sending notification to user {user_id}: {str(e)}")
+        return False
+
+async def create_user_notification(user_id: str, notification_type: str, title: str, message: str, data: Dict[str, Any] = None):
+    """Create a notification for a user"""
+    notification = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "type": notification_type,
+        "title": title,
+        "message": message,
+        "data": data or {},
+        "read": False,
+        "created_at": datetime.utcnow(),
+        "expires_at": None
+    }
+    
+    await db.notifications.insert_one(notification)
+    
+    # Prepare notification for WebSocket (convert datetime to string)
+    websocket_notification = notification.copy()
+    websocket_notification["created_at"] = notification["created_at"].isoformat()
+    
+    # Send real-time notification via WebSocket if user is online
+    if user_id in manager.user_connections:
+        try:
+            await manager.user_connections[user_id].send_text(json.dumps({
+                "type": "notification",
+                "notification": websocket_notification
+            }))
+        except:
+            pass  # Ignore WebSocket errors
+    
+    # Send FCM notification
+    await send_notification_to_user(user_id, title, message, data)
+    
+    return notification
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -68,34 +537,274 @@ class ConnectionManager:
                 except:
                     pass
 
+    async def send_session_invalidation(self, user_id: str, new_session_id: str):
+        """Send session invalidation message to user's old sessions"""
+        if user_id in self.user_connections:
+            try:
+                # Send message but don't close connection immediately
+                await self.user_connections[user_id].send_text(json.dumps({
+                    "type": "session_invalidated",
+                    "message": "Your session has been terminated due to login from another location",
+                    "new_session_id": new_session_id
+                }))
+                print(f"Sent session invalidation message to user {user_id}")
+            except Exception as e:
+                print(f"Error sending session invalidation message to user {user_id}: {e}")
+                # Force remove the connection even if sending fails
+                if user_id in self.user_connections:
+                    del self.user_connections[user_id]
+
 manager = ConnectionManager()
+
+# ONLINE USERS FIX: Add automatic stale session cleanup
+async def cleanup_stale_sessions():
+    """Clean up stale sessions (users marked online but inactive for >30 minutes)"""
+    try:
+        thirty_minutes_ago = datetime.utcnow() - timedelta(minutes=30)
+        
+        # Find stale sessions
+        stale_sessions = await db.users.find({
+            "is_online": True,
+            "last_seen": {"$lt": thirty_minutes_ago}
+        }).to_list(1000)
+        
+        if stale_sessions:
+            stale_ids = [user['id'] for user in stale_sessions]
+            result = await db.users.update_many(
+                {"id": {"$in": stale_ids}},
+                {"$set": {"is_online": False}}
+            )
+            logger.info(f"🧹 Cleaned up {result.modified_count} stale sessions")
+            
+            # Broadcast user_left for each stale session
+            for user in stale_sessions:
+                await manager.broadcast(json.dumps({
+                    "type": "user_left",
+                    "user_id": user['id']
+                }, default=str))
+                
+    except Exception as e:
+        logger.error(f"Error cleaning up stale sessions: {e}")
+
+# WebSocket endpoint for real-time chat
+@app.websocket("/api/ws/{user_id}/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str):
+    # ONLINE USERS FIX: Clean up stale sessions before connecting
+    await cleanup_stale_sessions()
+    
+    # Validate user and session
+    user = await db.users.find_one({"id": user_id, "active_session_id": session_id})
+    if not user:
+        # Log why the connection was rejected
+        user_check = await db.users.find_one({"id": user_id}, {"_id": 0, "username": 1, "active_session_id": 1})
+        if user_check:
+            logger.warning(f"❌ WS rejected for user {user_check.get('username')}: session mismatch. Expected: {user_check.get('active_session_id')}, Got: {session_id}")
+        else:
+            logger.warning(f"❌ WS rejected: user_id {user_id} not found in database")
+        await websocket.close(code=1008, reason="Invalid user or session")
+        return
+    
+    logger.info(f"✅ WS connected: {user.get('username')} (user_id: {user_id})")
+    await manager.connect(websocket, user_id)
+    
+    # Update user as online
+    await db.users.update_one(
+        {"id": user_id},
+        {
+            "$set": {
+                "is_online": True,
+                "last_seen": datetime.utcnow()
+            }
+        }
+    )
+    
+    # Send current online users list to the newly connected user
+    online_users = await db.users.find({"is_online": True}).to_list(1000)
+    # Remove sensitive data from user objects
+    clean_users = []
+    for user_data in online_users:
+        clean_user = {
+            "id": user_data["id"],
+            "username": user_data["username"],
+            "real_name": user_data.get("real_name"),
+            "screen_name": user_data.get("screen_name"),
+            "is_admin": user_data.get("is_admin", False),
+            "avatar_url": user_data.get("avatar_url"),
+            "last_seen": user_data.get("last_seen")
+        }
+        clean_users.append(clean_user)
+    
+    await manager.send_personal_message(json.dumps({
+        "type": "online_users",
+        "users": clean_users
+    }, default=str), websocket)
+    
+    # Notify all other users that this user joined
+    user_join_data = {
+        "id": user["id"],
+        "username": user["username"],
+        "real_name": user.get("real_name"),
+        "screen_name": user.get("screen_name"),
+        "is_admin": user.get("is_admin", False),
+        "avatar_url": user.get("avatar_url")
+    }
+    
+    await manager.broadcast(json.dumps({
+        "type": "user_joined",
+        "user": user_join_data
+    }, default=str))
+    
+    try:
+        while True:
+            # Keep connection alive and handle heartbeat
+            data = await websocket.receive_text()
+            try:
+                message = json.loads(data)
+                if message.get("type") == "heartbeat":
+                    # Respond to heartbeat
+                    await websocket.send_text(json.dumps({"type": "heartbeat_ack"}))
+            except:
+                pass  # Ignore invalid JSON messages
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, user_id)
+        
+        # Update user as offline
+        await db.users.update_one(
+            {"id": user_id},
+            {
+                "$set": {
+                    "is_online": False,
+                    "last_seen": datetime.utcnow()
+                }
+            }
+        )
+        
+        # Notify all users that this user left
+        await manager.broadcast(json.dumps({
+            "type": "user_left",
+            "user_id": user_id
+        }, default=str))
 
 # Define Enums
 class UserStatus(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+    TRIAL = "trial"
+    TRIAL_EXPIRED = "trial_expired"
+
+class UserRole(str, Enum):
+    MEMBER = "member"
+    MODERATOR = "moderator"
+    ADMIN = "admin"
+    BOT = "bot"
+
+class NotificationType(str, Enum):
+    FOLLOW = "follow"
+    REPLY = "reply"
+    REACTION = "reaction"
+    ACHIEVEMENT = "achievement"
+    TRADE_ALERT = "trade_alert"
+
+class Notification(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str  # User who receives the notification
+    type: NotificationType
+    title: str
+    message: str
+    data: Dict[str, Any] = Field(default_factory=dict)  # Additional data (user IDs, etc.)
+    read: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: Optional[datetime] = None  # Optional expiration for temporary notifications
 
 # Define Models
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     username: str
     email: str
+    real_name: Optional[str] = None  # NEW: Real name field
+    screen_name: Optional[str] = None  # NEW: Screen name field
+    membership_plan: Optional[str] = None  # NEW: Membership plan field
     is_admin: bool = False
+    role: UserRole = UserRole.MEMBER  # NEW: Role field with enum
     status: UserStatus = UserStatus.PENDING
     avatar_url: Optional[str] = None
     total_profit: float = 0.0
     win_percentage: float = 0.0
     trades_count: int = 0
     average_gain: float = 0.0
+    is_online: bool = False  # NEW: Online status
+    last_seen: Optional[datetime] = None  # NEW: Last seen timestamp
+    active_session_id: Optional[str] = None  # NEW: Single active session tracking
+    session_created_at: Optional[datetime] = None  # NEW: Session timestamp
     created_at: datetime = Field(default_factory=datetime.utcnow)
     approved_at: Optional[datetime] = None
     approved_by: Optional[str] = None
+    
+    # NEW: Experience Points System
+    experience_points: int = 0
+    level: int = 1
+    daily_login_streak: int = 0
+    last_login_date: Optional[str] = None  # YYYY-MM-DD format
+    
+    # Trial system fields
+    trial_start_date: Optional[datetime] = None
+    trial_end_date: Optional[datetime] = None
+    trial_upgrade_email_sent: Optional[bool] = False
+    
+    # NEW: Profile Customization
+    profile_banner: Optional[str] = None  # URL or base64
+    bio: Optional[str] = None
+    trading_style_tags: List[str] = Field(default_factory=list)
+    
+    # NEW: Theme Customization
+    custom_theme: Optional[Dict[str, Any]] = None
+    active_theme_name: str = "dark"  # default theme
+    
+    # NEW: Achievements
+    achievements: List[str] = Field(default_factory=list)  # Achievement IDs
+    achievement_progress: Dict[str, int] = Field(default_factory=dict)  # Progress tracking
+    
+    # NEW: Location and Social Features
+    location: Optional[str] = None  # City, Country or custom location
+    show_location: bool = True  # Privacy setting for location display
+    
+    # NEW: Follow System
+    followers: List[str] = Field(default_factory=list)  # List of user IDs following this user
+    following: List[str] = Field(default_factory=list)  # List of user IDs this user follows
+    follower_count: int = 0  # Cached count for performance
+    following_count: int = 0  # Cached count for performance
+    
+    # NEW: Referral System
+    referral_code: Optional[str] = None  # Unique referral code for this user
+    referred_by: Optional[str] = None  # User ID who referred this user
+    referrals: List[str] = Field(default_factory=list)  # List of user IDs referred by this user
+    successful_referrals: int = 0  # Count of successful referrals
+    
+    # NEW: Cash Prize System
+    cash_prizes: List[Dict[str, Any]] = Field(default_factory=list)  # Cash prizes earned
+    total_cash_earned: float = 0.0  # Total cash prizes earned
+    pending_cash_review: List[Dict[str, Any]] = Field(default_factory=list)  # Pending admin review
 
 class UserCreate(BaseModel):
     username: str
     email: str
+    real_name: str  # NEW: Required real name
+    membership_plan: str
+    is_trial: Optional[bool] = False  # NEW: Trial registration option  # NEW: Required membership plan
     password: str
+    referral_code: Optional[str] = None  # Optional referral code of referring user
+
+class CashPrizeReview(BaseModel):
+    user_id: str
+    achievement_id: str
+    amount: float
+    status: str  # "approved", "rejected"
+    admin_notes: Optional[str] = None
+
+class ReferralInfo(BaseModel):
+    referral_code: str
+    referred_users: List[Dict[str, Any]]
 
 class UserLogin(BaseModel):
     username: str
@@ -105,24 +814,86 @@ class PasswordChange(BaseModel):
     current_password: str
     new_password: str
 
+class PasswordResetRequest(BaseModel):
+    email: str
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+
 class UserApproval(BaseModel):
     user_id: str
     approved: bool
     admin_id: str
+    role: Optional[UserRole] = UserRole.MEMBER  # NEW: Role assignment during approval
+
+class UserRoleUpdate(BaseModel):
+    user_id: str
+    new_role: UserRole
+
+# NEW: XP and Achievement Models
+class XPAction(BaseModel):
+    user_id: str
+    action: str  # 'daily_login', 'trade', 'chat_message', etc.
+    points: int
+    metadata: Optional[Dict[str, Any]] = None
+
+class Achievement(BaseModel):
+    id: str
+    name: str
+    description: str
+    icon: str
+    points_reward: int
+    requirement_type: str  # 'count', 'streak', 'value', 'milestone'
+    requirement_value: int
+    category: str  # 'trading', 'social', 'platform'
+
+class ProfileUpdate(BaseModel):
+    bio: Optional[str] = None
+    trading_style_tags: Optional[List[str]] = None
+    profile_banner: Optional[str] = None
+    avatar_url: Optional[str] = None  # Add profile picture support
+    location: Optional[str] = None  # Add location support
+    show_location: Optional[bool] = None  # Privacy setting for location
+
+class FollowRequest(BaseModel):
+    target_user_id: str
+
+class PublicProfileRequest(BaseModel):
+    user_id: str
+
+class ThemeUpdate(BaseModel):
+    theme_name: str
+    custom_colors: Optional[Dict[str, str]] = None
+
+class ExistingProfileUpdate(BaseModel):
+    real_name: Optional[str] = None
+    screen_name: Optional[str] = None
+    username: Optional[str] = None
+    email: Optional[str] = None
 
 class Message(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     username: str
     content: str
+    content_type: str = "text"  # NEW: "text", "image", "gif"
     is_admin: bool = False
     avatar_url: Optional[str] = None
+    real_name: Optional[str] = None  # NEW: Include real name
+    screen_name: Optional[str] = None  # NEW: Include screen name
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     highlighted_tickers: List[str] = []
+    reply_to_id: Optional[str] = None  # NEW: ID of message being replied to
+    reply_to: Optional[dict] = None  # NEW: Original message data for display
+    text_content: Optional[str] = None  # Text accompanying an image message
 
 class MessageCreate(BaseModel):
     content: str
+    content_type: str = "text"  # NEW: Support for different content types
     user_id: str
+    reply_to_id: Optional[str] = None  # NEW: Support for replies
+    text_content: Optional[str] = None  # Text accompanying an image message
 
 class Team(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -181,6 +952,470 @@ class PaperTradeCreate(BaseModel):
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
 
+class PositionAction(BaseModel):
+    action: str  # "BUY_MORE", "SELL_PARTIAL", "SELL_ALL"
+    quantity: Optional[int] = None
+    price: Optional[float] = None
+
+def format_price_display(price):
+    """Format price display based on price range for better precision"""
+    if price is None:
+        return "0.00"
+    
+    price = float(price)
+    
+    if price == 0:
+        return "0.00"
+    elif price < 0.01:
+        # For very small prices, show up to 8 decimal places (remove trailing zeros)
+        return f"{price:.8f}".rstrip('0').rstrip('.')
+    elif price < 1:
+        # For prices under $1, show up to 4 decimal places
+        return f"{price:.4f}".rstrip('0').rstrip('.')
+    else:
+        # For regular prices, show 2 decimal places
+        return f"{price:.2f}"
+
+# NEW: Achievement System Definitions
+ACHIEVEMENTS = {
+    "first_blood": {
+        "id": "first_blood",
+        "name": "First Blood",
+        "description": "Make your first profitable trade",
+        "icon": "🎯",
+        "points_reward": 100,
+        "requirement_type": "milestone",
+        "requirement_value": 1,
+        "category": "trading"
+    },
+    "diamond_hands": {
+        "id": "diamond_hands", 
+        "name": "Diamond Hands",
+        "description": "Hold a position for 30+ days",
+        "icon": "💎",
+        "points_reward": 200,
+        "requirement_type": "milestone",
+        "requirement_value": 30,
+        "category": "trading"
+    },
+    "hot_streak": {
+        "id": "hot_streak",
+        "name": "Hot Streak", 
+        "description": "5 profitable trades in a row",
+        "icon": "🔥",
+        "points_reward": 150,
+        "requirement_type": "streak",
+        "requirement_value": 5,
+        "category": "trading"
+    },
+    "chatterbox": {
+        "id": "chatterbox",
+        "name": "Chatterbox",
+        "description": "Send 100 chat messages", 
+        "icon": "💬",
+        "points_reward": 75,
+        "requirement_type": "count",
+        "requirement_value": 100,
+        "category": "social"
+    },
+    "heart_giver": {
+        "id": "heart_giver",
+        "name": "Heart Giver",
+        "description": "Give 50 heart reactions",
+        "icon": "❤️", 
+        "points_reward": 50,
+        "requirement_type": "count",
+        "requirement_value": 50,
+        "category": "social"
+    },
+    "dedication": {
+        "id": "dedication",
+        "name": "Dedication",
+        "description": "30-day login streak",
+        "icon": "🗓️",
+        "points_reward": 300,
+        "requirement_type": "streak", 
+        "requirement_value": 30,
+        "category": "platform"
+    },
+    "profit_1k": {
+        "id": "profit_1k",
+        "name": "Profit Milestone - $1K",
+        "description": "Reach $1,000 in total profit",
+        "icon": "💰",
+        "points_reward": 250,
+        "requirement_type": "value",
+        "requirement_value": 1000,
+        "category": "trading"
+    },
+    "profit_2k": {
+        "id": "profit_2k",
+        "name": "Profit Milestone - $2K",
+        "description": "Reach $2,000 in total profit",
+        "icon": "💎",
+        "points_reward": 400,
+        "requirement_type": "value",
+        "requirement_value": 2000,
+        "category": "trading"
+    },
+    "profit_3k": {
+        "id": "profit_3k",
+        "name": "Profit Milestone - $3K",
+        "description": "Reach $3,000 in total profit",
+        "icon": "🏆",
+        "points_reward": 600,
+        "requirement_type": "value",
+        "requirement_value": 3000,
+        "category": "trading"
+    },
+    "profit_4k": {
+        "id": "profit_4k",
+        "name": "Profit Milestone - $4K",
+        "description": "Reach $4,000 in total profit",
+        "icon": "👑",
+        "points_reward": 800,
+        "requirement_type": "value",
+        "requirement_value": 4000,
+        "category": "trading"
+    },
+    "profit_5k": {
+        "id": "profit_5k",
+        "name": "Profit Milestone - $5K",
+        "description": "Reach $5,000 in total profit",
+        "icon": "🚀",
+        "points_reward": 1000,
+        "requirement_type": "value",
+        "requirement_value": 5000,
+        "category": "trading"
+    },
+    "diversification_master": {
+        "id": "diversification_master",
+        "name": "Diversification Master", 
+        "description": "Own 10+ different stocks",
+        "icon": "🎪",
+        "points_reward": 100,
+        "requirement_type": "count",
+        "requirement_value": 10,
+        "category": "trading"
+    },
+    "team_member_3m": {
+        "id": "team_member_3m",
+        "name": "Team Player - 3 Months",
+        "description": "3 months as a team member",
+        "icon": "🥉",
+        "points_reward": 150,
+        "requirement_type": "duration",
+        "requirement_value": 90,  # 90 days
+        "category": "membership"
+    },
+    "team_member_8m": {
+        "id": "team_member_8m", 
+        "name": "Team Veteran - 8 Months",
+        "description": "8 months as a team member",
+        "icon": "🥈",
+        "points_reward": 400,
+        "requirement_type": "duration", 
+        "requirement_value": 240,  # 240 days
+        "category": "membership"
+    },
+    "team_member_12m": {
+        "id": "team_member_12m",
+        "name": "Team Legend - 12 Months", 
+        "description": "12 months as a team member",
+        "icon": "🥇",
+        "points_reward": 600,
+        "requirement_type": "duration",
+        "requirement_value": 365,  # 365 days
+        "category": "membership"
+    },
+    "referral_master": {
+        "id": "referral_master",
+        "name": "Referral Master",
+        "description": "Successfully referred a new member - WIN UP TO $400 CASH! 💸",
+        "icon": "💰",
+        "points_reward": 200,
+        "requirement_type": "referral",
+        "requirement_value": 1,
+        "category": "growth",
+        "cash_prize_eligible": True,
+        "max_cash_prize": 400
+    }
+}
+
+# NEW: XP Level System
+def get_level_from_xp(xp: int) -> int:
+    """Calculate user level based on XP"""
+    if xp < 500:
+        return 1
+    elif xp < 1500:
+        return 2
+    elif xp < 5000:
+        return 3
+    elif xp < 15000:
+        return 4
+    else:
+        return 5
+
+def get_xp_for_next_level(current_xp: int) -> int:
+    """Get XP needed for next level"""
+    level = get_level_from_xp(current_xp)
+    level_thresholds = [0, 500, 1500, 5000, 15000, 50000]  # Level 6+ for future
+    
+    if level >= len(level_thresholds) - 1:
+        return 0  # Max level reached
+    
+    return level_thresholds[level] - current_xp
+
+# NEW: XP System Functions
+async def award_xp(user_id: str, action: str, points: int, metadata: dict = None):
+    """Award XP to user and check for level ups and achievements"""
+    try:
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            return
+        
+        old_level = get_level_from_xp(user.get("experience_points", 0))
+        new_xp = user.get("experience_points", 0) + points
+        new_level = get_level_from_xp(new_xp)
+        
+        # Update user XP and level
+        await db.users.update_one(
+            {"id": user_id},
+            {
+                "$set": {
+                    "experience_points": new_xp,
+                    "level": new_level
+                }
+            }
+        )
+        
+        # Check for level up
+        if new_level > old_level:
+            await handle_level_up(user_id, new_level, old_level)
+        
+        # Check for achievements (but not for achievement_unlocked to prevent recursion)
+        if action != "achievement_unlocked":
+            await check_achievements(user_id, action, metadata or {})
+        
+        logger.info(f"Awarded {points} XP to user {user_id} for action: {action}")
+        
+    except Exception as e:
+        logger.error(f"Error awarding XP: {e}")
+
+async def handle_level_up(user_id: str, new_level: int, old_level: int):
+    """Handle level up rewards and notifications"""
+    try:
+        level_rewards = {
+            2: "Unlocked custom themes!",
+            3: "Unlocked profile banners!",
+            4: "Unlocked trading style tags!",
+            5: "Unlocked exclusive themes & badges!"
+        }
+        
+        if new_level in level_rewards:
+            # Create level up notification
+            await create_user_notification(
+                user_id=user_id,
+                notification_type="level_up",
+                title=f"Level Up! 🎉",
+                message=f"Congratulations! You've reached Level {new_level}! {level_rewards[new_level]}",
+                data={
+                    "new_level": new_level,
+                    "old_level": old_level,
+                    "reward": level_rewards[new_level],
+                    "action": "level_up"
+                }
+            )
+            logger.info(f"User {user_id} leveled up to {new_level}: {level_rewards[new_level]}")
+            
+    except Exception as e:
+        logger.error(f"Error handling level up: {e}")
+
+async def share_achievement_in_chat(user_id: str, achievement: dict):
+    """Share achievement in chat when unlocked"""
+    try:
+        # Get user info
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            return
+            
+        # Create achievement message
+        message = Message(
+            user_id=user_id,
+            username=user.get("username", ""),
+            content=f"🏆 Achievement Unlocked: {achievement['name']} - {achievement['description']} {achievement['icon']}",
+            is_admin=False,
+            avatar_url=user.get("avatar_url"),
+            real_name=user.get("real_name"),
+            screen_name=user.get("screen_name")
+        )
+        
+        # Save message to database
+        await db.messages.insert_one(message.dict())
+        
+        # Broadcast to all connected users
+        await manager.broadcast(json.dumps({
+            "type": "message",
+            "data": message.dict()
+        }, default=str))
+        
+    except Exception as e:
+        logger.error(f"Error sharing achievement in chat: {e}")
+
+async def check_achievements(user_id: str, action: str, metadata: dict):
+    """Check and award achievements based on user actions - OPTIMIZED VERSION"""
+    try:
+        logger.info(f"check_achievements called for user {user_id}, action: {action}")
+        
+        # PERFORMANCE OPTIMIZATION: Skip heavy achievement checking for login actions
+        # These are now handled in background via process_login_rewards_async
+        if action == "daily_login":
+            return
+            
+        # Use atomic operation to increment counters directly in the database
+        if action == "chat_message":
+            await db.users.update_one(
+                {"id": user_id},
+                {"$inc": {"achievement_progress.chatterbox_count": 1}}
+            )
+        elif action == "heart_reaction":
+            await db.users.update_one(
+                {"id": user_id},
+                {"$inc": {"achievement_progress.heart_giver_count": 1}}
+            )
+            logger.info(f"🔥 ATOMIC INCREMENT: heart_giver_count +1 for user {user_id}")
+        elif action == "profitable_trade":
+            await db.users.update_one(
+                {"id": user_id},
+                {"$inc": {"achievement_progress.profitable_trades": 1}}
+            )
+        elif action == "referral_success":
+            await db.users.update_one(
+                {"id": user_id},
+                {"$inc": {"achievement_progress.successful_referrals": 1}}
+            )
+        
+        # PERFORMANCE OPTIMIZATION: Only check specific achievements based on action
+        # Don't fetch full user data and check ALL achievements every time
+        achievements_to_check = []
+        
+        if action == "chat_message":
+            achievements_to_check = ["chatterbox"]
+        elif action == "heart_reaction":
+            achievements_to_check = ["heart_giver"]  
+        elif action == "profitable_trade":
+            achievements_to_check = ["first_blood"]
+        elif action == "referral_success":
+            achievements_to_check = ["referral_master"]
+        elif action == "achievement_unlocked":
+            # Skip recursive achievement checking
+            return
+        
+        if not achievements_to_check:
+            return
+            
+        # Fetch minimal user data needed for specific achievements
+        user = await db.users.find_one(
+            {"id": user_id}, 
+            {
+                "achievements": 1, 
+                "achievement_progress": 1,
+                "total_profit": 1,
+                "successful_referrals": 1
+            }
+        )
+        if not user:
+            logger.error(f"User {user_id} not found in check_achievements")
+            return
+            
+        user_achievements = user.get("achievements", [])
+        progress = user.get("achievement_progress", {})
+        
+        logger.info(f"Updated progress for {user_id}: {progress}")
+        
+        # PERFORMANCE OPTIMIZATION: Check only relevant achievements, not ALL achievements
+        new_achievements = []
+        
+        for achievement_id in achievements_to_check:
+            if achievement_id in user_achievements:
+                continue  # Already earned
+                
+            achievement = ACHIEVEMENTS[achievement_id]
+            earned = False
+            
+            if achievement_id == "chatterbox" and progress.get("chatterbox_count", 0) >= 100:
+                earned = True
+            elif achievement_id == "heart_giver" and progress.get("heart_giver_count", 0) >= 50:
+                earned = True
+                logger.info(f"🏆 HEART_GIVER ACHIEVEMENT EARNED! Count: {progress.get('heart_giver_count', 0)}")
+            elif achievement_id == "first_blood" and progress.get("profitable_trades", 0) >= 1:
+                earned = True
+            elif achievement_id == "referral_master":
+                # Check if user has successfully referred someone
+                successful_referrals = user.get("successful_referrals", 0)
+                if successful_referrals >= 1:
+                    earned = True
+                
+            if earned:
+                new_achievements.append(achievement_id)
+                await award_xp(user_id, "achievement_unlocked", achievement["points_reward"])
+                
+                # Handle cash prize for referral achievement
+                if achievement_id == "referral_master" and achievement.get("cash_prize_eligible"):
+                    await create_pending_cash_prize(db, user_id, achievement_id, achievement.get("max_cash_prize", 400))
+        
+        # Update achievements if any new ones were earned
+        if new_achievements:
+            logger.info(f"🏆 User {user_id} earned NEW achievements: {new_achievements}")
+            
+            await db.users.update_one(
+                {"id": user_id},
+                {
+                    "$addToSet": {
+                        "achievements": {"$each": new_achievements}
+                    }
+                }
+            )
+            
+            # Auto-share achievements in chat
+            for achievement_id in new_achievements:
+                achievement = ACHIEVEMENTS[achievement_id]
+                logger.info(f"📢 Sharing achievement {achievement_id} in chat for user {user_id}")
+                await share_achievement_in_chat(user_id, achievement)
+                
+                # Create achievement notification for the user
+                await create_user_notification(
+                    user_id=user_id,
+                    notification_type="achievement",
+                    title="Achievement Unlocked! 🏆",
+                    message=f"Congratulations! You've unlocked: {achievement['name']} - {achievement['description']} {achievement['icon']}",
+                    data={
+                        "achievement_id": achievement_id,
+                        "achievement_name": achievement['name'],
+                        "achievement_description": achievement['description'],
+                        "achievement_icon": achievement['icon'],
+                        "points_reward": achievement['points_reward'],
+                        "action": "achievement_unlocked"
+                    }
+                )
+            
+    except Exception as e:
+        logger.error(f"Error checking achievements: {e}")
+
+def format_pnl_display(pnl):
+    """Format P&L display with appropriate precision"""
+    if pnl is None:
+        return "0.00"
+    
+    pnl = float(pnl)
+    
+    if abs(pnl) < 0.01:
+        # For very small P&L, show more precision
+        return f"{pnl:.6f}".rstrip('0').rstrip('.')
+    else:
+        # For regular P&L, show 2 decimal places
+        return f"{pnl:.2f}"
+
 # Utility function to extract stock tickers from message
 def extract_stock_tickers(content: str) -> List[str]:
     """Extract stock tickers that start with $ from message content"""
@@ -188,14 +1423,62 @@ def extract_stock_tickers(content: str) -> List[str]:
     matches = re.findall(pattern, content.upper())
     return matches
 
+async def handle_message_mentions(message_content: str, sender_user: dict, message_id: str):
+    """Handle @username mentions in messages"""
+    try:
+        import re
+        mention_pattern = r'@(\w+)'
+        mentioned_usernames = re.findall(mention_pattern, message_content)
+        
+        if mentioned_usernames:
+            # Remove duplicates and exclude self-mentions
+            mentioned_usernames = list(set(mentioned_usernames))
+            sender_username = sender_user.get("username")
+            
+            for mentioned_username in mentioned_usernames:
+                if mentioned_username.lower() != sender_username.lower():  # Case-insensitive comparison
+                    # Find the mentioned user (case-insensitive)
+                    mentioned_user = await db.users.find_one({
+                        "username": {"$regex": f"^{mentioned_username}$", "$options": "i"}
+                    })
+                    if mentioned_user:
+                        sender_name = sender_user.get("screen_name") or sender_user.get("username")
+                        await create_user_notification(
+                            user_id=mentioned_user["id"],
+                            notification_type="mention",
+                            title="You were mentioned! 👋",
+                            message=f"{sender_name} mentioned you in chat: \"{message_content[:100]}{'...' if len(message_content) > 100 else ''}\"",
+                            data={
+                                "mentioner_id": sender_user["id"],
+                                "mentioner_name": sender_name,
+                                "mentioner_avatar": sender_user.get("avatar_url"),
+                                "message_id": message_id,
+                                "message_content": message_content,
+                                "action": "mention"
+                            }
+                        )
+                        logger.info(f"Created mention notification for {mentioned_user['username']} from {sender_name}")
+                        
+    except Exception as e:
+        logger.error(f"Error handling message mentions: {e}")
+
 # Utility functions for authentication and image processing
 def hash_password(password: str) -> str:
-    """Hash a password for storing in database"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash a password using bcrypt"""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def verify_password(password: str, hashed: str) -> bool:
-    """Verify a password against its hash"""
-    return hash_password(password) == hashed
+    """Verify a password - supports both bcrypt and legacy SHA-256"""
+    if hashed.startswith('$2b$') or hashed.startswith('$2a$'):
+        return bcrypt.checkpw(password.encode(), hashed.encode())
+    # Legacy SHA-256 fallback
+    return hashlib.sha256(password.encode()).hexdigest() == hashed
+
+async def migrate_password_if_needed(user_id: str, password: str, stored_hash: str):
+    """Auto-migrate SHA-256 hash to bcrypt on successful login"""
+    if not (stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$')):
+        new_hash = hash_password(password)
+        await db.users.update_one({"id": user_id}, {"$set": {"hashed_password": new_hash}})
 
 def process_uploaded_image(file_content: bytes, max_size: int = 1024 * 1024) -> str:
     """Process uploaded image and return base64 data URL"""
@@ -206,27 +1489,110 @@ def process_uploaded_image(file_content: bytes, max_size: int = 1024 * 1024) -> 
     base64_content = base64.b64encode(file_content).decode('utf-8')
     return f"data:image/jpeg;base64,{base64_content}"
 
-# Utility function to get stock price (mock for now - can integrate with Alpha Vantage later)
 async def get_current_stock_price(symbol: str) -> float:
-    """Get current stock price (mock implementation for now)"""
-    # Mock prices for demonstration - in production, integrate with Alpha Vantage or similar
-    mock_prices = {
-        "TSLA": 250.75,
-        "AAPL": 185.20,
-        "MSFT": 420.50,
-        "NVDA": 875.30,
-        "GOOGL": 142.80,
-        "AMZN": 155.90,
-        "META": 485.60,
-        "NFLX": 425.20,
-        "AMD": 198.40,
-        "INTC": 45.60
-    }
-    # Add some random variation to simulate price movement
+    """Get current stock price from API or mock data"""
+    try:
+        # Use FMP API key from environment
+        api_key = os.environ.get('FMP_API_KEY')
+        
+        # Try /stable/quote first
+        url = f"https://financialmodelingprep.com/stable/quote?symbol={symbol}&apikey={api_key}"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, timeout=10.0)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list) and len(data) > 0:
+                    return data[0]['price']
+            
+            # Fallback to /stable/profile for penny/small stocks
+            url2 = f"https://financialmodelingprep.com/stable/profile?symbol={symbol}&apikey={api_key}"
+            response2 = await client.get(url2, timeout=10.0)
+            if response2.status_code == 200:
+                data2 = response2.json()
+                if isinstance(data2, list) and len(data2) > 0 and data2[0].get('price'):
+                    return data2[0]['price']
+            
+            return await get_mock_stock_price(symbol)
+                
+    except Exception as e:
+        print(f"Error fetching real price for {symbol}: {e}")
+        return await get_mock_stock_price(symbol)
+
+async def get_mock_stock_price(symbol: str) -> float:
+    """Enhanced mock prices with realistic variation"""
     import random
-    base_price = mock_prices.get(symbol.upper(), 100.0)
-    variation = random.uniform(-0.05, 0.05)  # ±5% variation
-    return round(base_price * (1 + variation), 2)
+    import hashlib
+    
+    # Base prices for popular stocks (updated with more realistic recent prices)
+    mock_prices = {
+        "TSLA": 242.65,
+        "AAPL": 188.40,
+        "MSFT": 425.20,
+        "NVDA": 885.50,
+        "GOOGL": 145.30,
+        "AMZN": 158.75,
+        "META": 495.80,
+        "NFLX": 430.15,
+        "AMD": 205.60,
+        "INTC": 48.20,
+        "SPY": 458.90,
+        "QQQ": 382.45,
+        "IWM": 225.30,
+        "VTI": 248.80,
+        "BTC": 43500.0,
+        "ETH": 2650.0,
+        # Add GMNI and other symbols
+        "GMNI": 0.0008,  # Penny stock price
+        "PENNY1": 0.0025,
+        "PENNY2": 0.0001,
+        "PENNY3": 0.008,
+        "GME": 18.75,
+        "AMC": 5.25,
+        "PLTR": 22.80,
+        "SOFI": 7.95,
+        "RIOT": 12.40
+    }
+    
+    # Get base price or generate random one based on symbol hash for consistency
+    symbol_upper = symbol.upper()
+    if symbol_upper in mock_prices:
+        base_price = mock_prices[symbol_upper]
+    else:
+        # Generate consistent price based on symbol hash
+        symbol_hash = int(hashlib.md5(symbol_upper.encode()).hexdigest()[:8], 16)
+        random.seed(symbol_hash)
+        
+        # Different price ranges based on symbol characteristics
+        if len(symbol) <= 3:
+            base_price = random.uniform(100, 800)  # Major stocks
+        elif "PENNY" in symbol_upper or len(symbol) > 4:
+            base_price = random.uniform(0.0001, 0.01)  # Penny stocks
+        else:
+            base_price = random.uniform(10, 200)  # Mid-range stocks
+    
+    # Add small realistic variation (±0.5% to ±2%) but keep it consistent per session
+    import time
+    # Use daily seed for consistent prices within the same day
+    daily_seed = int(time.time() / 86400)  # Change once per day
+    random.seed(hash(symbol_upper + str(daily_seed)) % 2**32)
+    
+    if base_price < 0.01:
+        # For penny stocks, use smaller variation
+        variation = random.uniform(-0.005, 0.005)  # ±0.5%
+    else:
+        # For regular stocks, use normal variation
+        variation = random.uniform(-0.02, 0.02)  # ±2%
+    
+    current_price = base_price * (1 + variation)
+    
+    # Return appropriate precision based on price
+    if current_price < 0.01:
+        return round(current_price, 8)  # High precision for penny stocks
+    elif current_price < 1:
+        return round(current_price, 4)
+    else:
+        return round(current_price, 2)
 
 # Utility function to manage positions
 async def update_or_create_position(user_id: str, symbol: str, action: str, quantity: int, price: float, trade_id: str, stop_loss: float = None, take_profit: float = None):
@@ -246,7 +1612,7 @@ async def update_or_create_position(user_id: str, symbol: str, action: str, quan
             # Update stop loss and take profit if provided
             update_data = {
                 "quantity": new_quantity,
-                "avg_price": round(new_avg_price, 2)
+                "avg_price": round(new_avg_price, 8)  # Higher precision for low-value stocks
             }
             
             if stop_loss is not None:
@@ -371,7 +1737,7 @@ async def update_positions_pnl(user_id: str):
                     "is_open": False,
                     "closed_at": datetime.utcnow(),
                     "current_price": current_price,
-                    "unrealized_pnl": round(realized_pnl, 2),
+                    "unrealized_pnl": round(realized_pnl, 8),
                     "auto_close_reason": close_reason
                 }}
             )
@@ -384,7 +1750,7 @@ async def update_positions_pnl(user_id: str):
                 {"id": position["id"]},
                 {"$set": {
                     "current_price": current_price,
-                    "unrealized_pnl": round(unrealized_pnl, 2)
+                    "unrealized_pnl": round(unrealized_pnl, 8)
                 }}
             )
 
@@ -396,7 +1762,9 @@ async def calculate_user_performance(user_id: str) -> dict:
     if not trades:
         return {
             "total_profit": 0.0,
+            "total_pnl": 0.0,  # Frontend compatibility
             "win_percentage": 0.0,
+            "win_rate": 0.0,  # Frontend compatibility
             "trades_count": 0,
             "average_gain": 0.0
         }
@@ -425,16 +1793,20 @@ async def calculate_user_performance(user_id: str) -> dict:
             })
             
             # Update position
+            sold_cost = (avg_cost * sell_quantity)  # Cost of shares sold at average cost
             positions[symbol]["shares"] -= sell_quantity
-            if positions[symbol]["shares"] > 0:
-                positions[symbol]["total_cost"] = (positions[symbol]["total_cost"] / positions[symbol]["shares"]) * positions[symbol]["shares"]
-            else:
+            positions[symbol]["total_cost"] -= sold_cost
+            
+            # If no shares left, reset total_cost to 0
+            if positions[symbol]["shares"] <= 0:
                 positions[symbol]["total_cost"] = 0
     
     if not completed_trades:
         return {
             "total_profit": 0.0,
+            "total_pnl": 0.0,  # Frontend compatibility
             "win_percentage": 0.0,
+            "win_rate": 0.0,  # Frontend compatibility
             "trades_count": len(trades),
             "average_gain": 0.0
         }
@@ -445,76 +1817,485 @@ async def calculate_user_performance(user_id: str) -> dict:
     average_gain = total_profit / len(completed_trades) if completed_trades else 0
     
     return {
-        "total_profit": round(total_profit, 2),
+        "total_profit": round(total_profit, 8),  # Higher precision for low-value stocks
+        "total_pnl": round(total_profit, 8),  # Frontend compatibility
         "win_percentage": round(win_percentage, 2),
+        "win_rate": round(win_percentage / 100, 4),  # Frontend compatibility (as decimal)
         "trades_count": len(trades),
-        "average_gain": round(average_gain, 2)
+        "average_gain": round(average_gain, 8)
     }
 
 # API Routes
 
+@api_router.get("/")
+async def root():
+    return {"message": "CashoutAI API is running", "status": "success"}
+
+@api_router.get("/health")
+async def health_check():
+    """Health check for monitoring"""
+    try:
+        await db.command("ping")
+        return {"status": "healthy", "db": "connected"}
+    except Exception:
+        return {"status": "unhealthy", "db": "disconnected"}
+
+@api_router.get("/email/check")
+async def check_email_config():
+    """Quick check - no email sent, just shows config status"""
+    return {
+        "email_service_initialized": email_service is not None,
+        "env_vars": {
+            "RESEND_API_KEY": "***set***" if os.getenv("RESEND_API_KEY") else "NOT SET",
+            "SENDER_EMAIL": os.getenv("SENDER_EMAIL", "NOT SET"),
+            "ADMIN_EMAIL": os.getenv("ADMIN_EMAIL", "NOT SET"),
+        }
+    }
+
+@api_router.get("/email/test")
+async def test_email_service():
+    """Diagnostic endpoint to test email service"""
+    if not email_service:
+        return {
+            "status": "error",
+            "message": "Email service failed to initialize",
+            "hint": "Check RESEND_API_KEY environment variable"
+        }
+    
+    try:
+        admin_email = os.getenv("ADMIN_EMAIL")
+        result = await email_service.send_email(
+            admin_email,
+            "CashOutAi Email Test",
+            "Email is working!",
+            "<h2>CashOutAi Email Test</h2><p>Resend email service is working correctly!</p>"
+        )
+        return {
+            "status": "success" if result else "failed",
+            "message": f"Test email {'sent' if result else 'failed'} to {admin_email}"
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @api_router.post("/users/register", response_model=User)
-async def register_user(user_data: UserCreate):
-    # Check if username already exists
+@limiter.limit("5/minute")
+async def register_user(request: Request, user_data: UserCreate, background_tasks: BackgroundTasks):
+    # Check if username already exists (allow rejected users to register again)
     existing_user = await db.users.find_one({"username": user_data.username})
-    if existing_user:
+    if existing_user and existing_user.get("status") != UserStatus.REJECTED:
         raise HTTPException(status_code=400, detail="Username already exists")
     
-    # Check if email already exists
+    # Check if email already exists (allow rejected users to register again)
     existing_email = await db.users.find_one({"email": user_data.email})
-    if existing_email:
+    if existing_email and existing_email.get("status") != UserStatus.REJECTED:
         raise HTTPException(status_code=400, detail="Email already exists")
+    
+    # If user was previously rejected, remove the old account to allow fresh registration
+    if existing_user and existing_user.get("status") == UserStatus.REJECTED:
+        logger.info(f"🔄 REJECTED USER RE-REGISTERING: {user_data.username} - Removing old rejected account")
+        # Clean up old rejected user data
+        await db.users.delete_one({"username": user_data.username})
+        await db.messages.delete_many({"user_id": existing_user["id"]})
+        await db.notifications.delete_many({"user_id": existing_user["id"]})
+        
+    if existing_email and existing_email.get("status") == UserStatus.REJECTED and existing_email["id"] != existing_user.get("id", ""):
+        logger.info(f"🔄 REJECTED EMAIL RE-REGISTERING: {user_data.email} - Removing old rejected account")
+        # Clean up old rejected user data by email
+        await db.users.delete_one({"email": user_data.email})
+        await db.messages.delete_many({"user_id": existing_email["id"]})
+        await db.notifications.delete_many({"user_id": existing_email["id"]})
     
     # Create new user with pending status (in production, hash the password!)
     user_dict = user_data.dict()
-    del user_dict['password']  # Don't store password in this simple version
-    user = User(**user_dict, status=UserStatus.PENDING)
+    
+    # Store referral code for processing after user creation
+    referral_code = user_dict.pop('referral_code', None)
+    
+    # Store the password for testing purposes (in a real app, you'd hash it)
+    password = user_dict.pop('password')
+    hashed_password = hash_password(password)
+    user_dict['password_hash'] = hashed_password
+    
+    # Generate unique referral code for this user
+    user_dict['referral_code'] = generate_referral_code(user_data.username)
+    
+    # For testing: Make the first user an admin and auto-approve
+    users_count = await db.users.count_documents({})
+    if users_count == 0 or user_data.username == "admin":
+        user_dict["is_admin"] = True
+        user_dict["status"] = UserStatus.APPROVED
+        user_dict["role"] = UserRole.ADMIN
+        user_dict["approved_at"] = datetime.utcnow()
+        user_dict["approved_by"] = "system"
+        user = User(**user_dict)
+    else:
+        # All registrations require admin approval
+        user = User(**user_dict, status=UserStatus.PENDING)
+        logger.info(f"📋 NEW USER REGISTERED (pending approval): {user.username} - Plan: {user_data.membership_plan}")
+        
+        # Send email notification to admin for new registration
+        if email_service:
+            admin_email = os.getenv("ADMIN_EMAIL")
+            background_tasks.add_task(
+                email_service.send_registration_notification,
+                admin_email,
+                user_dict
+            )
+            logger.info(f"📧 Scheduled admin notification for registration: {user_data.username}")
+            
+            # Send confirmation email to user
+            background_tasks.add_task(
+                send_registration_confirmation_to_user,
+                user_data.email,
+                user_dict.get('real_name', user_data.username)
+            )
+            logger.info(f"📧 Scheduled user confirmation email to: {user_data.email}")
+        else:
+            logger.warning(f"Email service unavailable. Would send registration notification for user: {user_data.username}")
+            
+        # Send push notification to admins
+        background_tasks.add_task(
+            send_notification_to_admins,
+            "🔔 New User Registration",
+            f"{user_dict.get('real_name', user_data.username)} has registered and needs approval",
+            {"type": "new_registration", "username": user_data.username}
+        )
+    
+    # Insert user into database
     await db.users.insert_one(user.dict())
     
-    # Notify admins about new registration
-    await manager.send_admin_notification(json.dumps({
-        "type": "new_registration",
-        "message": f"New user {user.username} has registered and is awaiting approval",
-        "user": user.dict()
-    }, default=str))
+    # Handle referral if provided
+    if referral_code:
+        background_tasks.add_task(handle_referral_signup, user.id, referral_code)
+    
+    # Notify admins about new registration via WebSocket (only for regular users, not trials)
+    if user.status == UserStatus.PENDING:
+        await manager.send_admin_notification(json.dumps({
+            "type": "new_registration",
+            "user": user.dict()
+        }, default=str))
     
     return user
 
 @api_router.post("/users/login", response_model=User)
 async def login_user(login_data: UserLogin):
-    user = await db.users.find_one({"username": login_data.username})
+    # Make username case-insensitive by converting to lowercase
+    username_lower = login_data.username.lower()
+    user = await db.users.find_one({"username": {"$regex": f"^{re.escape(username_lower)}$", "$options": "i"}})
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    # Check password (in a real app, you'd verify the hash)
+    if 'password_hash' in user:
+        if not verify_password(login_data.password, user['password_hash']):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        # Auto-migrate legacy SHA-256 to bcrypt
+        await migrate_password_if_needed(user['id'], login_data.password, user['password_hash'])
+    
     user_obj = User(**user)
     
-    # Check if user is approved
-    if user_obj.status != UserStatus.APPROVED:
-        if user_obj.status == UserStatus.PENDING:
-            raise HTTPException(status_code=403, detail="Account pending admin approval")
-        elif user_obj.status == UserStatus.REJECTED:
-            raise HTTPException(status_code=403, detail="Account has been rejected")
+    # Check user status including trial system
+    if user_obj.status == UserStatus.PENDING:
+        raise HTTPException(status_code=403, detail="Account pending admin approval. You will be notified within 5 minutes once approved.")
+    elif user_obj.status == UserStatus.REJECTED:
+        raise HTTPException(status_code=403, detail="Account has been rejected")
+    elif user_obj.status == UserStatus.TRIAL:
+        # Check if trial has expired
+        if user_obj.trial_end_date and datetime.utcnow() > user_obj.trial_end_date:
+            # Convert to trial_expired status
+            await db.users.update_one(
+                {"id": user_obj.id},
+                {"$set": {"status": UserStatus.TRIAL_EXPIRED.value}}
+            )
+            user_obj.status = UserStatus.TRIAL_EXPIRED
+            logger.info(f"⏰ TRIAL EXPIRED: {user_obj.username} - Converting to limited access")
+            
+            # Schedule upgrade email if not sent
+            if not user_obj.trial_upgrade_email_sent:
+                asyncio.create_task(send_trial_upgrade_email(user_obj.email, user_obj.real_name))
+                await db.users.update_one(
+                    {"id": user_obj.id},
+                    {"$set": {"trial_upgrade_email_sent": True}}
+                )
+    elif user_obj.status not in [UserStatus.APPROVED, UserStatus.TRIAL_EXPIRED]:
+        raise HTTPException(status_code=403, detail="Account access denied")
+    
+    # Store the old session ID before generating new one
+    old_session_id = user.get("active_session_id")
+    
+    # Generate new session ID
+    new_session_id = str(uuid.uuid4())
+    
+    # If user has an active session, invalidate it AFTER setting the new session
+    if old_session_id:
+        # Notify the old session to logout (but don't close connection yet)
+        await manager.send_session_invalidation(user_obj.id, new_session_id)
+    
+    # PERFORMANCE OPTIMIZATION: Batch all login-related updates into a single operation
+    today = datetime.utcnow().strftime('%Y-%m-%d')
+    last_login = user.get("last_login_date")
+    current_streak = user.get("daily_login_streak", 0)
+    
+    # Prepare update operations
+    update_data = {
+        "is_online": True, 
+        "last_seen": datetime.utcnow(),
+        "active_session_id": new_session_id,
+        "session_created_at": datetime.utcnow()
+    }
+    
+    # Calculate XP and streak if it's a new day
+    xp_to_add = 0
+    if last_login != today:
+        # Calculate streak
+        if last_login:
+            yesterday = (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d')
+            if last_login == yesterday:
+                current_streak += 1
+            else:
+                current_streak = 1
+        else:
+            current_streak = 1
+        
+        # Add to update data
+        update_data.update({
+            "last_login_date": today,
+            "daily_login_streak": current_streak
+        })
+        
+        # Add XP for daily login (but don't process achievements yet)
+        xp_to_add = 10
+        current_xp = user.get("experience_points", 0)
+        new_xp = current_xp + xp_to_add
+        new_level = get_level_from_xp(new_xp)
+        
+        update_data.update({
+            "experience_points": new_xp,
+            "level": new_level
+        })
+    
+    # SINGLE database update for all login data
+    await db.users.update_one(
+        {"id": user_obj.id},
+        {"$set": update_data}
+    )
+    
+    # PERFORMANCE OPTIMIZATION: Process XP/achievements asynchronously in background
+    if xp_to_add > 0:
+        # Schedule background task for heavy operations (achievements, notifications, etc.)
+        asyncio.create_task(process_login_rewards_async(user_obj.id, current_streak, xp_to_add))
+    
+    # Add session_id to user object for frontend - update with new values
+    user_obj.active_session_id = new_session_id
+    user_obj.session_created_at = datetime.utcnow()
+    user_obj.is_online = True
+    user_obj.last_seen = datetime.utcnow()
+    
+    # Update XP/level in response if changed
+    if xp_to_add > 0:
+        user_obj.experience_points = update_data["experience_points"]
+        user_obj.level = update_data["level"]
+        user_obj.last_login_date = today
+        user_obj.daily_login_streak = current_streak
+    
+    print(f"🚀 FAST LOGIN: User {user_obj.username} logged in with session: {new_session_id} (XP processing in background)")
     
     return user_obj
 
+async def process_login_rewards_async(user_id: str, streak: int, xp_added: int):
+    """Process heavy login rewards (achievements, notifications) in background"""
+    try:
+        print(f"🔄 Processing login rewards for user {user_id} in background...")
+        
+        # Only check specific login-related achievements to avoid heavy processing
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            return
+            
+        user_achievements = user.get("achievements", [])
+        
+        # Check only login streak achievements (not all achievements)
+        new_achievements = []
+        
+        # Check dedication achievement (30-day streak)
+        if "dedication" not in user_achievements and streak >= 30:
+            new_achievements.append("dedication")
+            await award_xp(user_id, "achievement_unlocked", ACHIEVEMENTS["dedication"]["points_reward"])
+        
+        # Check membership duration achievements only once per week to reduce load
+        if user.get("last_membership_check") != datetime.utcnow().strftime('%Y-%m-%d'):
+            created_at = user.get("created_at")
+            if created_at:
+                if isinstance(created_at, str):
+                    created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                days_since_creation = (datetime.utcnow() - created_at).days
+                
+                # Check membership achievements
+                for achievement_id in ["team_member_3m", "team_member_8m", "team_member_12m"]:
+                    if achievement_id not in user_achievements:
+                        required_days = 90 if "3m" in achievement_id else 240 if "8m" in achievement_id else 365
+                        if days_since_creation >= required_days:
+                            new_achievements.append(achievement_id)
+                            await award_xp(user_id, "achievement_unlocked", ACHIEVEMENTS[achievement_id]["points_reward"])
+            
+            # Update last check date
+            await db.users.update_one(
+                {"id": user_id},
+                {"$set": {"last_membership_check": datetime.utcnow().strftime('%Y-%m-%d')}}
+            )
+        
+        # Update achievements if any new ones were earned
+        if new_achievements:
+            print(f"🏆 Background: User {user_id} earned achievements: {new_achievements}")
+            
+            await db.users.update_one(
+                {"id": user_id},
+                {"$addToSet": {"achievements": {"$each": new_achievements}}}
+            )
+            
+            # Auto-share achievements in chat and create notifications
+            for achievement_id in new_achievements:
+                achievement = ACHIEVEMENTS[achievement_id]
+                await share_achievement_in_chat(user_id, achievement)
+                
+                # Create achievement notification
+                await create_user_notification(
+                    user_id=user_id,
+                    notification_type="achievement",
+                    title="🏆 Achievement Unlocked!",
+                    message=f"Congratulations! You've earned: {achievement['name']}",
+                    data={
+                        "achievement_id": achievement_id,
+                        "achievement_name": achievement["name"],
+                        "points": achievement["points_reward"],
+                        "action": "achievement_unlocked"
+                    }
+                )
+        
+        print(f"✅ Login rewards processing completed for user {user_id}")
+        
+    except Exception as e:
+        logger.error(f"Error processing login rewards: {e}")
+        # Don't let background task errors affect login
+
+@api_router.get("/users/online")
+async def get_online_users():
+    """Get currently online users for HTTP polling fallback"""
+    try:
+        online_users = await db.users.find(
+            {"is_online": True},
+            {"_id": 0, "id": 1, "username": 1, "real_name": 1, "screen_name": 1, "is_admin": 1, "avatar_url": 1, "last_seen": 1}
+        ).to_list(100)
+        return online_users
+    except Exception as e:
+        logger.error(f"Error getting online users: {e}")
+        return []
+
+@api_router.get("/users/online-count")
+async def get_online_count():
+    """Get current online user count for debugging"""
+    try:
+        # Clean up stale sessions first
+        await cleanup_stale_sessions()
+        
+        # Get fresh count
+        online_count = await db.users.count_documents({"is_online": True})
+        online_users = await db.users.find(
+            {"is_online": True}, 
+            {"username": 1, "real_name": 1, "last_seen": 1, "active_session_id": 1}
+        ).to_list(100)
+        
+        return {
+            "online_count": online_count,
+            "online_users": [
+                {
+                    "username": user["username"],
+                    "real_name": user.get("real_name"),
+                    "last_seen": user.get("last_seen"),
+                    "has_session": bool(user.get("active_session_id"))
+                } for user in online_users
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error getting online count: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get online count")
+
+@api_router.get("/users/{user_id}/session-status")
+async def check_session_status(user_id: str, session_id: str):
+    """Check if a user's session is still valid"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    is_valid = user.get("active_session_id") == session_id
+    return {
+        "valid": is_valid,
+        "message": "Session is valid" if is_valid else "Session is invalid or expired"
+    }
+
+@api_router.post("/users/logout")
+async def logout_user(user_id: str):
+    """Update user offline status and clear session"""
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {
+            "is_online": False, 
+            "last_seen": datetime.utcnow(),
+            "active_session_id": None,
+            "session_created_at": None
+        }}
+    )
+    return {"message": "Logged out successfully"}
+
 @api_router.get("/users", response_model=List[User])
 async def get_users():
-    users = await db.users.find().to_list(1000)
+    """Get all active users (approved and trial users)"""
+    users = await db.users.find({
+        "status": {"$in": [UserStatus.APPROVED, UserStatus.TRIAL]}
+    }).to_list(1000)
     return [User(**user) for user in users]
 
 @api_router.get("/users/pending", response_model=List[User])
 async def get_pending_users():
-    """Get all users pending approval - admin only"""
-    users = await db.users.find({"status": UserStatus.PENDING}).to_list(1000)
-    return [User(**user) for user in users]
+    """Get all users needing admin attention (pending, trial, trial expired)"""
+    pending_users = await db.users.find({"status": UserStatus.PENDING}).to_list(1000)
+    trial_users = await db.users.find({"status": UserStatus.TRIAL}).to_list(1000)
+    trial_expired_users = await db.users.find({"status": UserStatus.TRIAL_EXPIRED}).to_list(1000)
+    
+    # Add indicators for different user types
+    for user in trial_users:
+        user["is_trial_active"] = True
+        trial_end = user.get('trial_end_date')
+        if trial_end:
+            if isinstance(trial_end, str):
+                trial_end = datetime.fromisoformat(trial_end.replace('Z', '+00:00'))
+            days_remaining = (trial_end - datetime.utcnow()).days
+            user["admin_note"] = f"🎯 ACTIVE TRIAL: {days_remaining} days remaining - Auto-approved trial user"
+        else:
+            user["admin_note"] = "🎯 ACTIVE TRIAL: Auto-approved trial user"
+    
+    for user in trial_expired_users:
+        user["is_trial_expired"] = True
+        user["admin_note"] = f"⏰ TRIAL EXPIRED: User paid for membership plan '{user.get('membership_plan', 'Unknown')}' - Convert to Member after payment verification"
+    
+    # Combine and sort by creation date (most recent first)
+    all_users = pending_users + trial_users + trial_expired_users
+    all_users.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
+    
+    return [User(**user) for user in all_users]
 
 @api_router.post("/users/approve")
-async def approve_user(approval: UserApproval):
+async def approve_user(approval: UserApproval, background_tasks: BackgroundTasks):
     """Approve or reject a user - admin only"""
     # Verify admin status (in production, use proper JWT auth)
     admin = await db.users.find_one({"id": approval.admin_id})
     if not admin or not admin.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get user before updating to get email and name
+    user_to_approve = await db.users.find_one({"id": approval.user_id})
+    if not user_to_approve:
+        raise HTTPException(status_code=404, detail="User not found")
     
     # Update user status
     new_status = UserStatus.APPROVED if approval.approved else UserStatus.REJECTED
@@ -523,6 +2304,12 @@ async def approve_user(approval: UserApproval):
         "approved_by": approval.admin_id,
         "approved_at": datetime.utcnow()
     }
+    
+    # Set role if approved
+    if approval.approved:
+        update_data["role"] = approval.role
+        if approval.role == UserRole.ADMIN:
+            update_data["is_admin"] = True
     
     result = await db.users.update_one(
         {"id": approval.user_id},
@@ -536,7 +2323,35 @@ async def approve_user(approval: UserApproval):
     user = await db.users.find_one({"id": approval.user_id})
     status_text = "approved" if approval.approved else "rejected"
     
-    # Notify all admins
+    # Send email notification to user about approval/rejection
+    user_name = user_to_approve.get('real_name', user_to_approve.get('username'))
+    user_email = user_to_approve.get('email')
+    
+    if user_email and email_service:
+        # Send approval confirmation email
+        background_tasks.add_task(
+            email_service.send_approval_confirmation,
+            user_email,
+            user_name,
+            approval.approved
+        )
+        
+        # Send comprehensive welcome email for approved users
+        if approval.approved:
+            background_tasks.add_task(
+                email_service.send_general_welcome_email,
+                user_email,
+                user_name,
+                user_to_approve["username"],
+                user_to_approve.get("membership_plan", "Premium")
+            )
+            logger.info(f"✅ Welcome email scheduled for approved user {user_email}")
+            
+    elif user_email:
+        action = "approved" if approval.approved else "rejected"
+        print(f"Email service unavailable. Would send {action} notification to {user_email}")
+    
+    # Notify all admins via WebSocket
     await manager.send_admin_notification(json.dumps({
         "type": "user_approval",
         "message": f"User {user['username']} has been {status_text}",
@@ -545,6 +2360,1983 @@ async def approve_user(approval: UserApproval):
     
     return {"message": f"User {status_text} successfully"}
 
+@api_router.post("/users/change-role")
+async def change_user_role(role_change: Dict[str, Any], background_tasks: BackgroundTasks):
+    """Change user role - admin only (including demoting other admins)"""
+    required_fields = ["user_id", "admin_id", "new_role"]
+    for field in required_fields:
+        if field not in role_change:
+            raise HTTPException(status_code=400, detail=f"Missing field: {field}")
+    
+    user_id = role_change["user_id"]
+    admin_id = role_change["admin_id"]
+    new_role = role_change["new_role"]
+    
+    # Verify admin status
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get target user
+    target_user = await db.users.find_one({"id": user_id})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Prevent admin from demoting themselves
+    if admin_id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+    
+    # Validate new role
+    try:
+        new_role_enum = UserRole(new_role)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    
+    # Update user role
+    update_data = {
+        "role": new_role_enum,
+        "modified_at": datetime.utcnow(),
+        "modified_by": admin_id
+    }
+    
+    # Set admin status based on role
+    if new_role_enum == UserRole.ADMIN:
+        update_data["is_admin"] = True
+    else:
+        update_data["is_admin"] = False
+    
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Failed to update user role")
+    
+    # Get updated user
+    updated_user = await db.users.find_one({"id": user_id})
+    
+    # Send email notification to user about role change
+    user_name = target_user.get('real_name', target_user.get('username'))
+    user_email = target_user.get('email')
+    admin_name = admin.get('real_name', admin.get('username'))
+    
+    if user_email and email_service:
+        background_tasks.add_task(
+            send_role_change_notification,
+            user_email,
+            user_name,
+            admin_name,
+            new_role_enum.value,
+            target_user.get('role', 'member')
+        )
+    
+    # Notify all admins via WebSocket
+    await manager.send_admin_notification(json.dumps({
+        "type": "role_change",
+        "message": f"User {target_user['username']} role changed to {new_role_enum.value} by {admin['username']}",
+        "user": updated_user,
+        "admin": admin['username']
+    }, default=str))
+    
+    return {"message": f"User role changed to {new_role_enum.value} successfully"}
+
+async def send_role_change_notification(email: str, user_name: str, admin_name: str, new_role: str, old_role: str):
+    """Send role change notification email to user"""
+    if not email_service:
+        print(f"Email service unavailable. Would send role change notification to {email}")
+        return
+        
+    subject = "🔄 Role Change Notification - ArgusAI CashOut"
+    
+    plain_body = f"""
+Hi {user_name},
+
+Your role in ArgusAI CashOut has been updated by admin {admin_name}.
+
+Previous Role: {old_role.title()}
+New Role: {new_role.title()}
+
+{"You now have administrative privileges and can manage other users." if new_role == "admin" else "You are now a regular member with standard access privileges."}
+
+If you have any questions about this change, please contact an administrator.
+
+--
+ArgusAI CashOut Team
+"""
+    
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background: #f9f9f9; }}
+        .role-box {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #667eea; }}
+        .role-change {{ background: #e3f2fd; padding: 15px; border-radius: 6px; margin: 10px 0; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔄 Role Change Notification</h1>
+        <p>ArgusAI CashOut</p>
+    </div>
+    
+    <div class="content">
+        <div class="role-box">
+            <h2>Hi {user_name},</h2>
+            <p>Your role in ArgusAI CashOut has been updated by admin <strong>{admin_name}</strong>.</p>
+            
+            <div class="role-change">
+                <p><strong>Previous Role:</strong> {old_role.title()}</p>
+                <p><strong>New Role:</strong> {new_role.title()}</p>
+            </div>
+            
+            {"<p><strong>Congratulations!</strong> You now have administrative privileges and can manage other users.</p>" if new_role == "admin" else "<p>You are now a regular member with standard access privileges.</p>"}
+        </div>
+        
+        <p>If you have any questions about this change, please contact an administrator.</p>
+    </div>
+    
+    <div class="footer">
+        <p>ArgusAI CashOut Team</p>
+    </div>
+</body>
+</html>
+"""
+    
+    await email_service.send_email(email, subject, plain_body, html_body)
+
+@api_router.post("/users/change-password")
+async def change_password(password_data: PasswordChange, background_tasks: BackgroundTasks, user_id: str):
+    """Change user password - user must be logged in"""
+    # Get user
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify current password
+    if 'password_hash' in user:
+        if not verify_password(password_data.current_password, user['password_hash']):
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+    else:
+        # Legacy password check (remove in production)
+        if user.get('password') != password_data.current_password:
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    # Hash new password
+    new_password_hash = hash_password(password_data.new_password)
+    
+    # Update password
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": {
+            "password_hash": new_password_hash,
+            "modified_at": datetime.utcnow()
+        }}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Failed to update password")
+    
+    # Send email notification about password change
+    user_email = user.get('email')
+    user_name = user.get('real_name', user.get('username'))
+    
+    if user_email and email_service:
+        background_tasks.add_task(
+            send_password_change_notification,
+            user_email,
+            user_name
+        )
+    
+    return {"message": "Password changed successfully"}
+
+@api_router.post("/users/reset-password-request")
+async def request_password_reset(reset_request: PasswordResetRequest, background_tasks: BackgroundTasks):
+    """Request password reset via email"""
+    # Find user by email (case-insensitive)
+    user = await db.users.find_one({"email": {"$regex": f"^{re.escape(reset_request.email)}$", "$options": "i"}})
+    
+    # Always return success for security (don't reveal if email exists)
+    if not user:
+        return {"message": "If an account with that email exists, you will receive a password reset link."}
+    
+    # Generate reset token
+    reset_token = str(uuid.uuid4())
+    reset_expires = datetime.utcnow() + timedelta(hours=1)  # Token expires in 1 hour
+    
+    # Store reset token
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "reset_token": reset_token,
+            "reset_expires": reset_expires
+        }}
+    )
+    
+    # Send reset email
+    user_name = user.get('real_name', user.get('username'))
+    user_email = user.get('email')
+    
+    if email_service:
+        background_tasks.add_task(
+            send_password_reset_email,
+            user_email,
+            user_name,
+            reset_token
+        )
+    
+    return {"message": "If an account with that email exists, you will receive a password reset link."}
+
+class DirectPasswordReset(BaseModel):
+    username: str
+    email: str
+    new_password: str
+
+@api_router.post("/users/reset-password-direct")
+async def direct_password_reset(reset_data: DirectPasswordReset):
+    """Reset password directly by verifying username AND email match"""
+    if len(reset_data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Find user by username (case-insensitive)
+    user = await db.users.find_one({
+        "username": {"$regex": f"^{re.escape(reset_data.username)}$", "$options": "i"}
+    })
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with that username")
+    
+    # Verify email matches (case-insensitive)
+    stored_email = user.get("email", "").lower().strip()
+    provided_email = reset_data.email.lower().strip()
+    
+    if stored_email != provided_email:
+        raise HTTPException(status_code=400, detail="Email does not match the account on file")
+    
+    # Hash and update password
+    new_password_hash = hash_password(reset_data.new_password)
+    result = await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "password_hash": new_password_hash,
+            "modified_at": datetime.utcnow()
+        }}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=500, detail="Failed to reset password")
+    
+    return {"message": "Password reset successfully! You can now log in with your new password."}
+
+@api_router.post("/users/reset-password-confirm")
+async def confirm_password_reset(reset_confirm: PasswordResetConfirm, background_tasks: BackgroundTasks):
+    """Confirm password reset with token"""
+    # Find user by reset token
+    user = await db.users.find_one({
+        "reset_token": reset_confirm.token,
+        "reset_expires": {"$gt": datetime.utcnow()}
+    })
+    
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    # Hash new password
+    new_password_hash = hash_password(reset_confirm.new_password)
+    
+    # Update password and clear reset token
+    result = await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "password_hash": new_password_hash,
+            "modified_at": datetime.utcnow()
+        },
+        "$unset": {
+            "reset_token": "",
+            "reset_expires": ""
+        }}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Failed to reset password")
+    
+    # Send confirmation email
+    user_email = user.get('email')
+    user_name = user.get('real_name', user.get('username'))
+    
+    if user_email and email_service:
+        background_tasks.add_task(
+            send_password_reset_confirmation,
+            user_email,
+            user_name
+        )
+    
+    return {"message": "Password reset successfully"}
+
+async def send_password_change_notification(email: str, user_name: str):
+    """Send password change notification email"""
+    if not email_service:
+        print(f"Email service unavailable. Would send password change notification to {email}")
+        return
+        
+    subject = "🔒 Password Changed - ArgusAI CashOut"
+    
+    plain_body = f"""
+Hi {user_name},
+
+Your ArgusAI CashOut account password has been successfully changed.
+
+Time: {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}
+
+If you did not make this change, please contact support immediately.
+
+--
+ArgusAI CashOut Team
+"""
+    
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .header {{ background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background: #f9f9f9; }}
+        .info-box {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #10b981; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔒 Password Changed</h1>
+        <p>ArgusAI CashOut</p>
+    </div>
+    
+    <div class="content">
+        <div class="info-box">
+            <h2>Hi {user_name},</h2>
+            <p>Your ArgusAI CashOut account password has been successfully changed.</p>
+            <p><strong>Time:</strong> {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}</p>
+        </div>
+        
+        <p>If you did not make this change, please contact support immediately.</p>
+    </div>
+    
+    <div class="footer">
+        <p>ArgusAI CashOut Team</p>
+    </div>
+</body>
+</html>
+"""
+    
+    await email_service.send_email(email, subject, plain_body, html_body)
+
+async def send_password_reset_email(email: str, user_name: str, reset_token: str):
+    """Send password reset email with link"""
+    if not email_service:
+        print(f"Email service unavailable. Would send password reset email to {email}")
+        return
+        
+    subject = "🔑 Password Reset Request - ArgusAI CashOut"
+    
+    # Use environment variable for frontend URL, fallback to production domain
+    frontend_url = os.getenv('FRONTEND_URL') or os.getenv('REACT_APP_FRONTEND_URL') or 'https://cashoutai.app'
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+    
+    plain_body = f"""
+Hi {user_name},
+
+You requested a password reset for your ArgusAI CashOut account.
+
+Click the link below to reset your password:
+{reset_link}
+
+This link will expire in 1 hour.
+
+If you did not request this reset, please ignore this email.
+
+--
+ArgusAI CashOut Team
+"""
+    
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background: #f9f9f9; }}
+        .reset-box {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #667eea; }}
+        .reset-btn {{ background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 15px 0; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔑 Password Reset Request</h1>
+        <p>ArgusAI CashOut</p>
+    </div>
+    
+    <div class="content">
+        <div class="reset-box">
+            <h2>Hi {user_name},</h2>
+            <p>You requested a password reset for your ArgusAI CashOut account.</p>
+            
+            <a href="{reset_link}" class="reset-btn">Reset Your Password</a>
+            
+            <p><small>This link will expire in 1 hour.</small></p>
+        </div>
+        
+        <p>If you did not request this reset, please ignore this email.</p>
+    </div>
+    
+    <div class="footer">
+        <p>ArgusAI CashOut Team</p>
+    </div>
+</body>
+</html>
+"""
+    
+    await email_service.send_email(email, subject, plain_body, html_body)
+
+async def send_password_reset_confirmation(email: str, user_name: str):
+    """Send password reset confirmation email"""
+    if not email_service:
+        print(f"Email service unavailable. Would send password reset confirmation to {email}")
+        return
+        
+    subject = "✅ Password Reset Complete - ArgusAI CashOut"
+    
+    plain_body = f"""
+Hi {user_name},
+
+Your ArgusAI CashOut account password has been successfully reset.
+
+Time: {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}
+
+You can now log in with your new password.
+
+If you did not make this change, please contact support immediately.
+
+--
+ArgusAI CashOut Team
+"""
+    
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .header {{ background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background: #f9f9f9; }}
+        .success-box {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #10b981; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>✅ Password Reset Complete</h1>
+        <p>ArgusAI CashOut</p>
+    </div>
+    
+    <div class="content">
+        <div class="success-box">
+            <h2>Hi {user_name},</h2>
+            <p>Your ArgusAI CashOut account password has been successfully reset.</p>
+            <p><strong>Time:</strong> {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}</p>
+            <p>You can now log in with your new password.</p>
+        </div>
+        
+        <p>If you did not make this change, please contact support immediately.</p>
+    </div>
+    
+    <div class="footer">
+        <p>ArgusAI CashOut Team</p>
+    </div>
+</body>
+</html>
+"""
+    
+    await email_service.send_email(email, subject, plain_body, html_body)
+
+@api_router.get("/stock/{symbol}")
+async def get_stock_price(symbol: str):
+    """Get real-time stock price using FMP API with proper formatting"""
+    fmp_api_key = os.getenv("FMP_API_KEY")
+    if not fmp_api_key:
+        raise HTTPException(status_code=500, detail="FMP API key not configured")
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Try /stable/quote first
+            url = f"https://financialmodelingprep.com/stable/quote?symbol={symbol}&apikey={fmp_api_key}"
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data and len(data) > 0:
+                        stock_data = data[0]
+                        raw_price = stock_data.get("price", 0)
+                        return {
+                            "symbol": symbol,
+                            "price": raw_price,
+                            "formatted_price": format_price_display(raw_price),
+                            "change": stock_data.get("change", 0),
+                            "changesPercentage": stock_data.get("changesPercentage", 0),
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+            
+            # Fallback to /stable/profile for penny/small stocks
+            url2 = f"https://financialmodelingprep.com/stable/profile?symbol={symbol}&apikey={fmp_api_key}"
+            async with session.get(url2) as response2:
+                if response2.status == 200:
+                    data2 = await response2.json()
+                    if data2 and len(data2) > 0 and data2[0].get("price"):
+                        raw_price = data2[0]["price"]
+                        return {
+                            "symbol": symbol,
+                            "price": raw_price,
+                            "formatted_price": format_price_display(raw_price),
+                            "change": data2[0].get("changes", 0) or 0,
+                            "changesPercentage": 0,
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+            
+            raise HTTPException(status_code=404, detail=f"Stock symbol {symbol} not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error fetching stock price for {symbol}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error fetching stock price")
+
+@api_router.post("/users/{user_id}/role")
+async def update_user_role(user_id: str, role_update: UserRoleUpdate):
+    """Update user role - admin only"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": role_update.admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    update_data = {"role": role_update.role}
+    if role_update.role == UserRole.ADMIN:
+        update_data["is_admin"] = True
+    else:
+        update_data["is_admin"] = False
+    
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "User role updated successfully"}
+
+@api_router.delete("/users/{user_id}")
+async def remove_user(user_id: str, admin_id: str):
+    """Remove user from app - admin only (includes trial users)"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get user details before deletion
+    user_to_remove = await db.users.find_one({"id": user_id})
+    if not user_to_remove:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Don't allow removing other admins
+    if user_to_remove.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Cannot remove admin users")
+    
+    username = user_to_remove.get("username", "Unknown")
+    user_status = user_to_remove.get("status", "Unknown")
+    membership_plan = user_to_remove.get("membership_plan", "Unknown")
+    
+    # COMPREHENSIVE CLEANUP: Remove all user-related data
+    try:
+        # 1. Delete user messages
+        messages_deleted = await db.messages.delete_many({"user_id": user_id})
+        
+        # 2. Delete user notifications
+        notifications_deleted = await db.notifications.delete_many({"user_id": user_id})
+        
+        # 3. Delete user trades/positions
+        trades_deleted = await db.trades.delete_many({"user_id": user_id})
+        positions_deleted = await db.positions.delete_many({"user_id": user_id})
+        
+        # 4. Delete FCM tokens
+        fcm_deleted = await db.fcm_tokens.delete_many({"user_id": user_id})
+        
+        # 5. Remove user from other users' followers/following lists
+        await db.users.update_many(
+            {"followers": user_id},
+            {"$pull": {"followers": user_id}, "$inc": {"follower_count": -1}}
+        )
+        await db.users.update_many(
+            {"following": user_id},
+            {"$pull": {"following": user_id}, "$inc": {"following_count": -1}}
+        )
+        
+        # 6. Delete user cash prizes
+        prizes_deleted = await db.cash_prizes.delete_many({"user_id": user_id})
+        
+        # 7. Finally, delete the user account
+        result = await db.users.delete_one({"id": user_id})
+        
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="User deletion failed")
+        
+        # Log the removal with details
+        logger.info(f"🗑️ USER REMOVED by admin {admin['username']}: {username} (Status: {user_status}, Plan: {membership_plan})")
+        logger.info(f"📊 Cleanup stats - Messages: {messages_deleted.deleted_count}, Notifications: {notifications_deleted.deleted_count}, Trades: {trades_deleted.deleted_count}, FCM: {fcm_deleted.deleted_count}")
+        
+        # Notify other admins about the removal
+        await manager.send_admin_notification(json.dumps({
+            "type": "user_removed",
+            "message": f"User {username} ({user_status}) has been removed by {admin['username']}",
+            "admin_action": "user_removal",
+            "removed_user": {
+                "username": username,
+                "status": user_status,
+                "membership_plan": membership_plan,
+                "removed_by": admin['username']
+            }
+        }, default=str))
+        
+        return {
+            "message": f"User {username} removed successfully",
+            "user_details": {
+                "username": username,
+                "status": user_status,
+                "membership_plan": membership_plan,
+                "removed_by": admin['username']
+            },
+            "cleanup_stats": {
+                "messages_deleted": messages_deleted.deleted_count,
+                "notifications_deleted": notifications_deleted.deleted_count,
+                "trades_deleted": trades_deleted.deleted_count,
+                "positions_deleted": positions_deleted.deleted_count,
+                "fcm_tokens_deleted": fcm_deleted.deleted_count,
+                "cash_prizes_deleted": prizes_deleted.deleted_count
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error during user removal: {e}")
+        raise HTTPException(status_code=500, detail=f"Error removing user: {str(e)}")
+
+# NEW: XP and Achievement Endpoints
+@api_router.post("/users/{user_id}/award-xp")
+async def award_user_xp(user_id: str, xp_action: XPAction):
+    """Award XP to user for various actions"""
+    await award_xp(user_id, xp_action.action, xp_action.points, xp_action.metadata or {})
+    
+    # Get updated user data
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "message": "XP awarded successfully",
+        "total_xp": user.get("experience_points", 0),
+        "level": user.get("level", 1),
+        "xp_for_next_level": get_xp_for_next_level(user.get("experience_points", 0))
+    }
+
+@api_router.get("/users/{user_id}/achievements")
+async def get_user_achievements(user_id: str):
+    """Get user's achievements and progress"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_achievements = user.get("achievements", [])
+    progress = user.get("achievement_progress", {})
+    
+    # Format achievement data
+    earned_achievements = []
+    available_achievements = []
+    
+    for achievement_id, achievement in ACHIEVEMENTS.items():
+        if achievement_id in user_achievements:
+            earned_achievements.append(achievement)
+        else:
+            # Add progress information
+            achievement_copy = achievement.copy()
+            if achievement_id == "chatterbox":
+                achievement_copy["current_progress"] = progress.get("chatterbox_count", 0)
+            elif achievement_id == "heart_giver":
+                achievement_copy["current_progress"] = progress.get("heart_giver_count", 0)
+            elif achievement_id == "dedication":
+                achievement_copy["current_progress"] = progress.get("login_streak", 0)
+            elif achievement_id == "first_blood":
+                achievement_copy["current_progress"] = progress.get("profitable_trades", 0)
+            else:
+                achievement_copy["current_progress"] = 0
+                
+            available_achievements.append(achievement_copy)
+    
+    return {
+        "earned": earned_achievements,
+        "available": available_achievements,
+        "total_earned": len(earned_achievements),
+        "total_available": len(ACHIEVEMENTS)
+    }
+
+@api_router.get("/achievements")
+async def get_all_achievements():
+    """Get all available achievements"""
+    return {"achievements": list(ACHIEVEMENTS.values())}
+
+# NEW: Profile Customization Endpoints  
+@api_router.post("/users/{user_id}/profile")
+async def update_user_profile(user_id: str, profile_update: ProfileUpdate):
+    """Update user profile customization"""
+    update_data = {}
+    
+    if profile_update.bio is not None:
+        update_data["bio"] = profile_update.bio
+    if profile_update.trading_style_tags is not None:
+        update_data["trading_style_tags"] = profile_update.trading_style_tags
+    if profile_update.profile_banner is not None:
+        update_data["profile_banner"] = profile_update.profile_banner
+    if profile_update.avatar_url is not None:
+        update_data["avatar_url"] = profile_update.avatar_url
+    if profile_update.location is not None:
+        update_data["location"] = profile_update.location
+    if profile_update.show_location is not None:
+        update_data["show_location"] = profile_update.show_location
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No update data provided")
+    
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Award XP for profile completion
+    if profile_update.avatar_url or profile_update.bio or profile_update.profile_banner:
+        await award_xp(user_id, "profile_update", 25)
+    
+    return {"message": "Profile updated successfully"}
+
+@api_router.get("/users/{user_id}/profile")
+async def get_user_profile(user_id: str):
+    """Get user profile for display"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "screen_name": user.get("screen_name"),
+        "bio": user.get("bio"),
+        "trading_style_tags": user.get("trading_style_tags", []),
+        "profile_banner": user.get("profile_banner"),
+        "avatar_url": user.get("avatar_url"),
+        "location": user.get("location"),
+        "show_location": user.get("show_location", True),
+        "level": user.get("level", 1),
+        "experience_points": user.get("experience_points", 0),
+        "achievements": user.get("achievements", []),
+        "achievement_progress": user.get("achievement_progress", {}),
+        "total_profit": user.get("total_profit", 0),
+        "win_percentage": user.get("win_percentage", 0),
+        "trades_count": user.get("trades_count", 0),
+        "is_admin": user.get("is_admin", False),
+        "role": user.get("role", "member"),
+        "created_at": user.get("created_at"),
+        "is_online": user.get("is_online", False),
+        "last_seen": user.get("last_seen"),
+        "follower_count": user.get("follower_count", 0),
+        "following_count": user.get("following_count", 0)
+    }
+
+@api_router.get("/users/{user_id}/profile/public")
+async def get_public_user_profile(user_id: str):
+    """Get public user profile for other users to view"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Return only public information
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "screen_name": user.get("screen_name"),
+        "bio": user.get("bio"),
+        "trading_style_tags": user.get("trading_style_tags", []),
+        "profile_banner": user.get("profile_banner"),
+        "avatar_url": user.get("avatar_url"),
+        "level": user.get("level", 1),
+        "experience_points": user.get("experience_points", 0),
+        "achievements": user.get("achievements", []),
+        "is_admin": user.get("is_admin", False),
+        "role": user.get("role", "member"),
+        "created_at": user.get("created_at"),
+        "is_online": user.get("is_online", False),
+        "last_seen": user.get("last_seen"),
+        # Public trading stats (optional - you can remove if too private)
+        "total_profit": user.get("total_profit", 0),
+        "win_percentage": user.get("win_percentage", 0),
+        "trades_count": user.get("trades_count", 0)
+    }
+
+# NEW: Cash Prize and Referral System Endpoints
+
+@api_router.get("/admin/cash-prizes/pending")
+async def get_pending_cash_prizes(admin_id: str):
+    """Get all pending cash prizes for admin review"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get all users with pending cash prizes
+    users_with_pending = await db.users.find(
+        {"pending_cash_review": {"$exists": True, "$ne": []}}
+    ).to_list(1000)
+    
+    pending_prizes = []
+    for user in users_with_pending:
+        for prize in user.get("pending_cash_review", []):
+            prize_info = {
+                "user_id": user["id"],
+                "username": user["username"],
+                "real_name": user.get("real_name"),
+                "email": user.get("email"),
+                "prize": prize
+            }
+            pending_prizes.append(prize_info)
+    
+    return {"pending_cash_prizes": pending_prizes}
+
+@api_router.post("/admin/cash-prizes/review")
+async def review_cash_prize(review: CashPrizeReview, admin_id: str):
+    """Admin review and approve/reject cash prize"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get user with pending cash prize
+    user = await db.users.find_one({"id": review.user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Find and update the pending cash prize
+    pending_prizes = user.get("pending_cash_review", [])
+    updated_pending = []
+    prize_found = False
+    
+    for prize in pending_prizes:
+        if prize.get("achievement_id") == review.achievement_id:
+            if review.status == "approved":
+                # Move to approved cash prizes
+                approved_prize = {
+                    **prize,
+                    "status": "approved",
+                    "reviewed_at": datetime.utcnow(),
+                    "reviewed_by": admin["id"],
+                    "admin_notes": review.admin_notes,
+                    "approved_amount": review.amount
+                }
+                
+                # Add to cash prizes and update total
+                await db.users.update_one(
+                    {"id": review.user_id},
+                    {
+                        "$push": {"cash_prizes": approved_prize},
+                        "$inc": {"total_cash_earned": review.amount}
+                    }
+                )
+                
+                # Send notification to chat about cash prize
+                await share_cash_prize_in_chat(review.user_id, approved_prize)
+                
+                # Create cash prize notification for the user
+                await create_user_notification(
+                    user_id=review.user_id,
+                    notification_type="cash_prize",
+                    title="Cash Prize Approved! 💰",
+                    message=f"Congratulations! Your cash prize of ${review.amount:.2f} has been approved for {review.achievement_id} achievement!",
+                    data={
+                        "amount": review.amount,
+                        "achievement_id": review.achievement_id,
+                        "admin_notes": review.admin_notes,
+                        "approved_at": datetime.utcnow(),
+                        "action": "cash_prize_approved"
+                    }
+                )
+                
+            elif review.status == "rejected":
+                # Just remove from pending
+                pass
+            
+            prize_found = True
+        else:
+            updated_pending.append(prize)
+    
+    if not prize_found:
+        raise HTTPException(status_code=404, detail="Pending cash prize not found")
+    
+    # Update user's pending cash review list
+    await db.users.update_one(
+        {"id": review.user_id},
+        {"$set": {"pending_cash_review": updated_pending}}
+    )
+    
+    return {"message": f"Cash prize {review.status} successfully"}
+
+@api_router.post("/admin/convert-trial")
+async def convert_trial_to_member(user_id: str, admin_id: str):
+    """Admin endpoint to convert trial_expired users to member status after payment"""
+    # Verify admin
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Find the trial expired user
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.get("status") != UserStatus.TRIAL_EXPIRED:
+        raise HTTPException(status_code=400, detail="User is not in trial_expired status")
+    
+    # Convert to approved member
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {
+            "status": UserStatus.APPROVED,
+            "role": UserRole.MEMBER,
+            "approved_by": admin["username"],
+            "approved_at": datetime.utcnow()
+        }}
+    )
+    
+    logger.info(f"🎉 TRIAL CONVERTED TO MEMBER: {user['username']} by admin {admin['username']}")
+    
+    # Send approval confirmation and welcome email
+    if email_service:
+        try:
+            # Send approval confirmation
+            await email_service.send_approval_confirmation(
+                user["email"], 
+                user.get("real_name", user["username"]), 
+                True
+            )
+            
+            # Send comprehensive welcome email for approved users
+            await email_service.send_general_welcome_email(
+                user["email"],
+                user.get("real_name", user["username"]), 
+                user["username"],
+                user.get("membership_plan", "Premium")
+            )
+            logger.info(f"✅ Welcome email sent to approved user {user['email']}")
+            
+        except Exception as e:
+            logger.error(f"Error sending approval/welcome emails: {e}")
+    
+    return {"message": f"User {user['username']} successfully converted to member status"}
+
+@api_router.get("/admin/trial-expired-users")
+async def get_trial_expired_users():
+    """Get list of trial expired users for admin review"""
+    trial_expired_users = await db.users.find(
+        {"status": UserStatus.TRIAL_EXPIRED},
+        {"id": 1, "username": 1, "real_name": 1, "email": 1, "trial_end_date": 1, "membership_plan": 1, "_id": 0}
+    ).to_list(100)
+    
+    # Convert datetime objects to strings for JSON serialization
+    for user in trial_expired_users:
+        if "trial_end_date" in user and user["trial_end_date"]:
+            user["trial_end_date"] = user["trial_end_date"].isoformat()
+    
+    return {
+        "trial_expired_users": trial_expired_users,
+        "count": len(trial_expired_users)
+    }
+
+@api_router.get("/admin/trial-users")
+async def get_all_trial_users():
+    """Get all trial users (active and expired) for admin management"""
+    active_trials = await db.users.find(
+        {"status": UserStatus.TRIAL},
+        {"id": 1, "username": 1, "real_name": 1, "email": 1, "trial_start_date": 1, "trial_end_date": 1, "membership_plan": 1, "_id": 0}
+    ).to_list(100)
+    
+    expired_trials = await db.users.find(
+        {"status": UserStatus.TRIAL_EXPIRED},
+        {"id": 1, "username": 1, "real_name": 1, "email": 1, "trial_end_date": 1, "membership_plan": 1, "_id": 0}
+    ).to_list(100)
+    
+    # Convert datetime objects to strings for JSON serialization
+    for user in active_trials + expired_trials:
+        for date_field in ["trial_start_date", "trial_end_date"]:
+            if date_field in user and user[date_field]:
+                user[date_field] = user[date_field].isoformat()
+    
+    return {
+        "active_trials": active_trials,
+        "expired_trials": expired_trials, 
+        "active_count": len(active_trials),
+        "expired_count": len(expired_trials),
+        "total_trials": len(active_trials) + len(expired_trials)
+    }
+
+@api_router.delete("/admin/trial-users/bulk")
+async def bulk_remove_trial_users(admin_id: str, user_ids: list):
+    """Bulk remove multiple trial users - admin only"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if not user_ids or len(user_ids) == 0:
+        raise HTTPException(status_code=400, detail="No user IDs provided")
+    
+    # Limit bulk operations to prevent abuse
+    if len(user_ids) > 50:
+        raise HTTPException(status_code=400, detail="Maximum 50 users can be removed at once")
+    
+    removed_users = []
+    failed_removals = []
+    
+    for user_id in user_ids:
+        try:
+            # Get user details
+            user = await db.users.find_one({"id": user_id})
+            if not user:
+                failed_removals.append({"user_id": user_id, "reason": "User not found"})
+                continue
+                
+            # Only allow removal of trial and trial_expired users in bulk
+            if user.get("status") not in [UserStatus.TRIAL, UserStatus.TRIAL_EXPIRED]:
+                failed_removals.append({
+                    "user_id": user_id, 
+                    "username": user.get("username"),
+                    "reason": f"Can only bulk remove trial users, found status: {user.get('status')}"
+                })
+                continue
+                
+            # Don't allow removing admins
+            if user.get("is_admin"):
+                failed_removals.append({
+                    "user_id": user_id,
+                    "username": user.get("username"), 
+                    "reason": "Cannot remove admin users"
+                })
+                continue
+            
+            # Perform the removal (simplified cleanup for bulk operation)
+            await db.messages.delete_many({"user_id": user_id})
+            await db.notifications.delete_many({"user_id": user_id})
+            await db.fcm_tokens.delete_many({"user_id": user_id})
+            result = await db.users.delete_one({"id": user_id})
+            
+            if result.deleted_count > 0:
+                removed_users.append({
+                    "user_id": user_id,
+                    "username": user.get("username"),
+                    "status": user.get("status"),
+                    "membership_plan": user.get("membership_plan")
+                })
+                logger.info(f"🗑️ BULK REMOVAL: {user.get('username')} removed by {admin['username']}")
+            else:
+                failed_removals.append({
+                    "user_id": user_id,
+                    "username": user.get("username"),
+                    "reason": "Deletion failed"
+                })
+                
+        except Exception as e:
+            failed_removals.append({
+                "user_id": user_id,
+                "reason": f"Error: {str(e)}"
+            })
+    
+    # Notify admins about bulk removal
+    if removed_users:
+        await manager.send_admin_notification(json.dumps({
+            "type": "bulk_user_removal",
+            "message": f"{len(removed_users)} trial users bulk removed by {admin['username']}",
+            "admin_action": "bulk_removal",
+            "removed_count": len(removed_users),
+            "removed_by": admin['username']
+        }, default=str))
+    
+    return {
+        "message": f"Bulk removal completed: {len(removed_users)} removed, {len(failed_removals)} failed",
+        "removed_users": removed_users,
+        "failed_removals": failed_removals,
+        "summary": {
+            "total_requested": len(user_ids),
+            "successfully_removed": len(removed_users),
+            "failed_removals": len(failed_removals)
+        }
+    }
+
+@api_router.post("/admin/allow-reregistration")
+async def allow_rejected_user_reregistration(user_id: str, admin_id: str):
+    """Allow a rejected user to register again by removing their rejected account"""
+    # Verify admin status
+    admin = await db.users.find_one({"id": admin_id})
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Find the rejected user
+    rejected_user = await db.users.find_one({"id": user_id})
+    if not rejected_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if rejected_user.get("status") != UserStatus.REJECTED:
+        raise HTTPException(status_code=400, detail="User is not in rejected status")
+    
+    username = rejected_user.get("username")
+    email = rejected_user.get("email")
+    
+    # Remove the rejected user account to allow re-registration
+    await db.users.delete_one({"id": user_id})
+    await db.messages.delete_many({"user_id": user_id})
+    await db.notifications.delete_many({"user_id": user_id})
+    
+    logger.info(f"🔓 ADMIN ALLOWED RE-REGISTRATION: {username} by admin {admin['username']}")
+    
+    return {
+        "message": f"User {username} can now register again",
+        "username": username,
+        "email": email,
+        "action_by": admin["username"],
+        "note": "The user's rejected account has been removed and they can now register with the same username/email"
+    }
+
+@api_router.get("/users/{user_id}/referrals")
+async def get_user_referrals(user_id: str):
+    """Get user's referral information"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get referred users info
+    referred_users = []
+    for ref_id in user.get("referrals", []):
+        ref_user = await db.users.find_one({"id": ref_id})
+        if ref_user:
+            referred_users.append({
+                "id": ref_user["id"],
+                "username": ref_user["username"],
+                "real_name": ref_user.get("real_name"),
+                "created_at": ref_user.get("created_at"),
+                "status": ref_user.get("status")
+            })
+    
+    return {
+        "referral_code": user.get("referral_code"),
+        "referred_users": referred_users,
+        "successful_referrals": user.get("successful_referrals", 0),
+        "total_cash_earned": user.get("total_cash_earned", 0),
+        "cash_prizes": user.get("cash_prizes", []),
+        "pending_cash_review": user.get("pending_cash_review", [])
+    }
+
+@api_router.get("/referral/{referral_code}")
+async def get_referral_info(referral_code: str):
+    """Get information about a referral code for signup form"""
+    user = await db.users.find_one({"referral_code": referral_code})
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid referral code")
+    
+    return {
+        "valid": True,
+        "referrer_username": user["username"],
+        "referrer_name": user.get("real_name", user["username"])
+    }
+
+async def share_cash_prize_in_chat(user_id: str, cash_prize: dict):
+    """Share cash prize award in chat"""
+    try:
+        # Get user info
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            return
+            
+        amount = cash_prize.get("approved_amount", cash_prize.get("amount", 0))
+        achievement_id = cash_prize.get("achievement_id", "")
+        
+        # Create cash prize message
+        message = Message(
+            user_id=user_id,
+            username=user.get("username", ""),
+            content=f"💰 Cash Prize Awarded: ${amount:.2f} for {achievement_id} achievement! 🎉",
+            is_admin=False,
+            avatar_url=user.get("avatar_url"),
+            real_name=user.get("real_name"),
+            screen_name=user.get("screen_name")
+        )
+        
+        # Save message to database
+        await db.messages.insert_one(message.dict())
+        
+        # Broadcast to all connected users
+        await manager.broadcast(json.dumps({
+            "type": "message",
+            "data": message.dict()
+        }, default=str))
+        
+    except Exception as e:
+        logger.error(f"Error sharing cash prize in chat: {e}")
+
+# NEW: Theme Customization Endpoints
+@api_router.post("/users/{user_id}/theme")
+async def update_user_theme(user_id: str, theme_update: ThemeUpdate):
+    """Update user's active theme"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if user has unlocked this theme based on level
+    user_level = user.get("level", 1)
+    locked_themes = {
+        "sunrise": 2,
+        "ocean": 3, 
+        "midnight": 4,
+        "golden": 5
+    }
+    
+    if theme_update.theme_name in locked_themes:
+        required_level = locked_themes[theme_update.theme_name]
+        if user_level < required_level:
+            raise HTTPException(
+                status_code=403, 
+                detail=f"Theme '{theme_update.theme_name}' requires level {required_level}"
+            )
+    
+    update_data = {
+        "active_theme_name": theme_update.theme_name
+    }
+    
+    if theme_update.custom_colors:
+        update_data["custom_theme"] = theme_update.custom_colors
+    
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": update_data}
+    )
+    
+    return {"message": "Theme updated successfully"}
+
+@api_router.get("/users/{user_id}/theme")
+async def get_user_theme(user_id: str):
+    """Get user's current theme"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_level = user.get("level", 1)
+    
+    # Available themes based on level
+    available_themes = ["dark", "light"]
+    if user_level >= 2:
+        available_themes.append("sunrise")
+    if user_level >= 3:
+        available_themes.append("ocean")
+    if user_level >= 4:
+        available_themes.append("midnight")
+    if user_level >= 5:
+        available_themes.append("golden")
+    
+    return {
+        "active_theme": user.get("active_theme_name", "dark"),
+        "custom_theme": user.get("custom_theme"),
+        "available_themes": available_themes,
+        "user_level": user_level
+    }
+
+# NEW: Follow System Endpoints
+@api_router.post("/users/{user_id}/follow")
+async def follow_user(user_id: str, follow_request: FollowRequest):
+    """Follow another user"""
+    follower_id = user_id
+    target_id = follow_request.target_user_id
+    
+    # Can't follow yourself
+    if follower_id == target_id:
+        raise HTTPException(status_code=400, detail="Cannot follow yourself")
+    
+    # Check if both users exist
+    follower = await db.users.find_one({"id": follower_id})
+    target = await db.users.find_one({"id": target_id})
+    
+    if not follower or not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if already following
+    if target_id in follower.get("following", []):
+        raise HTTPException(status_code=400, detail="Already following this user")
+    
+    # Add to follower's following list
+    await db.users.update_one(
+        {"id": follower_id},
+        {
+            "$push": {"following": target_id},
+            "$inc": {"following_count": 1}
+        }
+    )
+    
+    # Add to target's followers list
+    await db.users.update_one(
+        {"id": target_id},
+        {
+            "$push": {"followers": follower_id},
+            "$inc": {"follower_count": 1}
+        }
+    )
+    
+    # Award XP for social interaction
+    await award_xp(follower_id, "follow_user", 10)
+    
+    # Create notification for the followed user
+    follower_name = follower.get("screen_name") or follower.get("username")
+    await create_user_notification(
+        user_id=target_id,
+        notification_type="follow",
+        title=f"New Follower",
+        message=f"{follower_name} started following you",
+        data={
+            "follower_id": follower_id,
+            "follower_name": follower_name,
+            "follower_avatar": follower.get("avatar_url"),
+            "action": "follow"
+        }
+    )
+    
+    return {"message": "Successfully followed user"}
+
+@api_router.post("/users/{user_id}/unfollow")
+async def unfollow_user(user_id: str, follow_request: FollowRequest):
+    """Unfollow another user"""
+    follower_id = user_id
+    target_id = follow_request.target_user_id
+    
+    # Check if both users exist
+    follower = await db.users.find_one({"id": follower_id})
+    target = await db.users.find_one({"id": target_id})
+    
+    if not follower or not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if actually following
+    if target_id not in follower.get("following", []):
+        raise HTTPException(status_code=400, detail="Not following this user")
+    
+    # Remove from follower's following list
+    await db.users.update_one(
+        {"id": follower_id},
+        {
+            "$pull": {"following": target_id},
+            "$inc": {"following_count": -1}
+        }
+    )
+    
+    # Remove from target's followers list
+    await db.users.update_one(
+        {"id": target_id},
+        {
+            "$pull": {"followers": follower_id},
+            "$inc": {"follower_count": -1}
+        }
+    )
+    
+    return {"message": "Successfully unfollowed user"}
+
+@api_router.get("/users/{user_id}/notifications")
+async def get_user_notifications(user_id: str, limit: int = 50, offset: int = 0):
+    """Get user notifications and automatically mark them as read when viewed"""
+    notifications = await db.notifications.find(
+        {"user_id": user_id}
+    ).sort("created_at", -1).skip(offset).limit(limit).to_list(limit)
+    
+    # Convert datetime objects to ISO strings for JSON serialization
+    for notification in notifications:
+        if "created_at" in notification and notification["created_at"]:
+            notification["created_at"] = notification["created_at"].isoformat()
+        if "expires_at" in notification and notification["expires_at"]:
+            notification["expires_at"] = notification["expires_at"].isoformat()
+        # Remove MongoDB's _id field if present
+        if "_id" in notification:
+            del notification["_id"]
+    
+    # Auto-mark all fetched notifications as read
+    if notifications:
+        notification_ids = [notif["id"] for notif in notifications if not notif.get("read", False)]
+        if notification_ids:
+            await db.notifications.update_many(
+                {
+                    "id": {"$in": notification_ids},
+                    "user_id": user_id
+                },
+                {"$set": {"read": True, "read_at": datetime.utcnow()}}
+            )
+            logger.info(f"Auto-marked {len(notification_ids)} notifications as read for user {user_id}")
+            
+            # Update the notifications list to reflect read status
+            for notif in notifications:
+                if notif["id"] in notification_ids:
+                    notif["read"] = True
+                    notif["read_at"] = datetime.utcnow().isoformat()
+    
+    return notifications
+
+@api_router.put("/users/{user_id}/notifications/{notification_id}/read")
+async def mark_notification_as_read(user_id: str, notification_id: str):
+    """Mark a notification as read"""
+    result = await db.notifications.update_one(
+        {"id": notification_id, "user_id": user_id},
+        {"$set": {"read": True}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    return {"message": "Notification marked as read"}
+
+@api_router.post("/users/{user_id}/notifications/read-all")
+async def mark_all_notifications_as_read(user_id: str):
+    """Mark all notifications as read for a user"""
+    result = await db.notifications.update_many(
+        {"user_id": user_id, "read": False},
+        {"$set": {"read": True}}
+    )
+    
+    return {"message": f"Marked {result.modified_count} notifications as read"}
+
+@api_router.delete("/users/{user_id}/notifications/{notification_id}")
+async def delete_notification(user_id: str, notification_id: str):
+    """Delete a notification"""
+    result = await db.notifications.delete_one(
+        {"id": notification_id, "user_id": user_id}
+    )
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    return {"message": "Notification deleted"}
+
+@api_router.get("/users/{user_id}/notifications/unread-count")
+async def get_unread_notification_count(user_id: str):
+    """Get count of unread notifications for a user"""
+    count = await db.notifications.count_documents(
+        {"user_id": user_id, "read": False}
+    )
+    
+    return {"message": f"Unread notification count: {count}"}
+
+# Message Reaction Endpoints
+@api_router.post("/messages/{message_id}/react")
+async def add_message_reaction(message_id: str, reaction_data: dict, background_tasks: BackgroundTasks):
+    """Add a reaction to a message"""
+    user_id = reaction_data.get("user_id")
+    reaction_type = reaction_data.get("reaction_type", "heart")  # Default to heart
+    
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID required")
+    
+    # Get the message and user
+    message = await db.messages.find_one({"id": message_id})
+    user = await db.users.find_one({"id": user_id})
+    
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if user already reacted to this message
+    existing_reaction = await db.reactions.find_one({
+        "message_id": message_id,
+        "user_id": user_id,
+        "reaction_type": reaction_type
+    })
+    
+    if existing_reaction:
+        raise HTTPException(status_code=400, detail="Already reacted to this message")
+    
+    # Create reaction
+    reaction = {
+        "id": str(uuid.uuid4()),
+        "message_id": message_id,
+        "user_id": user_id,
+        "reaction_type": reaction_type,
+        "created_at": datetime.utcnow()
+    }
+    
+    await db.reactions.insert_one(reaction)
+    
+    # Award XP for giving reaction
+    await award_xp(user_id, "heart_reaction", 2)
+    
+    # Create notification for the message author (if not reacting to own message)
+    if message["user_id"] != user_id:
+        reactor_name = user.get("screen_name") or user.get("username")
+        reaction_emoji = "❤️" if reaction_type == "heart" else "👍"
+        
+        await create_user_notification(
+            user_id=message["user_id"],
+            notification_type="reaction",
+            title="New Reaction",
+            message=f"{reactor_name} reacted {reaction_emoji} to your message: \"{message['content'][:50]}{'...' if len(message['content']) > 50 else ''}\"",
+            data={
+                "reactor_id": user_id,
+                "reactor_name": reactor_name,
+                "reactor_avatar": user.get("avatar_url"),
+                "message_id": message_id,
+                "reaction_type": reaction_type,
+                "message_content": message["content"],
+                "action": "reaction"
+            }
+        )
+    
+    return {"message": "Reaction added successfully"}
+
+@api_router.delete("/messages/{message_id}/react")
+async def remove_message_reaction(message_id: str, user_id: str, reaction_type: str = "heart"):
+    """Remove a reaction from a message"""
+    result = await db.reactions.delete_one({
+        "message_id": message_id,
+        "user_id": user_id,
+        "reaction_type": reaction_type
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Reaction not found")
+    
+    return {"message": "Reaction removed successfully"}
+
+@api_router.get("/messages/{message_id}/reactions")
+async def get_message_reactions(message_id: str):
+    """Get all reactions for a message"""
+    reactions = await db.reactions.find({"message_id": message_id}).to_list(1000)
+    
+    # Group reactions by type and get user info
+    reaction_summary = {}
+    for reaction in reactions:
+        reaction_type = reaction["reaction_type"]
+        if reaction_type not in reaction_summary:
+            reaction_summary[reaction_type] = []
+        
+        # Get user info for the reaction
+        user = await db.users.find_one({"id": reaction["user_id"]})
+        if user:
+            reaction_summary[reaction_type].append({
+                "user_id": user["id"],
+                "username": user["username"],
+                "screen_name": user.get("screen_name"),
+                "avatar_url": user.get("avatar_url"),
+                "created_at": reaction["created_at"]
+            })
+    
+    return reaction_summary
+
+@api_router.get("/users/{user_id}/followers")
+async def get_user_followers(user_id: str):
+    """Get list of users following this user"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    follower_ids = user.get("followers", [])
+    if not follower_ids:
+        return {"followers": [], "count": 0}
+    
+    # Get follower details
+    followers_cursor = db.users.find({"id": {"$in": follower_ids}})
+    followers = []
+    
+    async for follower in followers_cursor:
+        followers.append({
+            "id": follower["id"],
+            "username": follower["username"],
+            "screen_name": follower.get("screen_name"),
+            "avatar_url": follower.get("avatar_url"),
+            "level": follower.get("level", 1),
+            "is_admin": follower.get("is_admin", False),
+            "is_online": follower.get("is_online", False)
+        })
+    
+    return {"followers": followers, "count": len(followers)}
+
+@api_router.get("/users/{user_id}/following")
+async def get_user_following(user_id: str):
+    """Get list of users this user is following"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    following_ids = user.get("following", [])
+    if not following_ids:
+        return {"following": [], "count": 0}
+    
+    # Get following details
+    following_cursor = db.users.find({"id": {"$in": following_ids}})
+    following = []
+    
+    async for followed_user in following_cursor:
+        following.append({
+            "id": followed_user["id"],
+            "username": followed_user["username"],
+            "screen_name": followed_user.get("screen_name"),
+            "avatar_url": followed_user.get("avatar_url"),
+            "level": followed_user.get("level", 1),
+            "is_admin": followed_user.get("is_admin", False),
+            "is_online": followed_user.get("is_online", False)
+        })
+    
+    return {"following": following, "count": len(following)}
+
+@api_router.get("/users/{user_id}/follow-status/{target_user_id}")
+async def get_follow_status(user_id: str, target_user_id: str):
+    """Check if user is following target user"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    is_following = target_user_id in user.get("following", [])
+    return {"is_following": is_following}
+
+# Bot Message System
+@api_router.post("/bot/message")
+async def create_bot_message(message_data: dict):
+    """Create a message from external bot (e.g., email alerts)"""
+    try:
+        # Parse the raw email content
+        raw_content = message_data.get("content", "")
+        email_subject = message_data.get("subject", "")
+        sender = message_data.get("sender", "")
+        
+        logger.info(f"Bot message received: subject='{email_subject}', content='{raw_content[:100]}...'")
+        
+        # Parse price alert emails
+        formatted_message = parse_price_alert(raw_content, email_subject)
+        
+        if formatted_message:
+            # Get or create bot user
+            bot_user = await get_or_create_bot_user()
+            
+            # Create chat message using proper Message model
+            ticker_objects = extract_tickers(formatted_message)
+            ticker_strings = [ticker["symbol"] for ticker in ticker_objects] if ticker_objects else []
+            
+            chat_message = Message(
+                user_id=bot_user["id"],
+                username=bot_user["username"],
+                content=formatted_message,
+                content_type="text",
+                is_admin=True,
+                real_name=bot_user["real_name"],
+                screen_name=bot_user.get("screen_name"),
+                avatar_url=bot_user.get("avatar_url"),
+                highlighted_tickers=ticker_strings,
+                reply_to_id=None,
+                reply_to=None
+            )
+            
+            # Insert into database
+            await db.messages.insert_one(chat_message.dict())
+            
+            # Broadcast bot message to all connected users via WebSocket
+            await manager.broadcast(json.dumps({
+                "type": "message",
+                "data": chat_message.dict()
+            }, default=str))
+            
+            logger.info(f"Bot message created and broadcast: {formatted_message}")
+            
+            return {"message": "Bot message posted successfully", "formatted_content": formatted_message}
+        else:
+            # Parsing failed - log it but don't post debug info to chat
+            logger.warning(f"Could not parse bot message. Subject: {email_subject}, Content: {raw_content[:200]}")
+            return {"message": "Bot message parsing failed - not posted to chat", "subject": email_subject}
+            
+    except Exception as e:
+        logger.error(f"Error creating bot message: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create bot message")
+
+async def get_or_create_bot_user():
+    """Get existing bot user or create one"""
+    bot_user = await db.users.find_one({"username": "cashoutai_bot"})
+    
+    if not bot_user:
+        # Create bot user
+        bot_user = {
+            "id": str(uuid.uuid4()),
+            "username": "cashoutai_bot",
+            "email": "bot@cashoutai.com",
+            "real_name": "CashOutAi Bot",
+            "screen_name": "🤖 CashOutAi Bot",
+            "membership_plan": "premium",
+            "is_admin": True,
+            "is_bot": True,
+            "role": "bot",
+            "status": UserStatus.APPROVED,
+            "avatar_url": None,
+            "total_profit": 0,
+            "win_percentage": 0,
+            "trades_count": 0,
+            "average_gain": 0,
+            "is_online": True,
+            "last_seen": datetime.utcnow(),
+            "active_session_id": None,
+            "session_created_at": datetime.utcnow(),
+            "created_at": datetime.utcnow(),
+            "approved_at": datetime.utcnow(),
+            "approved_by": "system",
+            "experience_points": 0,
+            "level": 1,
+            "daily_login_streak": 0,
+            "last_login_date": None,
+            "profile_banner": None,
+            "bio": "Automated price alert bot for CashOutAi trading platform 🤖📈",
+            "trading_style_tags": ["automated", "alerts", "price-tracking"],
+            "custom_theme": None,
+            "active_theme_name": "dark",
+            "achievements": [],
+            "achievement_progress": {},
+            "location": "Cloud",
+            "show_location": False,
+            "followers": [],
+            "following": [],
+            "follower_count": 0,
+            "following_count": 0
+        }
+        
+        await db.users.insert_one(bot_user)
+        logger.info("CashOutAi Bot user created")
+    
+    return bot_user
+
+def parse_price_alert(content: str, subject: str = "") -> str:
+    """Parse price alert email and format for chat"""
+    try:
+        # Extract ticker symbol (looks for patterns like "AIMH price alert" or "$AIMH")
+        import re
+        
+        logger.info(f"🔍 PARSING EMAIL - Subject: '{subject}', Content: '{content}'")
+        
+        ticker = None
+        price = None
+        
+        # Enhanced ticker detection patterns (case insensitive, prioritize standard tickers)
+        ticker_patterns = [
+            # Pattern 1: (TICKER) format - highest priority for stock symbols
+            r'\(([A-Z]{2,5})\)',
+            # Pattern 2: $TICKER format  
+            r'\$([A-Z]{2,5})',
+            # Pattern 3: "TICKER price alert" or "TICKER alert" 
+            r'([A-Z]{2,5})\s+(?:price\s+)?alert',
+            # Pattern 4: Start of content/subject
+            r'^([A-Z]{2,5})\s',
+            # Pattern 5: TICKER followed by trading keywords
+            r'\b([A-Z]{2,5})\b(?=\s+(?:price|alert|Last|trading|has\s+reached))',
+            # Pattern 6: Any isolated ticker (fallback)
+            r'\b([A-Z]{2,5})\b'
+        ]
+        
+        combined_text = content.upper() + " " + subject.upper()
+        logger.info(f"🔍 COMBINED TEXT FOR TICKER SEARCH: '{combined_text}'")
+        
+        for i, pattern in enumerate(ticker_patterns):
+            ticker_match = re.search(pattern, combined_text, re.IGNORECASE)
+            if ticker_match:
+                potential_ticker = ticker_match.group(1).upper()
+                logger.info(f"🎯 Pattern {i+1} matched ticker: '{potential_ticker}'")
+                # Filter out common words that aren't tickers
+                if potential_ticker not in ['ALERT', 'PRICE', 'LAST', 'TEST', 'EMAIL', 'FROM', 'SENT', 'WITH', 'THAT', 'THIS', 'HAVE']:
+                    ticker = potential_ticker
+                    logger.info(f"✅ TICKER FOUND: {ticker}")
+                    break
+                else:
+                    logger.info(f"❌ Ticker '{potential_ticker}' filtered out as common word")
+        
+        # Enhanced price detection patterns (case insensitive)
+        price_patterns = [
+            # Pattern 1: "Last = .04" or "Last = $0.04"
+            r'Last\s*=\s*\$?([0-9]*\.?[0-9]+)',  
+            # Pattern 2: "Last is at or above $.04"
+            r'Last\s+is\s+at\s+or\s+above\s+\$([0-9]*\.?[0-9]+)',
+            # Pattern 3: "trading at $250.75"
+            r'trading\s+at\s+\$([0-9]*\.?[0-9]+)',
+            # Pattern 4: Simple "$price" format
+            r'\$([0-9]*\.?[0-9]+)',
+            # Pattern 5: = $price format
+            r'=\s*\$([0-9]*\.?[0-9]+)',
+            # Pattern 6: price without $ symbol followed by common indicators
+            r'price\s*:?\s*([0-9]*\.?[0-9]+)',
+            # Pattern 7: Generic equals pattern
+            r'=\s*([0-9]*\.?[0-9]+)',
+            # Pattern 8: Any decimal number (fallback)
+            r'([0-9]+\.[0-9]+)'
+        ]
+        
+        logger.info(f"🔍 SEARCHING FOR PRICE IN: '{content}'")
+        
+        for i, pattern in enumerate(price_patterns):
+            price_match = re.search(pattern, content, re.IGNORECASE)
+            if price_match:
+                price = price_match.group(1)
+                logger.info(f"🎯 Pattern {i+1} matched price: '{price}'")
+                break
+        
+        logger.info(f"📊 FINAL EXTRACTION - Ticker: {ticker}, Price: {price}")
+        
+        if ticker and price:
+            # Format price properly
+            try:
+                price_float = float(price)
+                if price_float < 1:
+                    price_str = f"${price_float:.4f}".rstrip('0').rstrip('.')
+                else:
+                    price_str = f"${price_float:.2f}"
+            except:
+                price_str = f"${price}"
+            
+            # Create formatted message
+            formatted = f"🔔 ${ticker} {price_str} 👀"
+            
+            logger.info(f"✅ Parsed price alert: ticker={ticker}, price={price_str}, formatted={formatted}")
+            return formatted
+        
+        # Enhanced fallback - try to extract any meaningful info
+        logger.warning(f"⚠️ Could not parse price alert properly")
+        logger.warning(f"   Content: '{content[:100]}...'")
+        logger.warning(f"   Subject: '{subject}'")
+        logger.warning(f"   Ticker found: {ticker}")
+        logger.warning(f"   Price found: {price}")
+        
+        # Last resort: if we have a ticker but no price, try simpler patterns
+        if ticker and not price:
+            simple_price = re.search(r'([0-9]+\.?[0-9]*)', content)
+            if simple_price:
+                price = simple_price.group(1)
+                formatted = f"🔔 ${ticker} ${price} 👀"
+                logger.info(f"✅ Fallback parse successful: {formatted}")
+                return formatted
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"❌ Error parsing price alert: {e}")
+        return None
+
+def extract_tickers(message: str) -> list:
+    """Extract ticker symbols from message for highlighting"""
+    import re
+    tickers = re.findall(r'\$([A-Z]{1,5})', message)
+    return [{"symbol": ticker, "start": message.find(f"${ticker}"), "end": message.find(f"${ticker}") + len(ticker) + 1} for ticker in tickers]
+
+# Email-to-Chat Bridge endpoint
+@api_router.post("/bot/email-webhook")
+async def email_webhook(request: dict):
+    """Webhook endpoint for email-to-chat bridge services (like Zapier, IFTTT, etc.)"""
+    try:
+        # Log the raw request data for debugging
+        logger.info(f"🔍 RAW WEBHOOK DATA: {json.dumps(request, indent=2)}")
+        
+        # This endpoint can be used with services like:
+        # - Zapier Email Parser
+        # - IFTTT Email trigger
+        # - Custom email forwarding rules
+        
+        # Try multiple possible field names that Zapier might use
+        content = (request.get("body", "") or 
+                  request.get("content", "") or 
+                  request.get("text", "") or
+                  request.get("message", "") or
+                  request.get("email_body", "") or
+                  request.get("Body", ""))
+        
+        subject = (request.get("subject", "") or 
+                  request.get("Subject", "") or
+                  request.get("title", "") or
+                  request.get("email_subject", ""))
+        
+        sender = (request.get("from", "") or 
+                 request.get("sender", "") or
+                 request.get("From", "") or
+                 request.get("email_from", ""))
+        
+        logger.info(f"📧 EXTRACTED DATA - Subject: '{subject}', Content: '{content[:200]}...', Sender: '{sender}'")
+        
+        # Smart filtering: Only process emails that look like price alerts
+        if is_price_alert_email(content, subject, sender):
+            return await create_bot_message({
+                "content": content,
+                "subject": subject,
+                "sender": sender
+            })
+        else:
+            # Log unrelated emails but don't post to chat
+            logger.info(f"Filtered out non-alert email: subject='{subject}', sender='{sender}'")
+            return {"message": "Email filtered - not a price alert", "filtered": True}
+        
+    except Exception as e:
+        logger.error(f"Error processing email webhook: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process email webhook")
+
+def is_price_alert_email(content: str, subject: str, sender: str) -> bool:
+    """Determine if an email is a price alert that should be posted to chat"""
+    
+    # Trusted trading platform domains (case insensitive)
+    trusted_domains = [
+        'thinkorswim.com',
+        'schwab.com', 
+        'tradingview.com',
+        'robinhood.com',
+        'etrade.com',
+        'fidelity.com',
+        'alerts.com',
+        'tradingplatform.com',
+        'stocktrader.com',
+        'alerts@',  # Generic alerts prefix
+    ]
+    
+    # Check if sender is from trusted domain
+    sender_lower = sender.lower()
+    is_trusted_sender = any(domain in sender_lower for domain in trusted_domains)
+    
+    # Look for trading/alert keywords in subject and content
+    alert_keywords = ['alert', 'price', 'target', 'reached', 'trading', 'last', 'bid', 'ask']
+    combined_text = (subject + " " + content).lower()
+    has_alert_keywords = any(keyword in combined_text for keyword in alert_keywords)
+    
+    # Look for ticker symbols (2-5 capital letters)
+    has_ticker = bool(re.search(r'[A-Z]{2,5}', content + " " + subject))
+    
+    # Look for price information
+    has_price = bool(re.search(r'\$[0-9]*\.?[0-9]+|Last\s*=|Bid\s*=|Ask\s*=', content + " " + subject))
+    
+    # Must have ticker, price info, and either trusted sender OR alert keywords
+    is_alert = has_ticker and has_price and (is_trusted_sender or has_alert_keywords)
+    
+    logger.info(f"Email filter check - Sender: {sender}, Trusted: {is_trusted_sender}, Keywords: {has_alert_keywords}, Ticker: {has_ticker}, Price: {has_price}, Result: {is_alert}")
+    
+    return is_alert
+
 @api_router.post("/messages", response_model=Message)
 async def create_message(message_data: MessageCreate):
     # Get user info
@@ -552,23 +4344,81 @@ async def create_message(message_data: MessageCreate):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Check if user is approved
-    if user.get("status") != UserStatus.APPROVED:
+    # Check user status for chat access
+    user_status = user.get("status")
+    if user_status == UserStatus.TRIAL_EXPIRED:
+        raise HTTPException(
+            status_code=403, 
+            detail="Chat access restricted. Your trial has expired. Upgrade your account to continue chatting with other traders."
+        )
+    elif user_status not in [UserStatus.APPROVED, UserStatus.TRIAL]:
         raise HTTPException(status_code=403, detail="Only approved users can send messages")
     
-    # Extract stock tickers
-    tickers = extract_stock_tickers(message_data.content)
+    # Extract stock tickers only for text messages
+    tickers = []
+    if message_data.content_type == "text":
+        tickers = extract_stock_tickers(message_data.content)
+    
+    # Handle reply data
+    reply_to_data = None
+    if message_data.reply_to_id:
+        reply_to_message = await db.messages.find_one({"id": message_data.reply_to_id})
+        if reply_to_message:
+            reply_to_data = {
+                "id": reply_to_message["id"],
+                "username": reply_to_message["username"],
+                "screen_name": reply_to_message.get("screen_name"),
+                "content": reply_to_message["content"],
+                "content_type": reply_to_message.get("content_type", "text")
+            }
     
     message = Message(
         user_id=message_data.user_id,
         username=user["username"],
         content=message_data.content,
+        content_type=message_data.content_type,
         is_admin=user.get("is_admin", False),
         avatar_url=user.get("avatar_url"),
-        highlighted_tickers=tickers
+        real_name=user.get("real_name"),
+        screen_name=user.get("screen_name"),  # NEW: Include screen_name in message
+        highlighted_tickers=tickers,
+        reply_to_id=message_data.reply_to_id,
+        reply_to=reply_to_data,
+        text_content=message_data.text_content
     )
     
     await db.messages.insert_one(message.dict())
+    
+    # Award XP for sending message
+    await award_xp(message_data.user_id, "chat_message", 5)
+    
+    # Award extra XP for reply
+    if message_data.reply_to_id:
+        await award_xp(message_data.user_id, "reply_message", 8)
+        
+        # Create notification for the user being replied to
+        if reply_to_data and reply_to_data.get("username"):
+            # Find the original message sender
+            original_sender = await db.users.find_one({"username": reply_to_data["username"]})
+            if original_sender and original_sender["id"] != message_data.user_id:  # Don't notify self-replies
+                replier_name = user.get("screen_name") or user.get("username")
+                await create_user_notification(
+                    user_id=original_sender["id"],
+                    notification_type="reply",
+                    title="New Reply",
+                    message=f"{replier_name} replied to your message: \"{message_data.content[:50]}{'...' if len(message_data.content) > 50 else ''}\"",
+                    data={
+                        "replier_id": message_data.user_id,
+                        "replier_name": replier_name,
+                        "replier_avatar": user.get("avatar_url"),
+                        "original_message_id": reply_to_data["id"],
+                        "reply_content": message_data.content,
+                        "action": "reply"
+                    }
+                )
+    
+    # Handle @username mentions in the message
+    await handle_message_mentions(message_data.content, user, message.id)
     
     # Broadcast message to all connected users
     await manager.broadcast(json.dumps({
@@ -576,14 +4426,223 @@ async def create_message(message_data: MessageCreate):
         "data": message.dict()
     }, default=str))
     
+    # Send push notification to all other users ONLY when sender is an admin
+    try:
+        # Only send notifications if the sender is an admin
+        if user.get("is_admin"):
+            # Get all users except the sender
+            other_users = await db.users.find({
+                "id": {"$ne": message_data.user_id},
+                "status": UserStatus.APPROVED
+            }).to_list(1000)
+            
+            # Get their FCM tokens
+            other_user_ids = [u["id"] for u in other_users]
+            tokens_cursor = db.fcm_tokens.find({"user_id": {"$in": other_user_ids}})
+            tokens = await tokens_cursor.to_list(1000)
+            token_list = [token["token"] for token in tokens]
+            
+            if token_list:
+                # Prepare notification
+                sender_name = user.get("screen_name") or user.get("real_name") or user["username"]
+                
+                # Truncate message content for notification
+                if message_data.content_type == "image":
+                    message_preview = "📷 Admin sent an image"
+                else:
+                    message_preview = message_data.content[:100] + "..." if len(message_data.content) > 100 else message_data.content
+                
+                # Send notification using FCM service
+                from fcm_service import fcm_service
+                
+                if fcm_service.initialized:
+                    await fcm_service.send_to_multiple(
+                        tokens=token_list,
+                        title=f"👑 Admin {sender_name}",
+                        body=message_preview,
+                        data={
+                            "type": "admin_message",
+                            "sender_id": message_data.user_id,
+                            "sender_name": sender_name,
+                            "message_type": message_data.content_type,
+                            "timestamp": str(int(datetime.utcnow().timestamp()))
+                        }
+                    )
+                else:
+                    logger.warning("FCM service not initialized - message notifications disabled")
+                
+    except Exception as e:
+        # Don't fail message creation if push notification fails
+        print(f"Failed to send push notification: {str(e)}")
+    
+    # Send admin notification to online users (existing logic)
+    if user.get("is_admin"):
+        print(f"📢 Admin message from {user['username']}: {message_data.content}")
+        
+        # Send specific admin notification to all non-admin users
+        non_admin_users = await db.users.find({"is_admin": {"$ne": True}, "is_online": True}).to_list(1000)
+        
+        for non_admin_user in non_admin_users:
+            if non_admin_user["id"] in manager.user_connections:
+                try:
+                    await manager.user_connections[non_admin_user["id"]].send_text(json.dumps({
+                        "type": "admin_notification",
+                        "message": f"Admin {user['real_name'] or user['username']}: {message_data.content}",
+                        "admin_username": user['username'],
+                        "admin_real_name": user.get('real_name'),
+                        "content": message_data.content
+                    }, default=str))
+                    print(f"🔔 Sent admin notification to user: {non_admin_user['username']}")
+                except Exception as e:
+                    print(f"Failed to send admin notification to {non_admin_user['username']}: {e}")
+                    pass
+    
     return message
 
+@api_router.delete("/messages/{message_id}")
+async def delete_message(message_id: str, user_id: str):
+    """Delete a message - admin only"""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.messages.delete_one({"id": message_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Message not found")
+    
+    # Broadcast deletion to all connected clients
+    await manager.broadcast(json.dumps({
+        "type": "message_deleted",
+        "data": {"id": message_id}
+    }))
+    
+    return {"message": "Message deleted", "id": message_id}
+
+@api_router.delete("/messages/cleanup/debug")
+async def cleanup_debug_messages(user_id: str):
+    """Delete all debug messages from chat - admin only"""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.messages.delete_many({"content": {"$regex": "DEBUG:"}})
+    return {"message": f"Deleted {result.deleted_count} debug message(s)"}
+
 @api_router.get("/messages", response_model=List[Message])
-async def get_messages(limit: int = 50):
-    messages = await db.messages.find().sort("timestamp", -1).limit(limit).to_list(limit)
+async def get_messages(limit: int = 50, user_id: Optional[str] = None, before: Optional[str] = None):
+    # TRIAL SYSTEM: Check user access for chat viewing
+    if user_id:
+        user = await db.users.find_one({"id": user_id})
+        if user and user.get("status") == UserStatus.TRIAL_EXPIRED:
+            raise HTTPException(
+                status_code=403, 
+                detail="Chat viewing restricted. Your trial has expired. Upgrade your account to view trader discussions."
+            )
+    
+    # Use find().sort() with index for efficient querying
+    query = {}
+    if before:
+        # Load messages older than the given timestamp for pagination
+        query["timestamp"] = {"$lt": before}
+    messages = await db.messages.find(query).sort("timestamp", -1).limit(limit).to_list(limit)
+    
+    # Clean up messages for compatibility
+    cleaned_messages = []
+    for message in messages:
+        try:
+            # Fix highlighted_tickers format for compatibility
+            if 'highlighted_tickers' in message:
+                tickers = message['highlighted_tickers']
+                if isinstance(tickers, list) and tickers:
+                    # If it's a list of dicts, extract just the symbol strings
+                    if isinstance(tickers[0], dict):
+                        message['highlighted_tickers'] = [ticker.get('symbol', '') for ticker in tickers if isinstance(ticker, dict) and 'symbol' in ticker]
+                    # If it's not a list of strings, clean it up
+                    elif not isinstance(tickers[0], str):
+                        message['highlighted_tickers'] = []
+                else:
+                    # Ensure it's always a list
+                    message['highlighted_tickers'] = []
+            else:
+                # Add missing field
+                message['highlighted_tickers'] = []
+            
+            # Ensure all required fields exist with defaults
+            message.setdefault('content_type', 'text')
+            message.setdefault('is_admin', False)
+            message.setdefault('avatar_url', None)
+            message.setdefault('real_name', None)
+            message.setdefault('screen_name', None)
+            message.setdefault('reply_to_id', None)
+            message.setdefault('reply_to', None)
+            
+            cleaned_messages.append(message)
+            
+        except Exception as e:
+            logger.warning(f"Skipping invalid message: {e}")
+            continue
+    
     # Reverse to show oldest first
-    messages.reverse()
-    return [Message(**message) for message in messages]
+    cleaned_messages.reverse()
+    
+    try:
+        return [Message(**message) for message in cleaned_messages]
+    except Exception as e:
+        logger.error(f"Error creating Message objects: {e}")
+        return []
+
+@api_router.get("/messages/welcome", response_model=List[Message])
+async def get_welcome_messages(user_id: Optional[str] = None):
+    """Get recent message history for new users to provide context"""
+    # TRIAL SYSTEM: Check user access for chat viewing
+    if user_id:
+        user = await db.users.find_one({"id": user_id})
+        if user and user.get("status") == UserStatus.TRIAL_EXPIRED:
+            raise HTTPException(
+                status_code=403, 
+                detail="Chat viewing restricted. Your trial has expired. Upgrade your account to view trader discussions."
+            )
+    
+    # Get last 500 messages to provide good historical context for new users
+    messages = await db.messages.find().sort("timestamp", -1).limit(500).to_list(500)
+    
+    # Clean up messages for compatibility (same logic as regular get_messages)
+    cleaned_messages = []
+    for message in messages:
+        try:
+            # Fix highlighted_tickers format for compatibility
+            if 'highlighted_tickers' in message:
+                tickers = message['highlighted_tickers']
+                if isinstance(tickers, list) and tickers:
+                    if isinstance(tickers[0], dict):
+                        message['highlighted_tickers'] = [ticker.get('symbol', '') for ticker in tickers if isinstance(ticker, dict) and 'symbol' in ticker]
+                    elif not isinstance(tickers[0], str):
+                        message['highlighted_tickers'] = []
+                else:
+                    message['highlighted_tickers'] = []
+            else:
+                message['highlighted_tickers'] = []
+            
+            # Ensure all required fields exist with defaults
+            message.setdefault('content_type', 'text')
+            message.setdefault('avatar_url', None)
+            message.setdefault('is_admin', False)
+            message.setdefault('screen_name', message.get('username', 'Unknown'))
+            
+            # Ensure reply_to exists
+            message.setdefault('reply_to', None)
+            
+            cleaned_messages.append(Message(**message))
+            
+        except ValidationError as e:
+            logger.error(f"Validation error for message {message.get('id', 'unknown')}: {e}")
+            continue
+        except Exception as e:
+            logger.error(f"Error processing message {message.get('id', 'unknown')}: {e}")
+            continue
+    
+    logger.info(f"📚 NEW USER WELCOME: Loaded {len(cleaned_messages)} historical messages")
+    return cleaned_messages
 
 @api_router.post("/trades", response_model=PaperTrade)
 async def create_paper_trade(trade_data: PaperTradeCreate, user_id: str):
@@ -619,52 +4678,192 @@ async def create_paper_trade(trade_data: PaperTradeCreate, user_id: str):
         {"$set": performance}
     )
     
+    # Award XP for trading activity
+    await award_xp(user_id, "trade_executed", 25)
+    
+    # Award extra XP for profitable trades  
+    if trade_data.action == "SELL":
+        # Calculate if this specific SELL trade was profitable
+        # Get the position that was just updated/closed
+        position = await db.positions.find_one({
+            "user_id": user_id, 
+            "symbol": trade_data.symbol.upper()
+        })
+        
+        if position:
+            # Calculate P&L for this specific trade
+            buy_price = position.get("avg_price", 0)  # Use avg_price (correct field name)
+            sell_price = trade_data.price
+            quantity_sold = trade_data.quantity
+            
+            # Calculate profit/loss for this specific trade
+            trade_pnl = (sell_price - buy_price) * quantity_sold
+            
+            logger.info(f"Trade P&L calculation: user={user_id}, symbol={trade_data.symbol}, buy_price={buy_price}, sell_price={sell_price}, quantity={quantity_sold}, pnl={trade_pnl}")
+            
+            # Award profitable trade XP if this specific trade was profitable
+            if trade_pnl > 0:
+                logger.info(f"🎯 PROFITABLE TRADE DETECTED! User {user_id} made ${trade_pnl:.2f} profit on {trade_data.symbol}")
+                await award_xp(user_id, "profitable_trade", 50)
+            else:
+                logger.info(f"📉 Trade was not profitable: User {user_id} lost ${abs(trade_pnl):.2f} on {trade_data.symbol}")
+        else:
+            logger.warning(f"⚠️ Could not find position for profitable trade calculation: user={user_id}, symbol={trade_data.symbol}")
+            
+            # Fallback: Check if the user's total profit increased
+            # This ensures we don't miss profitable trades due to timing issues
+            if performance.get("total_profit", 0) > 0:
+                logger.info(f"🎯 FALLBACK: User {user_id} has positive total profit: ${performance.get('total_profit', 0):.2f}")
+                await award_xp(user_id, "profitable_trade", 50)
+    
     return trade
 
 @api_router.get("/positions/{user_id}")
 async def get_user_positions(user_id: str):
-    """Get all open positions for a user with current P&L"""
+    """Get all open positions for a user with current P&L and proper formatting"""
     # Update P&L first
     await update_positions_pnl(user_id)
     
     # Get updated positions
     positions = await db.positions.find({"user_id": user_id, "is_open": True}).to_list(1000)
-    return [Position(**position) for position in positions]
+    
+    # Format the positions for frontend display
+    formatted_positions = []
+    for position in positions:
+        formatted_position = Position(**position).dict()
+        # Add formatted values for frontend
+        formatted_position["formatted_avg_price"] = format_price_display(position.get("avg_price"))
+        formatted_position["formatted_current_price"] = format_price_display(position.get("current_price"))
+        formatted_position["formatted_unrealized_pnl"] = format_pnl_display(position.get("unrealized_pnl"))
+        formatted_positions.append(formatted_position)
+    
+    return formatted_positions
 
-@api_router.post("/positions/{position_id}/close")
-async def close_position(position_id: str, user_id: str, close_price: Optional[float] = None):
-    """Close an open position"""
+@api_router.post("/positions/{position_id}/action")
+async def position_action(position_id: str, action_data: PositionAction, user_id: str):
+    """Perform action on position: buy more, sell partial, or sell all"""
     position = await db.positions.find_one({"id": position_id, "user_id": user_id, "is_open": True})
     if not position:
         raise HTTPException(status_code=404, detail="Position not found")
     
-    # Use current market price if not provided
-    if close_price is None:
-        close_price = await get_current_stock_price(position["symbol"])
+    # Get current price if not provided
+    current_price = action_data.price or await get_current_stock_price(position["symbol"])
     
-    # Create a SELL trade to close the position
+    if action_data.action == "BUY_MORE":
+        if not action_data.quantity:
+            raise HTTPException(status_code=400, detail="Quantity required for buy more action")
+        
+        # Create BUY trade
+        trade = PaperTrade(
+            user_id=user_id,
+            symbol=position["symbol"],
+            action="BUY",
+            quantity=action_data.quantity,
+            price=current_price,
+            position_id=position_id,
+            notes=f"Added to existing position"
+        )
+        await db.paper_trades.insert_one(trade.dict())
+        
+        # Update position
+        new_quantity = position["quantity"] + action_data.quantity
+        new_avg_price = ((position["avg_price"] * position["quantity"]) + (current_price * action_data.quantity)) / new_quantity
+        
+        await db.positions.update_one(
+            {"id": position_id},
+            {"$set": {
+                "quantity": new_quantity,
+                "avg_price": round(new_avg_price, 8)
+            }}
+        )
+        
+        return {"message": f"Added {action_data.quantity} shares at ${current_price}"}
+    
+    elif action_data.action in ["SELL_PARTIAL", "SELL_ALL"]:
+        sell_quantity = action_data.quantity if action_data.action == "SELL_PARTIAL" else position["quantity"]
+        
+        if not sell_quantity or sell_quantity <= 0:
+            raise HTTPException(status_code=400, detail="Invalid sell quantity")
+        
+        if sell_quantity > position["quantity"]:
+            raise HTTPException(status_code=400, detail="Cannot sell more than owned")
+        
+        # Create SELL trade
+        trade = PaperTrade(
+            user_id=user_id,
+            symbol=position["symbol"],
+            action="SELL",
+            quantity=sell_quantity,
+            price=current_price,
+            position_id=position_id,
+            is_closed=(sell_quantity == position["quantity"]),
+            notes=f"{'Full' if sell_quantity == position['quantity'] else 'Partial'} position close"
+        )
+        await db.paper_trades.insert_one(trade.dict())
+        
+        # Update position
+        if sell_quantity == position["quantity"]:
+            # Close entire position
+            realized_pnl = (current_price - position["avg_price"]) * sell_quantity
+            await db.positions.update_one(
+                {"id": position_id},
+                {"$set": {
+                    "is_open": False,
+                    "closed_at": datetime.utcnow(),
+                    "current_price": current_price,
+                    "unrealized_pnl": round(realized_pnl, 8),
+                    "quantity": 0
+                }}
+            )
+        else:
+            # Partial close
+            new_quantity = position["quantity"] - sell_quantity
+            await db.positions.update_one(
+                {"id": position_id},
+                {"$set": {"quantity": new_quantity}}
+            )
+        
+        profit_loss = (current_price - position["avg_price"]) * sell_quantity
+        return {"message": f"Sold {sell_quantity} shares at ${current_price}", "profit_loss": round(profit_loss, 2)}
+    
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+@api_router.post("/positions/{position_id}/close")
+async def close_position(position_id: str, user_id: str):
+    """Close an entire position at current market price"""
+    position = await db.positions.find_one({"id": position_id, "user_id": user_id, "is_open": True})
+    if not position:
+        raise HTTPException(status_code=404, detail="Position not found")
+    
+    # Get current price
+    current_price = await get_current_stock_price(position["symbol"])
+    realized_pnl = (current_price - position["avg_price"]) * position["quantity"]
+    
+    # Create SELL trade to record the close
     close_trade = PaperTrade(
         user_id=user_id,
         symbol=position["symbol"],
         action="SELL",
         quantity=position["quantity"],
-        price=close_price,
+        price=current_price,
         position_id=position_id,
         is_closed=True,
-        notes=f"Position closed at market price"
+        notes="Position closed at market price"
     )
     
     await db.paper_trades.insert_one(close_trade.dict())
     
     # Close the position
-    realized_pnl = (close_price - position["avg_price"]) * position["quantity"]
     await db.positions.update_one(
         {"id": position_id},
         {"$set": {
             "is_open": False,
             "closed_at": datetime.utcnow(),
-            "current_price": close_price,
-            "unrealized_pnl": round(realized_pnl, 2)
+            "current_price": current_price,
+            "unrealized_pnl": round(realized_pnl, 8),
+            "quantity": 0,
+            "auto_close_reason": "MANUAL"
         }}
     )
     
@@ -677,169 +4876,179 @@ async def close_position(position_id: str, user_id: str, close_price: Optional[f
     
     return {"message": "Position closed successfully", "realized_pnl": round(realized_pnl, 2)}
 
-@api_router.get("/stock-price/{symbol}")
-async def get_stock_price(symbol: str):
-    """Get current stock price for a symbol"""
-    price = await get_current_stock_price(symbol)
-    return {"symbol": symbol.upper(), "price": price}
-
-@api_router.get("/trades/{user_id}", response_model=List[PaperTrade])
+@api_router.get("/trades/{user_id}")
 async def get_user_trades(user_id: str):
     """Get all trades for a user"""
     trades = await db.paper_trades.find({"user_id": user_id}).sort("timestamp", -1).to_list(1000)
     return [PaperTrade(**trade) for trade in trades]
 
-@api_router.post("/users/{user_id}/avatar-upload")
-async def upload_avatar_file(user_id: str, file: UploadFile = File(...)):
-    """Upload profile picture file"""
-    user = await db.users.find_one({"id": user_id})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+@api_router.get("/trades/{user_id}/history")
+async def get_user_trade_history(user_id: str, limit: int = 50):
+    """Get condensed trade history with P&L calculations for closed positions"""
+    # Get all trades for the user, sorted by most recent first
+    trades = await db.paper_trades.find({"user_id": user_id}).sort("timestamp", -1).to_list(limit)
     
-    # Validate file type
-    if not file.content_type.startswith('image/'):
-        raise HTTPException(status_code=400, detail="File must be an image")
+    if not trades:
+        return []
     
-    # Read and process file
-    file_content = await file.read()
-    avatar_url = process_uploaded_image(file_content)
+    # Calculate P&L for closed positions
+    trade_history = []
+    position_tracker = {}  # Track open positions per symbol
     
-    # Update user avatar
-    result = await db.users.update_one(
-        {"id": user_id},
-        {"$set": {"avatar_url": avatar_url}}
-    )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=400, detail="Failed to update avatar")
-    
-    return {"message": "Avatar updated successfully", "avatar_url": avatar_url}
-
-@api_router.post("/users/{user_id}/change-password")
-async def change_password(user_id: str, password_data: PasswordChange):
-    """Change user password"""
-    user = await db.users.find_one({"id": user_id})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # In this simple implementation, we'll just check if current password matches username
-    # In production, you'd verify against stored password hash
-    if password_data.current_password != user.get("username"):  # Simple validation
-        raise HTTPException(status_code=400, detail="Current password is incorrect")
-    
-    # Hash and store new password (in production)
-    hashed_password = hash_password(password_data.new_password)
-    
-    result = await db.users.update_one(
-        {"id": user_id},
-        {"$set": {"password_hash": hashed_password}}
-    )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=400, detail="Failed to update password")
-    
-    return {"message": "Password updated successfully"}
-
-@api_router.post("/users/{user_id}/avatar")
-async def upload_avatar(user_id: str, avatar_url: str):
-    """Update user avatar URL (legacy endpoint)"""
-    user = await db.users.find_one({"id": user_id})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    result = await db.users.update_one(
-        {"id": user_id},
-        {"$set": {"avatar_url": avatar_url}}
-    )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=400, detail="Failed to update avatar")
-    
-    return {"message": "Avatar updated successfully"}
-
-@api_router.put("/users/{user_id}/profile")
-async def update_profile(user_id: str, profile_data: dict):
-    """Update user profile information"""
-    user = await db.users.find_one({"id": user_id})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Only allow updating certain fields
-    allowed_fields = ["username", "email", "avatar_url"]
-    update_data = {k: v for k, v in profile_data.items() if k in allowed_fields}
-    
-    if update_data:
-        result = await db.users.update_one(
-            {"id": user_id},
-            {"$set": update_data}
-        )
+    # Process trades in chronological order for P&L calculation
+    for trade in reversed(trades):
+        symbol = trade["symbol"]
+        action = trade["action"]
+        quantity = trade["quantity"]
+        price = trade["price"]
         
-        if result.modified_count == 0:
-            raise HTTPException(status_code=400, detail="Failed to update profile")
+        # Initialize symbol tracking if needed
+        if symbol not in position_tracker:
+            position_tracker[symbol] = {"shares": 0, "total_cost": 0, "avg_price": 0}
+        
+        trade_entry = {
+            "id": trade["id"],
+            "symbol": symbol,
+            "action": action,
+            "quantity": quantity,
+            "price": price,
+            "timestamp": trade["timestamp"],
+            "formatted_price": format_price_display(price),
+            "profit_loss": None,
+            "formatted_profit_loss": None,
+            "is_closed": False
+        }
+        
+        if action == "BUY":
+            # Add to position
+            position_tracker[symbol]["shares"] += quantity
+            position_tracker[symbol]["total_cost"] += quantity * price
+            if position_tracker[symbol]["shares"] > 0:
+                position_tracker[symbol]["avg_price"] = position_tracker[symbol]["total_cost"] / position_tracker[symbol]["shares"]
+        
+        elif action == "SELL" and position_tracker[symbol]["shares"] > 0:
+            # Calculate P&L for this sell
+            avg_cost = position_tracker[symbol]["avg_price"]
+            sell_quantity = min(quantity, position_tracker[symbol]["shares"])
+            profit_loss = (price - avg_cost) * sell_quantity
+            
+            trade_entry["profit_loss"] = profit_loss
+            trade_entry["formatted_profit_loss"] = format_pnl_display(profit_loss)
+            trade_entry["is_closed"] = True
+            
+            # Update position
+            sold_cost = avg_cost * sell_quantity
+            position_tracker[symbol]["shares"] -= sell_quantity
+            position_tracker[symbol]["total_cost"] -= sold_cost
+            
+            if position_tracker[symbol]["shares"] <= 0:
+                position_tracker[symbol]["total_cost"] = 0
+        
+        trade_history.append(trade_entry)
     
-    # Return updated user
-    updated_user = await db.users.find_one({"id": user_id})
-    return User(**updated_user)
+    # Return in reverse chronological order (most recent first)
+    return list(reversed(trade_history))
 
 @api_router.get("/users/{user_id}/performance")
 async def get_user_performance(user_id: str):
-    """Get performance metrics for a user"""
-    return await calculate_user_performance(user_id)
+    performance = await calculate_user_performance(user_id)
+    return performance
 
-# Create default admin user on startup
-@app.on_event("startup")
-async def create_default_admin():
-    # Check if any admin exists
-    admin_exists = await db.users.find_one({"is_admin": True})
-    if not admin_exists:
-        # Create default admin
-        admin_user = User(
-            username="admin",
-            email="admin@cashoutai.com",
-            is_admin=True,
-            status=UserStatus.APPROVED
-        )
-        await db.users.insert_one(admin_user.dict())
-        print("Created default admin user: admin")
-
-# WebSocket endpoint
-@app.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    await manager.connect(websocket, user_id)
-    logger.info(f"WebSocket connected for user: {user_id}")
+@api_router.put("/users/{user_id}/profile", response_model=User)
+async def update_user_profile(user_id: str, profile_data: ProfileUpdate):
+    """Update user profile information"""
+    # Check if user exists
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     
-    try:
-        # Send initial connection confirmation
-        await manager.send_personal_message(
-            json.dumps({"type": "connection", "message": f"Connected as user {user_id}"}),
-            websocket
+    # Prepare update data
+    update_data = {}
+    if profile_data.real_name is not None:
+        update_data["real_name"] = profile_data.real_name
+    if profile_data.screen_name is not None:
+        update_data["screen_name"] = profile_data.screen_name
+    if profile_data.username is not None:
+        # Check if username already exists
+        if profile_data.username != user["username"]:
+            existing = await db.users.find_one({"username": profile_data.username})
+            if existing:
+                raise HTTPException(status_code=400, detail="Username already exists")
+        update_data["username"] = profile_data.username
+    if profile_data.email is not None:
+        # Check if email already exists
+        if profile_data.email != user["email"]:
+            existing = await db.users.find_one({"email": profile_data.email})
+            if existing:
+                raise HTTPException(status_code=400, detail="Email already exists")
+        update_data["email"] = profile_data.email
+    
+    # Update user
+    if update_data:
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": update_data}
         )
+    
+    # Get updated user
+    updated_user = await db.users.find_one({"id": user_id})
+    return User(**updated_user)
+
+@api_router.post("/upload-video")
+async def upload_intro_video(video: UploadFile = File(...)):
+    """Upload intro video for the application"""
+    try:
+        # Validate file type
+        if not video.content_type.startswith('video/'):
+            raise HTTPException(status_code=400, detail="File must be a video")
         
-        while True:
-            # Keep connection alive by receiving ping/pong or heartbeat messages
-            data = await websocket.receive_text()
-            logger.info(f"WebSocket received from {user_id}: {data}")
+        # Check file size (max 50MB)
+        if video.size > 50 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File size must be less than 50MB")
+        
+        # Define the path where the video will be saved
+        frontend_public_path = Path("/app/frontend/public")
+        video_path = frontend_public_path / "intro-video.mp4"
+        
+        # Create directory if it doesn't exist
+        frontend_public_path.mkdir(parents=True, exist_ok=True)
+        
+        # Save the uploaded video
+        with open(video_path, "wb") as buffer:
+            shutil.copyfileobj(video.file, buffer)
+        
+        # Update the video source in LoadingScreen.js to use local file
+        loading_screen_path = Path("/app/frontend/src/LoadingScreen.js")
+        if loading_screen_path.exists():
+            with open(loading_screen_path, "r") as f:
+                content = f.read()
             
-            # Echo back to confirm connection is alive
-            await manager.send_personal_message(
-                json.dumps({"type": "heartbeat", "message": "Connection alive"}),
-                websocket
+            # Replace Google Drive URLs with local video path
+            content = content.replace(
+                'https://drive.usercontent.google.com/download?id=10geS9b6QtH8ulGiEQE6TOJT00sPoNgQA&export=download',
+                '/intro-video.mp4'
+            )
+            content = content.replace(
+                'https://drive.google.com/uc?id=10geS9b6QtH8ulGiEQE6TOJT00sPoNgQA&export=download',
+                '/intro-video.mp4'
             )
             
-    except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for user: {user_id}")
-        manager.disconnect(websocket, user_id)
+            with open(loading_screen_path, "w") as f:
+                f.write(content)
+        
+        return {
+            "message": "Video uploaded successfully",
+            "filename": "intro-video.mp4",
+            "size": video.size,
+            "path": str(video_path)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error uploading video: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
 
 # Include the router in the main app
 app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Configure logging
 logging.basicConfig(

@@ -11,6 +11,19 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+/* Prevent chat from pushing content out of viewport */
+.chat-container {
+  height: calc(100vh - 160px);
+  overflow: hidden;
+}
+
+.chat-messages {
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Stock Ticker Highlighting */

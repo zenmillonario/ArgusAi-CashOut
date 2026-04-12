@@ -1,4 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { formatPrice } from './utils';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
 const FavoritesTab = ({ 
   favorites, 
@@ -7,6 +12,41 @@ const FavoritesTab = ({
   isDarkTheme 
 }) => {
   const [newFavorite, setNewFavorite] = useState('');
+  const [stockPrices, setStockPrices] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  // Fetch real stock prices for favorites
+  const fetchStockPrice = async (symbol) => {
+    try {
+      const response = await axios.get(`${API}/stock/${symbol}`);
+      return response.data.price;
+    } catch (error) {
+      console.error(`Error fetching price for ${symbol}:`, error);
+      return null;
+    }
+  };
+
+  // Load prices for all favorites
+  useEffect(() => {
+    const loadPrices = async () => {
+      if (favorites.length === 0) return;
+      
+      setLoading(true);
+      const prices = {};
+      
+      for (const symbol of favorites) {
+        const price = await fetchStockPrice(symbol);
+        if (price) {
+          prices[symbol] = price;
+        }
+      }
+      
+      setStockPrices(prices);
+      setLoading(false);
+    };
+
+    loadPrices();
+  }, [favorites]);
 
   const handleAddFavorite = (e) => {
     e.preventDefault();
@@ -16,18 +56,14 @@ const FavoritesTab = ({
     }
   };
 
-  // Mock stock prices for favorites
-  const getMockPrice = (symbol) => {
-    const prices = {
-      'TSLA': 250.75,
-      'AAPL': 185.20,
-      'MSFT': 420.50,
-      'NVDA': 875.30,
-      'GOOGL': 142.80,
-      'AMZN': 155.90,
-      'META': 485.60,
-    };
-    return prices[symbol] || 100.0;
+  const refreshPrice = async (symbol) => {
+    const price = await fetchStockPrice(symbol);
+    if (price) {
+      setStockPrices(prev => ({
+        ...prev,
+        [symbol]: price
+      }));
+    }
   };
 
   return (
@@ -87,7 +123,22 @@ const FavoritesTab = ({
                       ${symbol}
                     </div>
                     <div className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                      ${getMockPrice(symbol).toFixed(2)}
+                      {loading ? (
+                        'Loading...'
+                      ) : stockPrices[symbol] ? (
+                        <>
+                          ${formatPrice(stockPrices[symbol])}
+                          <button
+                            onClick={() => refreshPrice(symbol)}
+                            className="ml-2 text-xs hover:text-blue-500"
+                            title="Refresh price"
+                          >
+                            🔄
+                          </button>
+                        </>
+                      ) : (
+                        'Price unavailable'
+                      )}
                     </div>
                   </div>
                   <button
