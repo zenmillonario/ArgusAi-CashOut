@@ -157,35 +157,33 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
           
           {/* Peacock Animation Video */}
           <div className="relative w-48 h-32 flex items-center justify-center bg-black/80 rounded-lg backdrop-blur-sm overflow-hidden">
+            {/* Fallback content - always visible behind video */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center h-full w-full">
+              <div className="text-5xl mb-2 animate-pulse">🦚</div>
+              <div className="text-xl font-bold text-green-400 tracking-wider">
+                ARGUS AI
+              </div>
+              <div className="text-sm text-green-300">
+                CashOut Trading Platform
+              </div>
+            </div>
+            {/* Video overlays fallback when it plays */}
             <video
               autoPlay
               loop
               muted
               playsInline
-              preload="metadata"
-              className="w-full h-full object-cover rounded-lg"
+              preload="auto"
+              className="absolute inset-0 w-full h-full object-cover rounded-lg z-10"
               style={{ filter: 'brightness(1.2) contrast(1.1)' }}
               onError={(e) => {
-                console.log('Video error, showing fallback');
+                console.log('Video error, hiding video element');
                 e.target.style.display = 'none';
-                e.target.nextElementSibling.style.display = 'flex';
               }}
-              onLoadStart={() => console.log('Video load started')}
-              onCanPlay={() => console.log('Video can play')}
             >
               <source src="/peacock-animation.mp4" type="video/mp4" />
               <source src="/peacock-animation.mov" type="video/quicktime" />
             </video>
-            {/* Enhanced fallback content - hidden by default, shown on video error */}
-            <div className="absolute inset-0 flex-col items-center justify-center h-full w-full" style={{display: 'none'}}>
-              <div className="text-6xl mb-3 animate-pulse">🦚</div>
-              <div className="text-2xl font-bold text-green-400 tracking-wider mb-1">
-                ARGUS AI
-              </div>
-              <div className="text-lg text-green-300">
-                CashOut Trading Platform
-              </div>
-            </div>
           </div>
         </div>
 
