@@ -105,7 +105,7 @@ function App() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetPasswordForm, setResetPasswordForm] = useState({ username: '', email: '', new_password: '', confirm_password: '' });
+  const [resetPasswordForm, setResetPasswordForm] = useState({ email: '', new_password: '', confirm_password: '' });
   const [resetTokenForm, setResetTokenForm] = useState({ token: '', new_password: '', confirm_password: '' });
   const [editProfileForm, setEditProfileForm] = useState({
     username: '',
@@ -1656,17 +1656,16 @@ function App() {
     
     try {
       const response = await axios.post(`${API}/users/reset-password-direct`, {
-        username: resetPasswordForm.username,
         email: resetPasswordForm.email,
         new_password: resetPasswordForm.new_password
       });
       
       alert(response.data.message || 'Password reset successfully! You can now log in.');
       setShowForgotPassword(false);
-      setResetPasswordForm({ username: '', email: '', new_password: '', confirm_password: '' });
+      setResetPasswordForm({ email: '', new_password: '', confirm_password: '' });
     } catch (error) {
       console.error('Error resetting password:', error);
-      alert(error.response?.data?.detail || 'Error resetting password. Please check your username and email.');
+      alert(error.response?.data?.detail || 'Error resetting password. Please check your email address.');
     }
   };
 
@@ -2056,24 +2055,6 @@ function App() {
               <form onSubmit={requestPasswordReset} className="space-y-4">
                 <div>
                   <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      isDarkTheme 
-                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                    }`}
-                    placeholder="Enter your username"
-                    value={resetPasswordForm.username}
-                    onChange={(e) => setResetPasswordForm({...resetPasswordForm, username: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                     Email Address
                   </label>
                   <input
@@ -2083,7 +2064,7 @@ function App() {
                         ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
                         : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
                     }`}
-                    placeholder="Enter the email on your account"
+                    placeholder="Enter your email address"
                     value={resetPasswordForm.email}
                     onChange={(e) => setResetPasswordForm({...resetPasswordForm, email: e.target.value})}
                     required
@@ -2134,7 +2115,7 @@ function App() {
                     : 'bg-blue-50 border-blue-200 text-blue-600'
                 }`}>
                   <p className="text-sm">
-                    Enter your username and the email associated with your account to verify your identity.
+                    Enter the email linked to your account to set a new password.
                   </p>
                 </div>
                 
@@ -2148,7 +2129,7 @@ function App() {
                 <div className="flex space-x-4 pt-4">
                   <button
                     type="submit"
-                    disabled={!resetPasswordForm.username || !resetPasswordForm.email || !resetPasswordForm.new_password || resetPasswordForm.new_password !== resetPasswordForm.confirm_password}
+                    disabled={!resetPasswordForm.email || !resetPasswordForm.new_password || resetPasswordForm.new_password !== resetPasswordForm.confirm_password}
                     className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Reset Password
@@ -2157,7 +2138,7 @@ function App() {
                     type="button"
                     onClick={() => {
                       setShowForgotPassword(false);
-                      setResetPasswordForm({ username: '', email: '', new_password: '', confirm_password: '' });
+                      setResetPasswordForm({ email: '', new_password: '', confirm_password: '' });
                     }}
                     className="flex-1 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
                   >
@@ -3839,24 +3820,6 @@ function App() {
               <form onSubmit={requestPasswordReset} className="space-y-4">
                 <div>
                   <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      isDarkTheme 
-                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                    }`}
-                    placeholder="Enter your username"
-                    value={resetPasswordForm.username}
-                    onChange={(e) => setResetPasswordForm({...resetPasswordForm, username: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                     Email Address
                   </label>
                   <input
@@ -3866,7 +3829,7 @@ function App() {
                         ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
                         : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
                     }`}
-                    placeholder="Enter the email on your account"
+                    placeholder="Enter your email address"
                     value={resetPasswordForm.email}
                     onChange={(e) => setResetPasswordForm({...resetPasswordForm, email: e.target.value})}
                     required
@@ -3917,7 +3880,7 @@ function App() {
                     : 'bg-blue-50 border-blue-200 text-blue-600'
                 }`}>
                   <p className="text-sm">
-                    Enter your username and the email associated with your account to verify your identity and set a new password.
+                    Enter the email linked to your account to set a new password.
                   </p>
                 </div>
                 
@@ -3931,7 +3894,7 @@ function App() {
                 <div className="flex space-x-4 pt-4">
                   <button
                     type="submit"
-                    disabled={resetPasswordForm.new_password !== resetPasswordForm.confirm_password}
+                    disabled={!resetPasswordForm.email || !resetPasswordForm.new_password || resetPasswordForm.new_password !== resetPasswordForm.confirm_password}
                     className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Reset Password
@@ -3940,7 +3903,7 @@ function App() {
                     type="button"
                     onClick={() => {
                       setShowForgotPassword(false);
-                      setResetPasswordForm({ username: '', email: '', new_password: '', confirm_password: '' });
+                      setResetPasswordForm({ email: '', new_password: '', confirm_password: '' });
                     }}
                     className="flex-1 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
                   >

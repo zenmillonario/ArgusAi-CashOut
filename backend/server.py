@@ -2593,30 +2593,22 @@ async def request_password_reset(reset_request: PasswordResetRequest, background
     return {"message": "If an account with that email exists, you will receive a password reset link."}
 
 class DirectPasswordReset(BaseModel):
-    username: str
     email: str
     new_password: str
 
 @api_router.post("/users/reset-password-direct")
 async def direct_password_reset(reset_data: DirectPasswordReset):
-    """Reset password directly by verifying username AND email match"""
+    """Reset password by verifying email exists on an account"""
     if len(reset_data.new_password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     
-    # Find user by username (case-insensitive)
+    # Find user by email (case-insensitive)
     user = await db.users.find_one({
-        "username": {"$regex": f"^{re.escape(reset_data.username)}$", "$options": "i"}
+        "email": {"$regex": f"^{re.escape(reset_data.email)}$", "$options": "i"}
     })
     
     if not user:
-        raise HTTPException(status_code=404, detail="No account found with that username")
-    
-    # Verify email matches (case-insensitive)
-    stored_email = user.get("email", "").lower().strip()
-    provided_email = reset_data.email.lower().strip()
-    
-    if stored_email != provided_email:
-        raise HTTPException(status_code=400, detail="Email does not match the account on file")
+        raise HTTPException(status_code=404, detail="No account found with that email address")
     
     # Hash and update password
     new_password_hash = hash_password(reset_data.new_password)
