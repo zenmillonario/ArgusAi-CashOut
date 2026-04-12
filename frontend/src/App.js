@@ -1808,12 +1808,86 @@ function App() {
 
   if (showLogin) {
     console.log('🔐 Rendering login screen');
+    
     return (
-      <div className={`min-h-screen ${isDarkTheme ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
-        <div className="flex items-center justify-center min-h-screen p-4">
-          <div className={`w-full max-w-md backdrop-blur-lg rounded-2xl border p-8 ${
+      <div className="min-h-screen bg-black relative overflow-hidden">
+        {/* Matrix Code Rain Background - CSS-only for performance */}
+        <div className="absolute inset-0 pointer-events-none matrix-login-bg" />
+        
+        {/* Matrix Rain CSS */}
+        <style>{`
+          .matrix-login-bg {
+            background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.3) 100%);
+          }
+          .matrix-login-bg::before,
+          .matrix-login-bg::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: 
+              linear-gradient(180deg, rgba(0,255,0,0.03) 0%, transparent 50%),
+              linear-gradient(0deg, rgba(0,136,255,0.03) 0%, transparent 50%);
+          }
+          @keyframes matrixRainDown {
+            0% { transform: translateY(-110%); opacity: 0; }
+            5% { opacity: 1; }
+            95% { opacity: 1; }
+            100% { transform: translateY(110vh); opacity: 0; }
+          }
+          @keyframes matrixRainUp {
+            0% { transform: translateY(110vh); opacity: 0; }
+            5% { opacity: 1; }
+            95% { opacity: 1; }
+            100% { transform: translateY(-110%); opacity: 0; }
+          }
+          .matrix-col-down {
+            animation: matrixRainDown var(--dur) linear var(--delay) infinite;
+          }
+          .matrix-col-up {
+            animation: matrixRainUp var(--dur) linear var(--delay) infinite;
+          }
+        `}</style>
+        
+        {/* Matrix columns */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {(() => {
+            const matrixChars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+            const cols = [];
+            for (let i = 0; i < 90; i++) {
+              const left = (i / 90) * 100;
+              const goUp = i % 5 === 0;
+              const dur = 3 + (i % 7) * 1.2;
+              const delay = (i * 0.05) % 2;
+              const height = 15 + (i % 12) * 3;
+              const chars = [];
+              for (let j = 0; j < height; j++) {
+                chars.push(matrixChars[(i * 7 + j * 13) % matrixChars.length]);
+              }
+              cols.push(
+                <div
+                  key={i}
+                  className={`absolute font-mono text-sm leading-tight ${goUp ? 'matrix-col-up bottom-0' : 'matrix-col-down top-0'}`}
+                  style={{ left: `${left}%`, '--dur': `${dur}s`, '--delay': `${delay}s`, opacity: 0 }}
+                >
+                  {chars.map((c, j) => (
+                    <span key={j} className="block" style={{
+                      color: j === 0 
+                        ? (goUp ? '#0088ff' : '#00ff00') 
+                        : (goUp ? `rgba(0,136,255,${0.1 + (j % 5) * 0.1})` : `rgba(0,255,0,${0.1 + (j % 5) * 0.1})`)
+                    }}>{c}</span>
+                  ))}
+                </div>
+              );
+            }
+            return cols;
+          })()}
+        </div>
+        
+        {/* Login Form */}
+        <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
+          <div className={`w-full max-w-md backdrop-blur-xl rounded-2xl border p-8 ${
             isDarkTheme 
-              ? 'bg-white/10 border-white/20' 
+              ? 'bg-black/60 border-green-500/20 shadow-[0_0_40px_rgba(0,255,0,0.08)]' 
               : 'bg-white/90 border-gray-200 shadow-xl'
           }`}>
             <div className="text-center mb-8">
