@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import peacockVideo from './assets/peacock-animation.mp4';
 
 const LoadingScreen = ({ onComplete, isDarkTheme }) => {
   const [isVisible, setIsVisible] = useState(true);
@@ -181,8 +182,7 @@ const LoadingScreen = ({ onComplete, isDarkTheme }) => {
                 e.target.style.display = 'none';
               }}
             >
-              <source src="/peacock-animation.mp4" type="video/mp4" />
-              <source src="/peacock-animation.mov" type="video/quicktime" />
+              <source src={peacockVideo} type="video/mp4" />
             </video>
           </div>
         </div>
