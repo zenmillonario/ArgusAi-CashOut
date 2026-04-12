@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -6,63 +6,67 @@ const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
 // Lazy-loading image component for chat images
 const ChatImage = ({ messageId, content, alt }) => {
-  const [src, setSrc] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const imgRef = useRef(null);
+  const [src, setSrc] = useState(() => {
+    // If content is already a full data URL (from WebSocket real-time), use it directly
+    if (content && (content.startsWith('data:') || content.startsWith('http'))) {
+      return content;
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    return !(content && (content.startsWith('data:') || content.startsWith('http')));
+  });
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    // If content is already a full data URL (from WebSocket real-time), use it directly
-    if (content && content.startsWith('data:')) {
+    // Already have the image data
+    if (content && (content.startsWith('data:') || content.startsWith('http'))) {
       setSrc(content);
       setLoading(false);
       return;
     }
     
-    // If content is a placeholder (__IMAGE__id__), fetch from API
-    if (content && content.startsWith('__IMAGE__')) {
-      const observer = new IntersectionObserver(
-        (entries) => {
-          if (entries[0].isIntersecting) {
-            axios.get(`${API}/messages/${messageId}/image`)
-              .then(res => {
-                setSrc(res.data.image_url);
-                setLoading(false);
-              })
-              .catch(() => setLoading(false));
-            observer.disconnect();
+    // Need to fetch from API (placeholder content like __IMAGE__id__)
+    if (messageId) {
+      setLoading(true);
+      axios.get(`${API}/messages/${messageId}/image`)
+        .then(res => {
+          if (res.data && res.data.image_url) {
+            setSrc(res.data.image_url);
+          } else {
+            setError(true);
           }
-        },
-        { rootMargin: '200px' }
-      );
-      if (imgRef.current) observer.observe(imgRef.current);
-      return () => observer.disconnect();
+        })
+        .catch(() => setError(true))
+        .finally(() => setLoading(false));
     }
-    
-    // Fallback for any other URL
-    setSrc(content);
-    setLoading(false);
   }, [content, messageId]);
 
+  if (loading) {
+    return (
+      <div className="w-48 h-24 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center animate-pulse">
+        <span className="text-gray-400 text-xs">Loading image...</span>
+      </div>
+    );
+  }
+  
+  if (error || !src) {
+    return (
+      <div className="w-48 h-24 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
+        <span className="text-gray-400 text-xs">Image unavailable</span>
+      </div>
+    );
+  }
+
   return (
-    <div ref={imgRef} className="max-w-xs" style={{ minHeight: loading ? '100px' : 'auto' }}>
-      {loading ? (
-        <div className="w-48 h-24 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center animate-pulse">
-          <span className="text-gray-400 text-sm">Loading image...</span>
-        </div>
-      ) : src ? (
-        <img 
-          src={src} 
-          alt={alt} 
-          className="max-w-xs rounded-lg border border-white/20"
-          style={{ maxHeight: '200px' }}
-          loading="lazy"
-        />
-      ) : (
-        <div className="w-48 h-24 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
-          <span className="text-gray-400 text-sm">Image unavailable</span>
-        </div>
-      )}
-    </div>
+    <img 
+      src={src} 
+      alt={alt || "Shared image"} 
+      className="max-w-xs rounded-lg border border-white/20"
+      style={{ maxHeight: '200px' }}
+      loading="lazy"
+      onError={() => setError(true)}
+    />
   );
 };
 
