@@ -79,6 +79,7 @@ function App() {
   // PERFORMANCE OPTIMIZATION: Loading states for better UX
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [messagesLoading, setMessagesLoading] = useState(true);
   // Expose setMessages for ChatTab's load-more feature
   window.__setMessages = setMessages;
   const [newMessage, setNewMessage] = useState('');
@@ -1099,55 +1100,23 @@ function App() {
 
   const loadMessages = async () => {
     try {
-      console.log('🔄 Starting message load...', new Date().toISOString());
-      const startTime = performance.now();
-      
-      // PERFORMANCE OPTIMIZATION: Load more messages for 4+ weeks of history
+      setMessagesLoading(true);
       const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=50` : `${API}/messages?limit=50`;
       const response = await axios.get(url);
-      
-      const loadTime = performance.now() - startTime;
-      console.log(`⚡ API Response received in ${loadTime.toFixed(2)}ms`);
-      
-      // Process messages immediately
-      const processStart = performance.now();
       setMessages(response.data || []);
-      const processTime = performance.now() - processStart;
-      console.log(`📊 Messages processed in ${processTime.toFixed(2)}ms`);
-      
-      // CRITICAL UX FIX: Handle empty message state
-      if (!response.data || response.data.length === 0) {
-        console.log('📭 No messages in database - showing empty state');
-        setMessages([]); // Ensure empty array to trigger empty state UI
-      } else {
-        console.log(`✅ FAST LOAD: ${response.data.length} messages loaded in ${loadTime.toFixed(2)}ms for ${currentUser?.username || 'user'}`);
-      }
-      
-      console.log(`🏁 Total load time: ${(performance.now() - startTime).toFixed(2)}ms`);
-      
     } catch (error) {
-      console.error('❌ Error loading messages:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        url: error.config?.url,
-        timeout: error.code === 'ECONNABORTED' ? 'Request timeout' : 'No timeout'
-      });
-      setMessages([]); // Set empty array on error to avoid infinite loading
-      
-      // If there's an access error, try the regular endpoint
+      console.error('Error loading messages:', error);
+      setMessages([]);
       if (error.response?.status === 403) {
         try {
-          console.log('🔄 Trying fallback endpoint...');
           const response = await axios.get(`${API}/messages?limit=50`);
           setMessages(response.data || []);
-          console.log(`✅ Fallback loaded ${response.data?.length || 0} messages`);
         } catch (fallbackError) {
-          console.error('❌ Fallback message loading failed:', fallbackError);
-          setMessages([]); // Ensure empty state on complete failure
+          setMessages([]);
         }
       }
+    } finally {
+      setMessagesLoading(false);
     }
   };
 
@@ -2266,6 +2235,7 @@ function App() {
                     currentUser={currentUser}
                     isDarkTheme={isDarkTheme}
                     onUserClick={() => {}}
+                    messagesLoading={messagesLoading}
                   />
                 </div>
               )}
@@ -2731,6 +2701,7 @@ function App() {
                   deleteMessage={deleteMessage}
                   showScrollButton={showScrollButton}
                   scrollToBottom={scrollToBottom}
+                  messagesLoading={messagesLoading}
                 />
               </div>
               

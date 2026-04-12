@@ -4514,24 +4514,21 @@ async def get_messages(limit: int = 50, user_id: Optional[str] = None, before: O
                 detail="Chat viewing restricted. Your trial has expired. Upgrade your account to view trader discussions."
             )
     
-    # Use find().sort() with index for efficient querying
     query = {}
     if before:
         query["timestamp"] = {"$lt": before}
     
-    # Exclude _id from MongoDB for performance
     projection = {"_id": 0}
     messages = await db.messages.find(query, projection).sort("timestamp", -1).limit(limit).to_list(limit)
     
-    # Clean up messages — truncate large image content for faster loading
     cleaned_messages = []
     for message in messages:
         try:
-            # For image messages, keep the full content (needed for display)
-            # But if the content is enormous (>500KB), it's a base64 image — still include it
-            # The real optimization is on the frontend with lazy loading
+            # PERFORMANCE: For image messages, replace huge base64 content with placeholder
+            # Frontend will lazy-load full image via /api/messages/{id}/image
+            if message.get('content_type') == 'image' and message.get('content', '').startswith('data:'):
+                message['content'] = f"__IMAGE__{message.get('id', '')}__"
             
-            # Fix highlighted_tickers format for compatibility
             if 'highlighted_tickers' in message:
                 tickers = message['highlighted_tickers']
                 if isinstance(tickers, list) and tickers:
@@ -4544,7 +4541,6 @@ async def get_messages(limit: int = 50, user_id: Optional[str] = None, before: O
             else:
                 message['highlighted_tickers'] = []
             
-            # Ensure all required fields exist with defaults
             message.setdefault('content_type', 'text')
             message.setdefault('is_admin', False)
             message.setdefault('avatar_url', None)
@@ -4555,12 +4551,10 @@ async def get_messages(limit: int = 50, user_id: Optional[str] = None, before: O
             message.setdefault('text_content', None)
             
             cleaned_messages.append(message)
-            
         except Exception as e:
             logger.warning(f"Skipping invalid message: {e}")
             continue
     
-    # Reverse to show oldest first
     cleaned_messages.reverse()
     
     try:
@@ -4568,6 +4562,16 @@ async def get_messages(limit: int = 50, user_id: Optional[str] = None, before: O
     except Exception as e:
         logger.error(f"Error creating Message objects: {e}")
         return []
+
+@api_router.get("/messages/{message_id}/image")
+async def get_message_image(message_id: str):
+    """Fetch full image content for a single message - used for lazy loading"""
+    message = await db.messages.find_one({"id": message_id}, {"_id": 0, "content": 1, "content_type": 1})
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if message.get("content_type") != "image":
+        raise HTTPException(status_code=400, detail="Not an image message")
+    return {"image_url": message.get("content", "")}
 
 @api_router.get("/messages/welcome", response_model=List[Message])
 async def get_welcome_messages(user_id: Optional[str] = None):

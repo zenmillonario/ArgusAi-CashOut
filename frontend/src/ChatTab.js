@@ -1,8 +1,70 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
+
+// Lazy-loading image component for chat images
+const ChatImage = ({ messageId, content, alt }) => {
+  const [src, setSrc] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const imgRef = useRef(null);
+
+  useEffect(() => {
+    // If content is already a full data URL (from WebSocket real-time), use it directly
+    if (content && content.startsWith('data:')) {
+      setSrc(content);
+      setLoading(false);
+      return;
+    }
+    
+    // If content is a placeholder (__IMAGE__id__), fetch from API
+    if (content && content.startsWith('__IMAGE__')) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting) {
+            axios.get(`${API}/messages/${messageId}/image`)
+              .then(res => {
+                setSrc(res.data.image_url);
+                setLoading(false);
+              })
+              .catch(() => setLoading(false));
+            observer.disconnect();
+          }
+        },
+        { rootMargin: '200px' }
+      );
+      if (imgRef.current) observer.observe(imgRef.current);
+      return () => observer.disconnect();
+    }
+    
+    // Fallback for any other URL
+    setSrc(content);
+    setLoading(false);
+  }, [content, messageId]);
+
+  return (
+    <div ref={imgRef} className="max-w-xs" style={{ minHeight: loading ? '100px' : 'auto' }}>
+      {loading ? (
+        <div className="w-48 h-24 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center animate-pulse">
+          <span className="text-gray-400 text-sm">Loading image...</span>
+        </div>
+      ) : src ? (
+        <img 
+          src={src} 
+          alt={alt} 
+          className="max-w-xs rounded-lg border border-white/20"
+          style={{ maxHeight: '200px' }}
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-48 h-24 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
+          <span className="text-gray-400 text-sm">Image unavailable</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const ChatTab = ({ 
   messages, 
@@ -36,7 +98,8 @@ const ChatTab = ({
   setMobileUserListOpen,
   showScrollButton,
   scrollToBottom,
-  deleteMessage
+  deleteMessage,
+  messagesLoading = false
 }) => {
   const displayMessages = showSearch ? (filteredMessages || []) : (messages || []);
   const [followingUsers, setFollowingUsers] = useState([]);
@@ -307,8 +370,25 @@ const ChatTab = ({
               </button>
             </div>
           )}
-          {/* CRITICAL UX FIX: Empty State UI */}
-          {displayMessages.length === 0 && (
+          {/* CRITICAL UX FIX: Loading State */}
+          {messagesLoading && displayMessages.length === 0 && (
+            <div className="space-y-4 py-4 animate-pulse">
+              {[1,2,3,4,5,6].map(i => (
+                <div key={i} className="flex items-start space-x-2">
+                  <div className={`w-6 h-6 rounded-full flex-shrink-0 ${isDarkTheme ? 'bg-white/10' : 'bg-gray-200'}`} />
+                  <div className="flex-1 space-y-1">
+                    <div className={`h-3 rounded w-24 ${isDarkTheme ? 'bg-white/10' : 'bg-gray-200'}`} />
+                    <div className={`h-3 rounded w-3/4 ${isDarkTheme ? 'bg-white/5' : 'bg-gray-100'}`} />
+                  </div>
+                </div>
+              ))}
+              <div className={`text-center text-sm ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'}`}>
+                Loading messages...
+              </div>
+            </div>
+          )}
+          {/* Empty State - only show when NOT loading */}
+          {!messagesLoading && displayMessages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center py-8">
               <div className={`text-6xl mb-4 ${isDarkTheme ? 'text-gray-600' : 'text-gray-400'}`}>
                 💬
@@ -378,12 +458,10 @@ const ChatTab = ({
                       })}
                       </span>
                     </div>
-                    <img 
-                      src={message.content} 
-                      alt="Shared image" 
-                      className="max-w-xs rounded-lg border border-white/20"
-                      style={{ maxHeight: '200px' }}
-                      loading="lazy"
+                    <ChatImage 
+                      messageId={message.id}
+                      content={message.content}
+                      alt="Shared image"
                     />
                     {/* Show text caption if present with image */}
                     {message.text_content && (
