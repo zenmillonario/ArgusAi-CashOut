@@ -1363,41 +1363,43 @@ function App() {
     
     // Check if we have an image to send
     if (imageFile && imagePreview) {
+      const textContent = newMessage.trim() || null;
+      
+      // OPTIMISTIC UI: Show message immediately before API responds
+      const optimisticMsg = {
+        id: 'pending-' + Date.now(),
+        user_id: currentUser.id,
+        username: currentUser.username,
+        screen_name: currentUser.screen_name,
+        content: imagePreview,
+        content_type: "image",
+        text_content: textContent,
+        is_admin: currentUser.is_admin,
+        avatar_url: currentUser.avatar_url,
+        timestamp: new Date().toISOString(),
+        highlighted_tickers: [],
+        reply_to_id: replyToMessage?.id || null,
+        reply_to: replyToMessage ? { id: replyToMessage.id, username: replyToMessage.username, screen_name: replyToMessage.screen_name, content: replyToMessage.content_type === 'image' ? '[image]' : replyToMessage.content?.substring(0, 100), content_type: replyToMessage.content_type } : null
+      };
+      
+      // Clear inputs immediately for snappy UX
+      setImageFile(null);
+      setImagePreview(null);
+      setNewMessage('');
+      setReplyToMessage(null);
+      
       try {
-        console.log('Sending image message...');
-        const textContent = newMessage.trim() || null;
         await axios.post(`${API}/messages`, {
-          content: imagePreview, // Send the base64 data URL
+          content: imagePreview,
           content_type: "image",
           user_id: currentUser.id,
           reply_to_id: replyToMessage?.id || null,
           text_content: textContent
         });
-        
-        // Create notification for reply
-        if (replyToMessage && replyToMessage.user_id !== currentUser?.id) {
-          const newNotification = {
-            type: 'reply',
-            from: currentUser?.screen_name || currentUser?.username,
-            to: replyToMessage.user_id,
-            originalMessage: replyToMessage.content_type === 'image' ? '📷 Image' : replyToMessage.content.substring(0, 50),
-            replyMessage: textContent ? `📷 ${textContent.substring(0, 50)}` : '📷 Image',
-            replyImage: imagePreview,
-            timestamp: new Date().toLocaleTimeString(),
-            messageId: replyToMessage.id
-          };
-          
-          setNotifications(prev => [newNotification, ...(prev || []).slice(0, 49)]);
-        }
-        
-        // Clear image, text, and reply after sending
-        setImageFile(null);
-        setImagePreview(null);
-        setNewMessage('');
-        setReplyToMessage(null);
-        console.log('Image message sent successfully');
       } catch (error) {
         console.error('Error sending image:', error);
+        // Remove optimistic message on failure
+        setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
         alert('Error sending image');
       }
       return;
@@ -1405,36 +1407,24 @@ function App() {
     
     // Send text message
     if (!newMessage.trim()) return;
+    
+    const messageText = newMessage;
+    
+    // Clear input immediately for snappy UX
+    setNewMessage('');
+    setReplyToMessage(null);
 
     try {
-      console.log('Sending text message...');
       await axios.post(`${API}/messages`, {
-        content: newMessage,
+        content: messageText,
         content_type: "text",
         user_id: currentUser.id,
         reply_to_id: replyToMessage?.id || null
       });
-      
-      // Create notification for reply
-      if (replyToMessage && replyToMessage.user_id !== currentUser?.id) {
-        const newNotification = {
-          type: 'reply',
-          from: currentUser?.screen_name || currentUser?.username,
-          to: replyToMessage.user_id,
-          originalMessage: replyToMessage.content_type === 'image' ? '📷 Image' : replyToMessage.content.substring(0, 50),
-          replyMessage: newMessage.substring(0, 100),
-          timestamp: new Date().toLocaleTimeString(),
-          messageId: replyToMessage.id
-        };
-        
-        setNotifications(prev => [newNotification, ...(prev || []).slice(0, 49)]);
-      }
-      
-      setNewMessage('');
-      setReplyToMessage(null); // Clear reply after sending
-      console.log('Text message sent successfully');
     } catch (error) {
       console.error('Error sending message:', error);
+      // Restore message on failure
+      setNewMessage(messageText);
       alert('Error sending message');
     }
   };

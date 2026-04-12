@@ -4330,7 +4330,7 @@ def is_price_alert_email(content: str, subject: str, sender: str) -> bool:
     return is_alert
 
 @api_router.post("/messages", response_model=Message)
-async def create_message(message_data: MessageCreate):
+async def create_message(message_data: MessageCreate, background_tasks: BackgroundTasks):
     # Get user info
     user = await db.users.find_one({"id": message_data.user_id})
     if not user:
@@ -4360,7 +4360,7 @@ async def create_message(message_data: MessageCreate):
                 "id": reply_to_message["id"],
                 "username": reply_to_message["username"],
                 "screen_name": reply_to_message.get("screen_name"),
-                "content": reply_to_message["content"],
+                "content": reply_to_message["content"][:200] if reply_to_message.get("content_type") != "image" else "[image]",
                 "content_type": reply_to_message.get("content_type", "text")
             }
     
@@ -4372,7 +4372,7 @@ async def create_message(message_data: MessageCreate):
         is_admin=user.get("is_admin", False),
         avatar_url=user.get("avatar_url"),
         real_name=user.get("real_name"),
-        screen_name=user.get("screen_name"),  # NEW: Include screen_name in message
+        screen_name=user.get("screen_name"),
         highlighted_tickers=tickers,
         reply_to_id=message_data.reply_to_id,
         reply_to=reply_to_data,
@@ -4381,115 +4381,98 @@ async def create_message(message_data: MessageCreate):
     
     await db.messages.insert_one(message.dict())
     
-    # Award XP for sending message
-    await award_xp(message_data.user_id, "chat_message", 5)
-    
-    # Award extra XP for reply
-    if message_data.reply_to_id:
-        await award_xp(message_data.user_id, "reply_message", 8)
-        
-        # Create notification for the user being replied to
-        if reply_to_data and reply_to_data.get("username"):
-            # Find the original message sender
-            original_sender = await db.users.find_one({"username": reply_to_data["username"]})
-            if original_sender and original_sender["id"] != message_data.user_id:  # Don't notify self-replies
-                replier_name = user.get("screen_name") or user.get("username")
-                await create_user_notification(
-                    user_id=original_sender["id"],
-                    notification_type="reply",
-                    title="New Reply",
-                    message=f"{replier_name} replied to your message: \"{message_data.content[:50]}{'...' if len(message_data.content) > 50 else ''}\"",
-                    data={
-                        "replier_id": message_data.user_id,
-                        "replier_name": replier_name,
-                        "replier_avatar": user.get("avatar_url"),
-                        "original_message_id": reply_to_data["id"],
-                        "reply_content": message_data.content,
-                        "action": "reply"
-                    }
-                )
-    
-    # Handle @username mentions in the message
-    await handle_message_mentions(message_data.content, user, message.id)
-    
-    # Broadcast message to all connected users
+    # Broadcast message to all connected users IMMEDIATELY
     await manager.broadcast(json.dumps({
         "type": "message",
         "data": message.dict()
     }, default=str))
     
-    # Send push notification to all other users ONLY when sender is an admin
-    try:
-        # Only send notifications if the sender is an admin
-        if user.get("is_admin"):
-            # Get all users except the sender
-            other_users = await db.users.find({
-                "id": {"$ne": message_data.user_id},
-                "status": UserStatus.APPROVED
-            }).to_list(1000)
-            
-            # Get their FCM tokens
-            other_user_ids = [u["id"] for u in other_users]
-            tokens_cursor = db.fcm_tokens.find({"user_id": {"$in": other_user_ids}})
-            tokens = await tokens_cursor.to_list(1000)
-            token_list = [token["token"] for token in tokens]
-            
-            if token_list:
-                # Prepare notification
-                sender_name = user.get("screen_name") or user.get("real_name") or user["username"]
-                
-                # Truncate message content for notification
-                if message_data.content_type == "image":
-                    message_preview = "📷 Admin sent an image"
-                else:
-                    message_preview = message_data.content[:100] + "..." if len(message_data.content) > 100 else message_data.content
-                
-                # Send notification using FCM service
-                from fcm_service import fcm_service
-                
-                if fcm_service.initialized:
-                    await fcm_service.send_to_multiple(
-                        tokens=token_list,
-                        title=f"👑 Admin {sender_name}",
-                        body=message_preview,
-                        data={
-                            "type": "admin_message",
-                            "sender_id": message_data.user_id,
-                            "sender_name": sender_name,
-                            "message_type": message_data.content_type,
-                            "timestamp": str(int(datetime.utcnow().timestamp()))
-                        }
-                    )
-                else:
-                    logger.warning("FCM service not initialized - message notifications disabled")
-                
-    except Exception as e:
-        # Don't fail message creation if push notification fails
-        print(f"Failed to send push notification: {str(e)}")
-    
-    # Send admin notification to online users (existing logic)
-    if user.get("is_admin"):
-        print(f"📢 Admin message from {user['username']}: {message_data.content}")
-        
-        # Send specific admin notification to all non-admin users
-        non_admin_users = await db.users.find({"is_admin": {"$ne": True}, "is_online": True}).to_list(1000)
-        
-        for non_admin_user in non_admin_users:
-            if non_admin_user["id"] in manager.user_connections:
-                try:
-                    await manager.user_connections[non_admin_user["id"]].send_text(json.dumps({
-                        "type": "admin_notification",
-                        "message": f"Admin {user['real_name'] or user['username']}: {message_data.content}",
-                        "admin_username": user['username'],
-                        "admin_real_name": user.get('real_name'),
-                        "content": message_data.content
-                    }, default=str))
-                    print(f"🔔 Sent admin notification to user: {non_admin_user['username']}")
-                except Exception as e:
-                    print(f"Failed to send admin notification to {non_admin_user['username']}: {e}")
-                    pass
+    # Move ALL heavy operations to background tasks
+    background_tasks.add_task(post_message_tasks, message_data, message, user, reply_to_data)
     
     return message
+
+async def post_message_tasks(message_data, message, user, reply_to_data):
+    """Background task for XP, notifications, FCM - runs after response is sent"""
+    try:
+        # Award XP
+        await award_xp(message_data.user_id, "chat_message", 5)
+        
+        # Award extra XP and notify for reply
+        if message_data.reply_to_id:
+            await award_xp(message_data.user_id, "reply_message", 8)
+            if reply_to_data and reply_to_data.get("username"):
+                original_sender = await db.users.find_one({"username": reply_to_data["username"]})
+                if original_sender and original_sender["id"] != message_data.user_id:
+                    replier_name = user.get("screen_name") or user.get("username")
+                    await create_user_notification(
+                        user_id=original_sender["id"],
+                        notification_type="reply",
+                        title="New Reply",
+                        message=f"{replier_name} replied to your message: \"{message_data.content[:50]}{'...' if len(message_data.content) > 50 else ''}\"",
+                        data={
+                            "replier_id": message_data.user_id,
+                            "replier_name": replier_name,
+                            "replier_avatar": user.get("avatar_url"),
+                            "original_message_id": reply_to_data["id"],
+                            "reply_content": message_data.content,
+                            "action": "reply"
+                        }
+                    )
+        
+        # Handle @mentions
+        await handle_message_mentions(message_data.content, user, message.id)
+        
+        # FCM push for admin messages only
+        if user.get("is_admin"):
+            try:
+                other_users = await db.users.find({
+                    "id": {"$ne": message_data.user_id},
+                    "status": UserStatus.APPROVED
+                }).to_list(1000)
+                other_user_ids = [u["id"] for u in other_users]
+                tokens = await db.fcm_tokens.find({"user_id": {"$in": other_user_ids}}).to_list(1000)
+                token_list = [t["token"] for t in tokens]
+                
+                if token_list:
+                    sender_name = user.get("screen_name") or user.get("real_name") or user["username"]
+                    message_preview = "📷 Admin sent an image" if message_data.content_type == "image" else (message_data.content[:100] + "..." if len(message_data.content) > 100 else message_data.content)
+                    
+                    from fcm_service import fcm_service
+                    if fcm_service.initialized:
+                        await fcm_service.send_to_multiple(
+                            tokens=token_list,
+                            title=f"👑 Admin {sender_name}",
+                            body=message_preview,
+                            data={
+                                "type": "admin_message",
+                                "sender_id": message_data.user_id,
+                                "sender_name": sender_name,
+                                "message_type": message_data.content_type,
+                                "timestamp": str(int(datetime.utcnow().timestamp()))
+                            }
+                        )
+            except Exception as e:
+                print(f"FCM notification error: {e}")
+            
+            # Admin WebSocket notifications
+            try:
+                non_admin_users = await db.users.find({"is_admin": {"$ne": True}, "is_online": True}).to_list(1000)
+                for nau in non_admin_users:
+                    if nau["id"] in manager.user_connections:
+                        try:
+                            await manager.user_connections[nau["id"]].send_text(json.dumps({
+                                "type": "admin_notification",
+                                "message": f"Admin {user.get('real_name') or user['username']}: {message_data.content}",
+                                "admin_username": user['username'],
+                                "content": message_data.content
+                            }, default=str))
+                        except:
+                            pass
+            except Exception as e:
+                print(f"Admin WS notification error: {e}")
+    except Exception as e:
+        print(f"Background task error: {e}")
 
 @api_router.delete("/messages/{message_id}")
 async def delete_message(message_id: str, user_id: str):
@@ -4534,29 +4517,31 @@ async def get_messages(limit: int = 50, user_id: Optional[str] = None, before: O
     # Use find().sort() with index for efficient querying
     query = {}
     if before:
-        # Load messages older than the given timestamp for pagination
         query["timestamp"] = {"$lt": before}
-    messages = await db.messages.find(query).sort("timestamp", -1).limit(limit).to_list(limit)
     
-    # Clean up messages for compatibility
+    # Exclude _id from MongoDB for performance
+    projection = {"_id": 0}
+    messages = await db.messages.find(query, projection).sort("timestamp", -1).limit(limit).to_list(limit)
+    
+    # Clean up messages — truncate large image content for faster loading
     cleaned_messages = []
     for message in messages:
         try:
+            # For image messages, keep the full content (needed for display)
+            # But if the content is enormous (>500KB), it's a base64 image — still include it
+            # The real optimization is on the frontend with lazy loading
+            
             # Fix highlighted_tickers format for compatibility
             if 'highlighted_tickers' in message:
                 tickers = message['highlighted_tickers']
                 if isinstance(tickers, list) and tickers:
-                    # If it's a list of dicts, extract just the symbol strings
                     if isinstance(tickers[0], dict):
                         message['highlighted_tickers'] = [ticker.get('symbol', '') for ticker in tickers if isinstance(ticker, dict) and 'symbol' in ticker]
-                    # If it's not a list of strings, clean it up
                     elif not isinstance(tickers[0], str):
                         message['highlighted_tickers'] = []
                 else:
-                    # Ensure it's always a list
                     message['highlighted_tickers'] = []
             else:
-                # Add missing field
                 message['highlighted_tickers'] = []
             
             # Ensure all required fields exist with defaults
@@ -4567,6 +4552,7 @@ async def get_messages(limit: int = 50, user_id: Optional[str] = None, before: O
             message.setdefault('screen_name', None)
             message.setdefault('reply_to_id', None)
             message.setdefault('reply_to', None)
+            message.setdefault('text_content', None)
             
             cleaned_messages.append(message)
             

@@ -383,6 +383,7 @@ const ChatTab = ({
                       alt="Shared image" 
                       className="max-w-xs rounded-lg border border-white/20"
                       style={{ maxHeight: '200px' }}
+                      loading="lazy"
                     />
                     {/* Show text caption if present with image */}
                     {message.text_content && (
