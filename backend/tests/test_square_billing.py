@@ -329,6 +329,28 @@ class SquareBillingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(denied.status_code, 403)
         self.assertEqual(denied.json()["detail"]["code"], "membership_required")
 
+    async def test_billing_accepts_verified_legacy_hash_and_invalidates_proof_after_reset(self):
+        old_hash = self.db.users.rows[0].pop("password_hash")
+        self.db.users.rows[0]["hashed_password"] = old_hash
+        _, headers = await self.auth()
+        self.assertEqual((await self.client.get("/api/billing/status", headers=headers)).status_code, 200)
+        self.assertEqual(self.db.users.writes, 0)
+        self.db.users.rows[0]["password_hash"] = hashlib.sha256(b"reset-password").hexdigest()
+        self.assertEqual((await self.client.get("/api/billing/status", headers=headers)).status_code, 401)
+        stale = await self.client.post("/api/billing/auth", json={"username": "learner", "password": "test-password"})
+        self.assertEqual(stale.status_code, 401)
+
+    async def test_dummy_verification_never_authenticates_an_existing_hashless_account(self):
+        self.db.users.rows[0].pop("password_hash")
+        # Even if a supplied password matches the fixed dummy hash, that is not
+        # an account credential and must not mint a billing proof.
+        self.service.verify_password = lambda *_: True
+        response = await self.client.post("/api/billing/auth", json={"username": "learner", "password": "dummy-password"})
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(self.db.billing_credentials.rows, [])
+        self.assertEqual(self.db.users.writes, 0)
+        self.assertEqual((await self.user())["active_session_id"], "existing-session")
+
     async def test_proof_expiry_password_change_rejection_and_disabled_are_enforced_on_use(self):
         _, headers = await self.auth()
         self.clock += timedelta(minutes=21)

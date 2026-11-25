@@ -27,8 +27,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 try:
     from .membership import iso_date, membership_snapshot, utc_datetime
+    from .account_credentials import password_record
 except ImportError:
     from membership import iso_date, membership_snapshot, utc_datetime
+    from account_credentials import password_record
 
 logger = logging.getLogger(__name__)
 PRODUCTION_MERCHANT = "VMNWS6K9Y9SN5"
@@ -253,10 +255,11 @@ class SquareBillingService:
         # A fixed bcrypt hash equalizes the missing-user verification path. This
         # is not a credential for any account; a real user record is still required.
         dummy = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOY8eDCgHv5fW7zYZ9OLaDmjmSAEjOnIm"
-        candidate = (user or {}).get("password_hash") or dummy
+        _, stored_hash = password_record(user)
+        candidate = stored_hash or dummy
         valid = (len(body.password.encode("utf-8")) <= 72
                  and await asyncio.to_thread(self.verify_password, body.password, candidate))
-        if not valid or not user or user.get("status") not in BILLABLE_STATUSES or user.get("disabled") is True:
+        if not stored_hash or not valid or not user or user.get("status") not in BILLABLE_STATUSES or user.get("disabled") is True:
             raise HTTPException(401, detail={"code": "billing_auth_failed", "message": "Unable to verify this account. Check your credentials or contact support."})
         token = secrets.token_urlsafe(32)
         expires = self.now() + TOKEN_TTL
@@ -281,7 +284,8 @@ class SquareBillingService:
             if not proof or proof.get("scope") != "billing" or not utc_datetime(proof.get("expires_at")) or utc_datetime(proof["expires_at"]) <= self.now():
                 raise HTTPException(401, "Billing sign-in has expired.")
             user = await self.db.users.find_one({"id": proof["user_id"]})
-            fingerprint = hashlib.sha256(((user or {}).get("password_hash") or "").encode()).hexdigest()
+            _, current_hash = password_record(user)
+            fingerprint = hashlib.sha256((current_hash or "").encode()).hexdigest()
             if not secrets.compare_digest(fingerprint, proof["credential_fingerprint"]):
                 raise HTTPException(401, "Billing sign-in has expired.")
         if not user or user.get("status") not in BILLABLE_STATUSES or user.get("disabled") is True:

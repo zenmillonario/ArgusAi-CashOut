@@ -22,7 +22,9 @@ export function adaptNativeSnapshot(native, asset, { state = 'offline', mode, re
     bid: current || replay ? number((replay ? replayQuote : q)[side + '_bid']) : null,
     ask: current || replay ? number((replay ? replayQuote : q)[side + '_ask']) : null,
   }]));
-  const p = native?.positions?.find(position => position.ticker === m.ticker) || native?.positions?.[0];
+  const openPositions = (Array.isArray(native?.positions) ? native.positions : []).filter(position =>
+    position && position.closed !== true && (number(position.remaining_qty) ?? number(position.qty) ?? 0) > 0);
+  const p = openPositions.find(position => position.ticker === m.ticker) || openPositions[0];
   const mark = p?.last_verified_mark || {};
   const verifiedPnl = current && p?.mark_valid ? number(p.open_net_pnl) : number(p?.display_net_pnl) ?? number(mark.net_pnl);
   const verifiedRoi = current && p?.mark_valid ? number(p.open_net_roi) : number(p?.display_net_roi) ?? number(mark.net_roi);

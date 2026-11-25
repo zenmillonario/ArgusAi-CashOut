@@ -1,10 +1,10 @@
 # Nautilus bot rooms
 
-This draft integration adds BTC, ETH, SOL, XRP, and DOGE rooms with the native Nautilus chart, an asset-specific community chat, bot positions and trades, and a member practice account. It has not been deployed. The existing app's broader authentication and authorization audit remains separate; these isolated checks are not a production security certification.
+This release candidate adds BTC, ETH, SOL, XRP, and DOGE rooms with the native Nautilus chart, an asset-specific community chat, bot positions and trades, and a member practice account. These feature changes are prepared in source; the hosting migration alone did not deploy them. Bounded legacy ownership, administrator-role, and privacy repairs are included. Source validation does not establish live publisher, provider, email, or device delivery readiness.
 
 ## Backend and publisher setup
 
-The app mounts `create_nautilus_router(db)` from `backend/nautilus_api.py` under `/api/nautilus`. It uses the existing Mongo connection and three collections: `nautilus_snapshots`, `nautilus_chat`, and `nautilus_practice`.
+The app mounts `create_nautilus_router(db, settlement_service=nautilus_settlement_service)` from `backend/nautilus_api.py` under `/api/nautilus`. It uses the existing Mongo connection and three collections: `nautilus_snapshots`, `nautilus_chat`, and `nautilus_practice`. The backend lifespan starts one shared `NautilusSettlementService`; member refreshes and the background worker use that same resolver.
 
 Configure the same `NAUTILUS_PUBLISHER_KEY` on the backend and on the machine running the five PAPER engines. Use a generated secret containing 32–512 printable ASCII characters and store it in environment/secret configuration. Do not put it in React variables, source control, browser storage, or member requests. Also configure `NAUTILUS_BACKEND_URL` on the engine machine with the HTTPS backend origin.
 
@@ -29,6 +29,8 @@ Start the existing PAPER engines first. Their read-only native endpoints must be
 
 The publisher polls `/api/nautilus?ui_build=0.0.8.4` once per second and sends packets to `POST /api/nautilus/ingest/{asset}`. Sources are fixed to `127.0.0.1`. Redirects are refused; the publisher secret is sent only to the configured backend, never to the local engine. The publisher has no venue credentials, order API, or strategy controls. A development-only `--allow-local-http` option permits an explicitly supplied localhost HTTP backend.
 
+The `ui_build` value identifies the dashboard protocol, not the PAPER engine version. The available recorded examples pair dashboard build `0.0.8.4` with engine `0.0.10.4_PAPER_ONLY`; the API fixture also covers the `0.0.10.7_PAPER_ONLY` display schema. Before enabling the user's current Windows engines, verify their actual asset, port, freshness fields, and packet shape. Do not change the dashboard identifier merely to match a newer engine's version number.
+
 Only matching asset packets with `mode: "PAPER_ONLY"`, `readonly: true`, and a PAPER engine version are accepted. The API stores an explicit recursive allowlist of public display fields and rejects oversized, malformed, or out-of-order packets. Native strategy normalization has already been reversed by the native adapter: the legacy `market.btc` field contains the selected asset's actual USD price.
 
 ## Member API
@@ -40,7 +42,7 @@ Every member route requires `X-User-ID` and `X-Session-ID`. The latter must matc
 | `GET /bots/{asset}` | `{snapshot, state, receivedAt}`; state is `live`, `stale`, or `offline` |
 | `GET /chat/{asset}` | `{messages: [{id, author, content, createdAt, isAdmin}]}` |
 | `POST /chat/{asset}` | `{text}` → `{message}`; plaintext, maximum 1,000 characters |
-| `GET /practice` | `{account, revision, feePolicy: "fees-excluded"}` |
+| `GET /practice` | Reconciles eligible official results, then returns `{account, revision, feePolicy: "fees-excluded"}` |
 | `POST /practice/buy` | `{attemptId, revision, transactionId, asset, contractId, side, budget}` |
 | `POST /practice/close` | `{attemptId, revision, transactionId, positionId}` |
 | `POST /practice/reset` | `{attemptId, revision, transactionId}` |
@@ -57,7 +59,23 @@ Before a fill, the backend requires a received snapshot no older than 15 seconds
 
 Each mutation includes the current attempt ID, revision, and a unique transaction ID. Mongo compare-and-swap persistence prevents concurrent requests from spending the same balance twice. A repeat of the same recorded request returns the account without another fill. Reset restores $100, clears the active attempt, advances the revision, and generates a new attempt ID, so delayed actions from an old tab cannot cross the reset.
 
-**Expiration limitation:** this first bridge does not yet ingest a general official settlement feed for every member-held contract. An expired practice position cannot be sold using a newer contract's quote, and its outcome is never inferred from the displayed underlying price. Official settlement needs a verified outcome integration; a member can reset to start a new attempt in the meantime.
+### Official settlement after expiration
+
+`backend/kalshi_settlements.py` resolves outcomes directly from Kalshi's public HTTPS market API. It uses the exact held contract's `/markets/{ticker}` record and falls back to `/historical/markets/{ticker}` only after a `404`. No exchange authentication key, trading endpoint, or new environment setting is required. The request origin and paths are fixed, and redirects are refused. See the official [Get Market schema](https://docs.kalshi.com/api-reference/market/get-market.md) and [Get Historical Market schema](https://docs.kalshi.com/api-reference/historical/get-historical-market.md).
+
+Only an exact supported ticker with `market_type: binary`, `status: finalized`, explicit YES/NO result, $1 notional, default settlement bounds, and a matching $1/$0 YES payout is accepted. Close and settlement timestamps must be valid and settlement must already have occurred. Provisional markets are excluded. A closed, determined, disputed, scalar, fractional, mismatched, missing, or unavailable result leaves the position reserved. The outcome is never inferred from the underlying price, a newer contract, or the bot's own trade history.
+
+The service applies the full remaining position to the virtual ledger using the official result and records a `SETTLE` transaction with source, contract, winning side, close time, settlement time, verification time, notional, and payout evidence. It uses the account revision and attempt ID in the same compare-and-swap update. Concurrent workers cannot credit a position twice, and a result arriving after Reset cannot restore the old attempt. New purchases retain a server-owned `contractCloseTime`; older positions without that field remain eligible for official lookup.
+
+Authenticated account refresh reconciles results. The background worker scans accounts with open positions in pages of 20, with a 15-second pause between passes. Each account pass checks at most eight distinct eligible contracts, rotating through larger sets. In one backend process the resolver shares requests, permits four simultaneous lookups and at most 16 in-flight keys, limits each lookup to six seconds, and keeps at most 256 cache entries. Pending/unavailable results are cached for 30 seconds; verified final results for one hour. These are process-local limits, not a global multi-replica quota.
+
+Members see cash reserved while a final result is unavailable and may reset to a new $100 attempt. The interface refreshes the account every 15 seconds while open positions exist and the page is visible; newer account revisions protect buys, closes, resets, and settlements from delayed polling responses. Recent practice results distinguish closes at bid from official settlements. Fees remain excluded from both forms of practice result.
+
+### Network and session behavior
+
+While the page is visible, bot snapshots refresh for the selected asset and assets with open practice positions, rather than all five rooms. Chat refreshes only for the selected room. Polls stop and outstanding polling requests are canceled when the page becomes hidden; returning to the page refreshes immediately. Freshness timers continue to prevent an old quote from becoming executable merely because a prior snapshot remains on screen.
+
+The backend enables gzip for HTTP responses of at least 1,024 bytes with compression level 5. This reduces repeated full-snapshot transfer without changing native values or WebSocket messages. These changes do not introduce delta streaming or a provider-wide quote budget. Actual transfer, CPU usage, and provider quotas still need observation after the live publishers are connected.
 
 ## Verification
 
@@ -65,20 +83,20 @@ Run from the repository root after installing the backend dependencies:
 
 ```bash
 python -B -m unittest discover -s backend/tests -p 'test_*.py'
-node --test frontend/src/nautilus/practiceEngine.test.mjs frontend/src/sessionAuth.test.mjs frontend/src/stockNotifications.test.mjs
+node --test frontend/src/*.test.mjs frontend/src/nautilus/*.test.mjs frontend/src/social/*.test.mjs frontend/src/billing/*.test.mjs
 ```
 
-API tests use an in-memory fake database and an ASGI transport; they do not contact Mongo, local engines, a venue, or a production account. They cover session/trial access, publisher credentials and projection, quote freshness and matching, chat ownership, native-price accounting, duplicate requests, concurrent writes, reset isolation, input limits, and publisher URL/redirect restrictions. Real deployment still needs the configured engine host, HTTPS backend, publisher secret, and a controlled integration run.
+API tests use an in-memory fake database and an ASGI transport; they do not contact Mongo, local engines, a venue, or a production account. They cover session/trial access, publisher credentials and projection, quote freshness and matching, chat ownership, native-price accounting, duplicate requests, concurrent writes, reset isolation, input limits, and publisher URL/redirect restrictions. The settlement tests use synthetic official-response fixtures and HTTP mock transports to cover outcome validation, cache/concurrency bounds, timeout/failure behavior, historical fallback, duplicate-credit prevention, and reset races. Real deployment still needs the configured Windows engine host, HTTPS backend, publisher secret, and a controlled integration run.
 
 ## Account maintenance included in this draft
 
 The legacy account flow now requires an expiring email verification token for password recovery, keeps session credentials out of public user records, persists registration password hashes, fails closed for accounts without a hash, and requires an existing session to change the recovery email. Predictable default-admin creation and automatic promotion have been removed. Existing accounts created with missing hashes must use verified email recovery; the email provider must be configured before rollout. Existing production credentials are not changed by this source patch.
 
-Other legacy REST actions still trust caller-supplied user/admin IDs. Complete a role and ownership authorization pass and review existing bootstrap accounts before merging for public production. The new isolated API and account tests do not replace that review.
+The legacy router now binds its member operations to the verified active session, checks administrator-only operations, rejects conflicting acting user/admin IDs, and protects private account, ledger, referral, inbox, and mutation paths. Member-visible profiles, follow lists, and earned badges keep their intended visibility. Hidden profile locations are omitted from other members' JSON responses. The old administrative re-registration action reopens the existing rejected identity as pending while preserving credentials, profile, relationships, and history. These bounded repairs do not constitute a complete audit of every legacy business rule; see [social-training-review.md](social-training-review.md).
 
 The standalone private design preview uses real recorded PAPER packets and local browser-only practice/chat. It is separate from the current production app and does not exercise the production Mongo/email services.
 
-Verification performed for this draft: 67 isolated Python tests and 28 JavaScript ledger/session/stock-notification tests passed; App.js and its local modules bundled successfully with third-party packages externalized. The private preview built and was checked in a browser at desktop and a 390px-wide phone frame, including full screen, TV text, entry at ask, close at bid, a shared balance between rooms, and reset to $100. A full legacy CRA/backend deployment smoke test remains a rollout requirement.
+The November 25 release review passed **181 consolidated backend tests**, including **15 official-settlement tests** and the **20 existing Nautilus API/ledger tests**. Earlier private-preview browser checks covered desktop and a 390px-wide phone frame, full screen, TV text, entry at ask, close at bid, a shared balance between rooms, and reset to $100. Those preview checks used recorded data and do not establish current production member behavior. Run the complete release build and verify the deployed frontend/backend/service-worker combination separately from isolated source tests.
 
 ## November 24 revision: chart space, study guide, chat, and Stocks
 
@@ -96,7 +114,9 @@ Additional browser checks confirmed entry inspection, side preselection without 
 
 ## Single-login and alert integration review
 
-The accepted account policy is one active login per member. This draft extends active-session checks to legacy member REST, protects login/logout and socket replacement races, guards delayed browser account responses, and associates push registrations with the current login. Deploy the updated frontend and backend together: older clients do not consistently supply the required session headers, and older unbound push registrations must register again. These changes do not activate a new alert destination or send messages. See `docs/session-and-alerts-review.md` for the exact integration findings, provider checks, accepted scope and remaining rollout work. Cash rewards are outside the current scope.
+The accepted account policy is one active login per member. This draft extends active-session checks to legacy member REST, protects login/logout and socket replacement races, guards delayed browser account responses, and associates push registrations with the current login. Legacy component requests receive the current session headers only for the app's own API origin; delayed responses from replaced sessions cannot overwrite the active account. Deploy the updated frontend and backend together: older clients do not consistently supply the required session headers, and older unbound push registrations must register again. These changes do not activate a new alert destination or send messages. See `docs/session-and-alerts-review.md` for integration findings and remaining provider checks.
+
+Cash rewards are excluded. Earned XP and badges remain, the referral badge no longer advertises a cash award, new cash-award creation is removed, and the historical cash-approval mutation is disabled. Preserved historical bookkeeping is not proof of payment.
 
 ## November 25 revision: Stocks-only alerts
 

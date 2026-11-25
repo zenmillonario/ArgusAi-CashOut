@@ -14,7 +14,7 @@ All three are **one-time purchases with no automatic renewal**. The internal ID 
 
 ## The selected member journey
 
-1. **Use one account.** Existing members keep their credentials, stable member ID, profile, history, and established access. The website's `?join=monthly`, `?join=six_months`, and `?join=lifetime` routes select a plan within the app. Do not register a second account to renew.
+1. **Use one account.** Existing members keep their stable member ID, profile, history, and established access. Valid saved credentials remain supported; historical accounts without a saved hash establish a password through verified recovery on the same account. The website's `?join=monthly`, `?join=six_months`, and `?join=lifetime` routes select a plan within the app. Do not register a second account or repurchase access to recover login.
 2. **Keep a new request pending.** Registration does not unlock paid rooms. The separate billing sign-in verifies the account password and gives limited access to its membership screen. New-signup email verification remains separate work; password recovery and billing authentication do not establish it.
 3. **Pay the selected one-time price at Square.** The membership screen opens the corresponding owner-supplied reusable link and shows the member's account email and identity. Ask members to use that email at Square. If their payment email differs, they give the team their CashOutAI account email and Square receipt/payment reference for matching.
 4. **The owner reviews the purchase.** The owner uses their existing Square alert and payment record to check the buyer, purchased plan, amount, and completed payment. A selected plan, screenshot, browser return, or email match alone does not activate access. The app does not automatically consume the Square alert in manual mode.
@@ -69,4 +69,4 @@ That future path has separate configuration, sandbox, deployment, and recovery r
 
 ## Release boundary
 
-The draft is reviewable without Square credentials. Production needs coordinated app deployment, preservation of the existing database, current administrator access, and verification of the email service and live Square links. No live payment, approval, email, hosting change, or database migration was performed by this review. See [member-launch-plan.md](member-launch-plan.md) for account continuity and hosting evidence.
+The draft is reviewable without Square credentials. Production needs coordinated app deployment, preservation of the existing database, current administrator access, and verification of the email service and live Square links. No live payment, approval, email, or member-data migration was performed by this feature review. The separate Render hosting migration is complete; see [member-launch-plan.md](member-launch-plan.md) for account continuity and verified hosting evidence.

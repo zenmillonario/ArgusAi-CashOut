@@ -45,6 +45,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks, Query, Request, Depends, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from contextlib import asynccontextmanager
 import hashlib
 import bcrypt
@@ -91,6 +92,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Nautilus snapshots contain sizeable chart histories. Negotiate compression for
+# large HTTP responses; WebSocket connections bypass this HTTP middleware.
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)
 
 # Generate referral code for new users
 def generate_referral_code(username: str) -> str:
@@ -148,7 +153,6 @@ import httpx
 import asyncio
 import sys
 from contextlib import asynccontextmanager
-from cash_prize import create_pending_cash_prize
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -320,7 +324,8 @@ async def lifespan(app: FastAPI):
     # Start background cleanup task
     cleanup_task = asyncio.create_task(periodic_cleanup())
     stock_push_task = asyncio.create_task(stock_alert_service.run())
-    background_tasks = [cleanup_task, stock_push_task]
+    practice_settlement_task = asyncio.create_task(nautilus_settlement_service.run())
+    background_tasks = [cleanup_task, stock_push_task, practice_settlement_task]
     if square_billing_service.settings.mode == "automatic":
         background_tasks.append(asyncio.create_task(square_billing_service.run()))
     else:
@@ -331,15 +336,14 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.warning("Billing indexes unavailable; manual receipts still use unique document IDs.")
     logger.info("Started periodic stale session cleanup (every 10 minutes)")
-    yield
-    # Clean up on shutdown
-    for task in background_tasks:
-        task.cancel()
-    for task in background_tasks:
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+    try:
+        yield
+    finally:
+        # Stop workers before closing the shared read-only settlement client.
+        for task in background_tasks:
+            task.cancel()
+        await asyncio.gather(*background_tasks, return_exceptions=True)
+        await nautilus_settlement_service.shutdown()
 
 # Use the existing app initialized at the top and add lifespan
 app.router.lifespan_context = lifespan
@@ -1187,13 +1191,12 @@ ACHIEVEMENTS = {
         "id": "referral_master",
         "name": "Referral Master",
         "description": "Welcome a new member to the community.",
-        "icon": "💰",
+        "icon": "🤝",
         "points_reward": 200,
         "requirement_type": "referral",
         "requirement_value": 1,
         "category": "growth",
-        "cash_prize_eligible": True,
-        "max_cash_prize": 400
+        "cash_prize_eligible": False
     }
 }
 
@@ -1415,9 +1418,8 @@ async def check_achievements(user_id: str, action: str, metadata: dict):
                 new_achievements.append(achievement_id)
                 await award_xp(user_id, "achievement_unlocked", achievement["points_reward"])
                 
-                # Handle cash prize for referral achievement
-                if achievement_id == "referral_master" and achievement.get("cash_prize_eligible"):
-                    await create_pending_cash_prize(db, user_id, achievement_id, achievement.get("max_cash_prize", 400))
+                # Referral badges and XP remain available. Cash rewards are
+                # outside this release; do not create pending money awards.
         
         # Update achievements if any new ones were earned
         if new_achievements:
@@ -1569,25 +1571,75 @@ LEGACY_SESSION_EXEMPT_OPERATIONS = frozenset({
 })
 
 async def require_legacy_active_session(request: Request):
+    """Bind every legacy member operation to its verified actor and role.
+
+    Authentication alone is insufficient: older handlers also accept user/admin
+    IDs in paths, query strings or JSON. Those values must never select another
+    actor merely because the caller has a valid membership of their own.
+    """
     if request.method == "OPTIONS":
         return
     route_path = getattr(request.scope.get("route"), "path", None)
-    if (request.method, route_path) in LEGACY_SESSION_EXEMPT_OPERATIONS:
+    operation = (request.method, route_path)
+    if operation in LEGACY_SESSION_EXEMPT_OPERATIONS:
         return
     actor_id = request.headers.get("x-user-id", "")
     if not actor_id or len(actor_id) > 240:
         raise HTTPException(status_code=401, detail="Please sign in again.")
-    request.state.session_user = await require_profile_owner(request, actor_id)
-    actor = request.state.session_user
-    if not active_membership(actor, datetime.utcnow()):
-        # Administrators must still be able to review billing and manage access
-        # if their own paid term ends. This does not make member rooms public.
-        admin_operation = (route_path or "").startswith("/api/admin/") or route_path in {
-            "/api/users/pending", "/api/users/approve", "/api/users/change-role", "/api/users/{user_id}/role",
-        }
-        if not (admin_operation and actor.get("is_admin") and actor.get("status") == "approved"
-                and actor.get("disabled") is not True):
-            raise HTTPException(status_code=403, detail=MEMBERSHIP_REQUIRED)
+    actor = await require_profile_owner(request, actor_id)
+    request.state.session_user = actor
+    is_admin = bool(actor.get("is_admin") and actor.get("status") == "approved"
+                    and actor.get("disabled") is not True)
+
+    # Administrative routes include older operations outside the /admin prefix.
+    admin_operation = (route_path or "").startswith("/api/admin/") or operation in {
+        ("GET", "/api/users"), ("GET", "/api/users/pending"),
+        ("POST", "/api/users/approve"), ("POST", "/api/users/change-role"),
+        ("POST", "/api/users/{user_id}/role"), ("DELETE", "/api/users/{user_id}"),
+        ("POST", "/api/users/{user_id}/award-xp"),
+        ("GET", "/api/email/check"), ("GET", "/api/email/test"),
+        ("GET", "/api/fcm/status"), ("POST", "/api/upload-video"),
+        ("DELETE", "/api/messages/{message_id}"),
+        ("DELETE", "/api/messages/cleanup/debug"),
+    }
+    if admin_operation and not is_admin:
+        raise HTTPException(status_code=403, detail="Administrator access required.")
+    if not active_membership(actor, datetime.utcnow()) and not (admin_operation and is_admin):
+        # Administrators may still review access if their own paid term ends.
+        raise HTTPException(status_code=403, detail=MEMBERSHIP_REQUIRED)
+
+    claimed_admin = request.query_params.get("admin_id")
+    if claimed_admin is not None and (not is_admin or claimed_admin != actor_id):
+        raise HTTPException(status_code=403, detail="Administrator access required.")
+
+    # Profiles, follower lists and earned social display data are member-visible;
+    # private account/ledger/inbox resources and all member writes are owner-only.
+    public_member_reads = {
+        ("GET", "/api/users/{user_id}/profile"),
+        ("GET", "/api/users/{user_id}/profile/public"),
+        ("GET", "/api/users/{user_id}/followers"),
+        ("GET", "/api/users/{user_id}/following"),
+        ("GET", "/api/users/{user_id}/achievements"),
+    }
+    path_user = request.path_params.get("user_id")
+    if (path_user is not None and not admin_operation
+            and operation not in public_member_reads and path_user != actor_id):
+        raise HTTPException(status_code=403, detail="This resource belongs to another member.")
+
+    query_user = request.query_params.get("user_id")
+    # On admin conversion/review routes user_id selects the subject. The legacy
+    # message-moderation routes instead name the acting administrator as user_id.
+    moderation = operation in {
+        ("DELETE", "/api/messages/{message_id}"),
+        ("DELETE", "/api/messages/cleanup/debug"),
+    }
+    if query_user is not None and (not admin_operation or moderation) and query_user != actor_id:
+        raise HTTPException(status_code=403, detail="This action belongs to another member.")
+
+    if operation == ("POST", "/api/messages"):
+        payload = await request.json()
+        if not isinstance(payload, dict) or payload.get("user_id") != actor_id:
+            raise HTTPException(status_code=403, detail="Messages must use your signed-in account.")
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt"""
@@ -1605,13 +1657,24 @@ def verify_password(password: str, hashed: str) -> bool:
     # Legacy SHA-256 fallback
     return hashlib.sha256(password.encode()).hexdigest() == hashed
 
-async def migrate_password_if_needed(user_id: str, password: str, stored_hash: str):
-    """Auto-migrate SHA-256 hash to bcrypt on successful login"""
-    if not (stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$')):
-        new_hash = hash_password(password)
-        await db.users.update_one({"id": user_id, "password_hash": stored_hash}, {"$set": {"password_hash": new_hash}})
-        return new_hash
-    return stored_hash
+async def migrate_password_if_needed(user_id: str, password: str, stored_hash: str,
+                                     password_field: str = "password_hash", primary_value=None):
+    """Canonicalize a verified legacy hash without overwriting a newer password."""
+    is_bcrypt = stored_hash.startswith(("$2b$", "$2a$"))
+    if is_bcrypt and password_field == "password_hash":
+        return stored_hash
+    # bcrypt 5 rejects values beyond 72 UTF-8 bytes. A verified historical SHA
+    # hash can keep serving its existing long password until the owner resets it.
+    new_hash = stored_hash if is_bcrypt or len(password.encode("utf-8")) > 72 else hash_password(password)
+    guard = {"id": user_id, password_field: stored_hash}
+    if password_field == "hashed_password":
+        guard["password_hash"] = primary_value
+    result = await db.users.update_one(guard, {
+        "$set": {"password_hash": new_hash}, "$unset": {"hashed_password": ""},
+    })
+    if not result.matched_count:
+        raise HTTPException(status_code=401, detail="Credentials changed. Please sign in again.")
+    return new_hash
 
 def process_uploaded_image(file_content: bytes, max_size: int = 1024 * 1024) -> str:
     """Process uploaded image and return base64 data URL"""
@@ -2020,11 +2083,13 @@ async def login_user(login_data: UserLogin):
     
     # Older registrations may be missing a persisted hash. They must use the
     # verified email-reset flow; absence of a hash must never grant access.
-    if not user.get('password_hash') or not verify_password(login_data.password, user['password_hash']):
+    password_field, stored_hash = password_record(user)
+    if not stored_hash or not verify_password(login_data.password, stored_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials. Use password recovery if needed.")
     if user.get("disabled") is True:
         raise HTTPException(status_code=403, detail="Account access requires administrator review.")
-    verified_hash = await migrate_password_if_needed(user['id'], login_data.password, user['password_hash'])
+    verified_hash = await migrate_password_if_needed(
+        user['id'], login_data.password, stored_hash, password_field, user.get("password_hash"))
     
     user_obj = User(**user)
     
@@ -2035,7 +2100,8 @@ async def login_user(login_data: UserLogin):
         raise HTTPException(status_code=403, detail="Account has been rejected")
     elif user_obj.status == UserStatus.TRIAL:
         # Check if trial has expired
-        if user_obj.trial_end_date and datetime.utcnow() > user_obj.trial_end_date:
+        trial_end = utc_datetime(user_obj.trial_end_date)
+        if not trial_end or datetime.utcnow() > trial_end:
             # Convert to trial_expired status
             await db.users.update_one(
                 {"id": user_obj.id},
@@ -2346,10 +2412,8 @@ async def get_pending_users():
     # Add indicators for different user types
     for user in trial_users:
         user["is_trial_active"] = True
-        trial_end = user.get('trial_end_date')
+        trial_end = utc_datetime(user.get('trial_end_date'))
         if trial_end:
-            if isinstance(trial_end, str):
-                trial_end = datetime.fromisoformat(trial_end.replace('Z', '+00:00'))
             days_remaining = (trial_end - datetime.utcnow()).days
             user["admin_note"] = f"🎯 ACTIVE TRIAL: {days_remaining} days remaining - Auto-approved trial user"
         else:
@@ -2361,7 +2425,7 @@ async def get_pending_users():
     
     # Combine and sort by creation date (most recent first)
     all_users = pending_users + trial_users + trial_expired_users
-    all_users.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
+    all_users.sort(key=lambda x: utc_datetime(x.get("created_at")) or datetime.min, reverse=True)
     
     return [User(**user) for user in all_users]
 
@@ -2589,23 +2653,27 @@ async def change_password(password_data: PasswordChange, background_tasks: Backg
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    if not user.get('password_hash') or not verify_password(password_data.current_password, user['password_hash']):
+    password_field, stored_hash = password_record(user)
+    if not stored_hash or not verify_password(password_data.current_password, stored_hash):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     validate_new_password(password_data.new_password)
     
     # Hash new password
     new_password_hash = hash_password(password_data.new_password)
     
-    # Update password
+    # Update only the credential that was verified, guarding concurrent resets.
+    password_guard = {"id": user_id, password_field: stored_hash}
+    if password_field == "hashed_password":
+        password_guard["password_hash"] = user.get("password_hash")
     result = await db.users.update_one(
-        {"id": user_id, "password_hash": user['password_hash']},
+        password_guard,
         {"$set": {
             "password_hash": new_password_hash,
             "modified_at": datetime.utcnow(),
             "active_session_id": None,
             "session_created_at": None,
             "is_online": False,
-        }, "$unset": {"reset_token": "", "reset_token_hash": "", "reset_expires": "", "password": ""}}
+        }, "$unset": {"reset_token": "", "reset_token_hash": "", "reset_expires": "", "password": "", "hashed_password": ""}}
     )
     
     if result.modified_count == 0:
@@ -2692,6 +2760,7 @@ async def confirm_password_reset(request: Request, reset_confirm: PasswordResetC
             "reset_token_hash": "",
             "reset_expires": "",
             "password": "",
+            "hashed_password": "",
         }}
     )
     if not user:
@@ -3135,8 +3204,8 @@ async def update_user_profile(request: Request, user_id: str, profile_update: Pr
     return {"message": "Profile updated successfully"}
 
 @api_router.get("/users/{user_id}/profile")
-async def get_user_profile(user_id: str):
-    """Get user profile for display"""
+async def get_user_profile(request: Request, user_id: str):
+    """Get a member-visible profile, honoring location privacy on the server."""
     user = await db.users.find_one({"id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -3149,7 +3218,10 @@ async def get_user_profile(user_id: str):
         "trading_style_tags": user.get("trading_style_tags", []),
         "profile_banner": user.get("profile_banner"),
         "avatar_url": user.get("avatar_url"),
-        "location": user.get("location"),
+        "location": user.get("location") if (
+            user.get("show_location", True) is True
+            or getattr(request.state, "session_user", {}).get("id") == user_id
+        ) else None,
         "show_location": user.get("show_location", True),
         "level": user.get("level", 1),
         "experience_points": user.get("experience_points", 0),
@@ -3228,80 +3300,8 @@ async def get_pending_cash_prizes(admin_id: str):
 
 @api_router.post("/admin/cash-prizes/review")
 async def review_cash_prize(review: CashPrizeReview, admin_id: str):
-    """Admin review and approve/reject cash prize"""
-    # Verify admin status
-    admin = await db.users.find_one({"id": admin_id})
-    if not admin or not admin.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
-    # Get user with pending cash prize
-    user = await db.users.find_one({"id": review.user_id})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Find and update the pending cash prize
-    pending_prizes = user.get("pending_cash_review", [])
-    updated_pending = []
-    prize_found = False
-    
-    for prize in pending_prizes:
-        if prize.get("achievement_id") == review.achievement_id:
-            if review.status == "approved":
-                # Move to approved cash prizes
-                approved_prize = {
-                    **prize,
-                    "status": "approved",
-                    "reviewed_at": datetime.utcnow(),
-                    "reviewed_by": admin["id"],
-                    "admin_notes": review.admin_notes,
-                    "approved_amount": review.amount
-                }
-                
-                # Add to cash prizes and update total
-                await db.users.update_one(
-                    {"id": review.user_id},
-                    {
-                        "$push": {"cash_prizes": approved_prize},
-                        "$inc": {"total_cash_earned": review.amount}
-                    }
-                )
-                
-                # Send notification to chat about cash prize
-                await share_cash_prize_in_chat(review.user_id, approved_prize)
-                
-                # Create cash prize notification for the user
-                await create_user_notification(
-                    user_id=review.user_id,
-                    notification_type="cash_prize",
-                    title="Cash Prize Approved! 💰",
-                    message=f"Congratulations! Your cash prize of ${review.amount:.2f} has been approved for {review.achievement_id} achievement!",
-                    data={
-                        "amount": review.amount,
-                        "achievement_id": review.achievement_id,
-                        "admin_notes": review.admin_notes,
-                        "approved_at": datetime.utcnow(),
-                        "action": "cash_prize_approved"
-                    }
-                )
-                
-            elif review.status == "rejected":
-                # Just remove from pending
-                pass
-            
-            prize_found = True
-        else:
-            updated_pending.append(prize)
-    
-    if not prize_found:
-        raise HTTPException(status_code=404, detail="Pending cash prize not found")
-    
-    # Update user's pending cash review list
-    await db.users.update_one(
-        {"id": review.user_id},
-        {"$set": {"pending_cash_review": updated_pending}}
-    )
-    
-    return {"message": f"Cash prize {review.status} successfully"}
+    """Historical records remain readable, but cash rewards are not enabled."""
+    raise HTTPException(status_code=410, detail="Cash rewards are not part of the current program.")
 
 @api_router.post("/admin/convert-trial")
 async def convert_trial_to_member(request: Request, user_id: str, admin_id: str):
@@ -3359,7 +3359,7 @@ async def get_trial_expired_users():
     # Convert datetime objects to strings for JSON serialization
     for user in trial_expired_users:
         if "trial_end_date" in user and user["trial_end_date"]:
-            user["trial_end_date"] = user["trial_end_date"].isoformat()
+            user["trial_end_date"] = iso_date(user["trial_end_date"])
     
     return {
         "trial_expired_users": trial_expired_users,
@@ -3383,7 +3383,7 @@ async def get_all_trial_users():
     for user in active_trials + expired_trials:
         for date_field in ["trial_start_date", "trial_end_date"]:
             if date_field in user and user[date_field]:
-                user[date_field] = user[date_field].isoformat()
+                user[date_field] = iso_date(user[date_field])
     
     return {
         "active_trials": active_trials,
@@ -3486,37 +3486,35 @@ async def bulk_remove_trial_users(admin_id: str, user_ids: list):
     }
 
 @api_router.post("/admin/allow-reregistration")
-async def allow_rejected_user_reregistration(user_id: str, admin_id: str):
-    """Allow a rejected user to register again by removing their rejected account"""
-    # Verify admin status
-    admin = await db.users.find_one({"id": admin_id})
-    if not admin or not admin.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
-    # Find the rejected user
+async def allow_rejected_user_reregistration(request: Request, user_id: str, admin_id: str):
+    """Reopen review on the existing account; never delete its identity/history."""
+    admin = await require_authenticated_admin(request, admin_id)
     rejected_user = await db.users.find_one({"id": user_id})
     if not rejected_user:
         raise HTTPException(status_code=404, detail="User not found")
-    
     if rejected_user.get("status") != UserStatus.REJECTED:
         raise HTTPException(status_code=400, detail="User is not in rejected status")
-    
-    username = rejected_user.get("username")
-    email = rejected_user.get("email")
-    
-    # Remove the rejected user account to allow re-registration
-    await db.users.delete_one({"id": user_id})
-    await db.messages.delete_many({"user_id": user_id})
-    await db.notifications.delete_many({"user_id": user_id})
-    
-    logger.info(f"🔓 ADMIN ALLOWED RE-REGISTRATION: {username} by admin {admin['username']}")
-    
+    result = await db.users.update_one(
+        {"id": user_id, "status": UserStatus.REJECTED},
+        {"$set": {
+            "status": UserStatus.PENDING,
+            "reopened_at": datetime.utcnow(),
+            "reopened_by": admin["id"],
+            "active_session_id": None,
+            "session_created_at": None,
+            "is_online": False,
+        }}
+    )
+    if not result.matched_count:
+        raise HTTPException(status_code=409, detail="Account status changed. Refresh before reviewing it.")
+    await manager.send_session_invalidation(user_id, rejected_user.get("active_session_id"))
     return {
-        "message": f"User {username} can now register again",
-        "username": username,
-        "email": email,
+        "message": "The existing account is pending review again. No new registration is needed.",
+        "user_id": user_id,
+        "username": rejected_user.get("username"),
+        "email": rejected_user.get("email"),
         "action_by": admin["username"],
-        "note": "The user's rejected account has been removed and they can now register with the same username/email"
+        "note": "Credentials, profile, follows and history were preserved. Access still requires approval.",
     }
 
 @api_router.get("/users/{user_id}/referrals")
@@ -4923,11 +4921,13 @@ async def upload_intro_video(video: UploadFile = File(...)):
 # Stock intake and reads use their own external/member authentication boundaries.
 try:
     from .stock_alerts import StockAlertService, active_membership
-    from .membership import MEMBERSHIP_REQUIRED
+    from .membership import MEMBERSHIP_REQUIRED, utc_datetime, iso_date
+    from .account_credentials import password_record
     from .square_billing import SquareBillingService
 except ImportError:
     from stock_alerts import StockAlertService, active_membership
-    from membership import MEMBERSHIP_REQUIRED
+    from membership import MEMBERSHIP_REQUIRED, utc_datetime, iso_date
+    from account_credentials import password_record
     from square_billing import SquareBillingService
 stock_alert_service = StockAlertService(db, require_profile_owner, get_active_fcm_tokens)
 app.include_router(stock_alert_service.router())
@@ -4942,9 +4942,12 @@ app.include_router(api_router, dependencies=[Depends(require_legacy_active_sessi
 # Five authenticated PAPER observation rooms and per-member practice accounts.
 try:
     from .nautilus_api import create_nautilus_router
+    from .kalshi_settlements import NautilusSettlementService
 except ImportError:
     from nautilus_api import create_nautilus_router
-app.include_router(create_nautilus_router(db))
+    from kalshi_settlements import NautilusSettlementService
+nautilus_settlement_service = NautilusSettlementService(db)
+app.include_router(create_nautilus_router(db, settlement_service=nautilus_settlement_service))
 
 # Configure logging
 logging.basicConfig(

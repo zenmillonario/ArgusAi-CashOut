@@ -217,6 +217,10 @@ def buy_contracts(account, options=None):
             "openedAt": timestamp, "updatedAt": timestamp,
         }
         next_account["positions"].append(position)
+    if options.get("contractCloseTime") is not None:
+        # Supplied only by the API's authenticated publisher snapshot, never by
+        # the member order. Older accounts without this field remain valid.
+        position["contractCloseTime"] = _timestamp(options["contractCloseTime"])
     next_account["cashUnits"] -= quote["totalCostUnits"]
     next_account["totalFeesUnits"] = _safe_result(next_account["totalFeesUnits"] + quote["feeUnits"])
     next_account["transactions"].append({

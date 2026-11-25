@@ -1,6 +1,6 @@
 # CashOutAI member continuity, signup and launch plan
 
-**Reviewed November 25, 2026. Status: implementation draft and launch plan; production has not been updated.**
+**Reviewed November 25, 2026. Status: app feature release remains a draft; the production frontend hosting migration is complete.**
 
 ## Existing members keep their accounts
 
@@ -23,7 +23,7 @@ These are required operational steps, not actions already performed. Production 
 
 ### Password compatibility
 
-Existing bcrypt and legacy SHA-256 hashes are supported; a verified legacy password is upgraded in place. Some historical registrations may have no saved password hash because the original registration model dropped the field. Such an account must use verified email recovery on the same ID. Re-registering is not the recovery method.
+Existing bcrypt and legacy SHA-256 hashes are supported; a verified legacy password is upgraded in place. The historical `hashed_password` alias is accepted only when the canonical `password_hash` is absent and the alias is a recognized hash. A canonical credential always takes precedence, and conditional updates prevent a concurrent password reset being overwritten. Historical registrations may have no saved password hash because the original registration model dropped the field. Such an account must use verified email recovery on the same ID. Re-registering or repurchasing is not the recovery method. Verify the configured email credential and sender, then rehearse recovery before changing production sign-in behavior. Presence of an environment variable alone does not prove that email can be sent.
 
 A one-time reauthentication may be needed during a deliberate security cutover or after a hostname/storage change. The draft does not automatically revoke every member's session at deployment. Any coordinated revocation must wait until recovery delivery works. Reauthentication must not reset membership or community history.
 
@@ -58,21 +58,21 @@ Selected flow:
 
 Manual approval is the chosen launch workflow, not a temporary provider-configuration error. `MEMBERSHIP_APPROVAL_MODE` defaults to `manual`; old Square settings alone cannot enable automatic checkout, webhook grants, or the billing worker. The manual path needs no Square API keys or webhook subscription. The future automatic implementation remains dormant unless explicitly selected and fully configured. The new paid-approval draft still needs deployment and verification of the real database, administrator access, email service, and supplied checkout links. Do not advertise instant activation.
 
-## Hosting: evidence and remaining confirmation
+## Hosting: verified Render deployment
 
-The owner recalls both Vercel and Railway. A Vercel frontend calling a Railway backend is a possible arrangement, but committed files do not establish the current production split:
+The active production arrangement was verified in Render and through public HTTPS checks on November 25, 2026. Repository Vercel/Railway examples are historical deployment alternatives.
 
-| Repository evidence | What it establishes |
+| Service | Verified role and state |
 | --- | --- |
-| `deploy-vercel.json` | A committed configuration describes a React static build and Python backend with `/api` routing on Vercel; it does not prove that configuration was deployed. |
-| `vercel-deployment-package/README.md` | A separate package explicitly describes a frontend-only demo. Its example backend hostname is a placeholder. |
-| `DEPLOYMENT_GUIDE.md` | Lists alternative Vercel, Netlify + Railway, and Heroku options; these are instructions, not deployment records. |
+| `CashoutAi` | Existing Starter Python web service. Serves the backend at `https://cashoutai.onrender.com` from `backend/` on GitHub `main`; the existing MongoDB is retained. |
+| `CashoutAi-Static` | New active Static Site. Serves `https://cashoutai.app/`, with `www.cashoutai.app` redirecting to the canonical apex. Both certificates were issued. Builds `cd frontend && yarn install && yarn build` and publishes `frontend/build` from `main`. |
+| `CashoutAi-App` | Previous paid frontend web service. Suspended after production verification and retained for recovery. |
 
-Both platforms can host Python APIs. Vercel documents FastAPI as a Function, while Railway documents running a FastAPI server with a configured start command and public service domain. The actual service must be confirmed by matching the frontend's deployed API origin to the provider project, source branch/commit, runtime, and existing database. Merely finding two host accounts is insufficient. [Vercel FastAPI](https://vercel.com/docs/frameworks/backend/fastapi), [Railway start commands](https://docs.railway.com/deployments/troubleshooting/no-start-command-could-be-found), [Railway public networking](https://docs.railway.com/networking/public-networking)
+The hosting migration used the existing production commit `5702460a275cda067dba510dc4ba4432f1051359`; it did not deploy this feature branch. A `/*` to `/index.html` rewrite preserves app deep links. Public build configuration and notification files were preserved during the migration. HTTPS, main assets, the reset-password route, backend health/database connectivity, and production-origin CORS checks passed again after the old frontend was suspended.
 
-Do not rely on the old blanket statement that Vercel cannot serve WebSockets: Vercel announced general availability on October 20, 2026, subject to Function limits. Persistent app workers, connection duration, reconnection, and state still need to be checked against the actual deployment. Manual payment approval itself does not depend on the optional Square worker. [Vercel WebSocket announcement](https://vercel.com/changelog/websocket-support-is-now-generally-available)
+The base running compute is the existing $7 backend; the new frontend uses Render Static Sites. Usage allowances and any extra bandwidth/build charges are separate. See [Render Static Sites](https://render.com/docs/static-sites) and [Render billing](https://render.com/docs/billing). Preserve the current custom domain and database when deploying the feature release. Do not resume the retired frontend during routine releases.
 
-No host dashboard, production environment values, database, or deployment settings were accessed or changed in this review. Hosting choices remain a deployment-verification item rather than a reason to delay the manual workflow implementation.
+The feature release still requires recovery-email verification, a restorable database backup, isolated member continuity checks, the actual bot publishers, and coordinated Zapier intake changes. No member account, credential, email, or payment was modified during the hosting migration or read-only readiness checks.
 
 ## Social navigation and training identity
 
@@ -96,6 +96,6 @@ Given the two-day window from this review date, a member preview and join event 
 
 The app baseline is [ArgusAi-CashOut commit 5702460](https://github.com/zenmillonario/ArgusAi-CashOut/tree/5702460a275cda067dba510dc4ba4432f1051359). Account and social findings come from `backend/server.py`, `frontend/src/App.js` and the profile, notification, chat and achievement components. The marketing baseline is [zenmillionaires-site commit 170c092](https://github.com/zenmillonario/zenmillionaires-site/tree/170c092639c575fd55b674886f8c8fe60c917f29).
 
-The live login and registration screens were inspected without submitting a registration. Signed-in production screens require the browser's secure sign-in workflow; source review alone does not verify current production member records or deployment configuration. The preview's demo interactions are isolated from production.
+The live login and registration screens were inspected without submitting a registration. Render service state and aggregate database readiness were checked without changing member records, approving access, logging in as a member, or sending a message. Provider configuration presence is distinct from provider acceptance and delivery. The preview's demo interactions are isolated from production.
 
 See also [social-training-review.md](social-training-review.md), [session-and-alerts-review.md](session-and-alerts-review.md), [stock-alert-rollout.md](stock-alert-rollout.md), and [realtime-quotes-and-launch.md](realtime-quotes-and-launch.md).

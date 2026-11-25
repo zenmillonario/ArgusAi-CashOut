@@ -181,6 +181,13 @@
 .nw-practice-position small { font-size: 9px; }
 .nw-practice-position button { background: #21343e; color: #bed4db; border: 1px solid #3a5662; padding: 5px 7px; border-radius: 5px; font-size: 9px; white-space: nowrap; }
 .nw-practice-position button > span { color: #82a6b0; font-size: 8px; margin-left: 3px; }
+.nw-practice-results { margin: 0 16px 8px; padding: 8px 0 0; border-top: 1px solid #29414a; }
+.nw-practice-results > .nw-eyebrow { font-size: 9px; margin-bottom: 6px; }
+.nw-practice-results > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 11px; }
+.nw-practice-results > div > span { display: flex; flex-direction: column; gap: 2px; }
+.nw-practice-results > div > span:last-child { text-align: right; }
+.nw-practice-results b { font-size: 10px; }
+.nw-practice-results small { color: #7d9ca8; font-size: 9px; }
 .nw-practice-message { padding: 0 16px; color: #91bdaf; font-size: 10px; }
 .nw-practice-message:not(:empty) { padding-bottom: 8px; }
 .nw-practice-foot { display: flex; align-items: center; justify-content: center; gap: 4px; border-top: 1px solid #243e46; padding: 8px 12px; color: #688d98; font-size: 8px; background: #11232a88; }

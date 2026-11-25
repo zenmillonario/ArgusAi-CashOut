@@ -25,7 +25,8 @@ from fastapi import BackgroundTasks, HTTPException, Request, WebSocket
 from pydantic import BaseModel, Field
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from membership import active_membership, MEMBERSHIP_REQUIRED
+from membership import active_membership, MEMBERSHIP_REQUIRED, utc_datetime, iso_date
+from account_credentials import password_record
 
 
 def load_auth_slice():
@@ -347,6 +348,82 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(result.trial_end_date)
             self.assertFalse(result.is_admin)
         self.assertEqual(self.users.documents[0], self.original)
+
+    async def test_verified_alternate_hash_can_migrate_without_a_second_registration(self):
+        old_hash = self.users.documents[0].pop("password_hash")
+        self.users.documents[0]["hashed_password"] = old_hash
+        with self.assertRaises(HTTPException) as rejected:
+            await self.n["login_user"](self.n["UserLogin"](username="ariam", password="incorrect"))
+        self.assertEqual(rejected.exception.status_code, 401)
+        self.assertEqual(self.users.writes, 0)
+        result = await self.n["login_user"](self.n["UserLogin"](username="ariam", password="old-password"))
+        self.assertEqual(result.id, self.original["id"])
+        self.assertEqual(self.users.documents[0]["password_hash"], old_hash)
+        self.assertNotIn("hashed_password", self.users.documents[0])
+
+    async def test_alternate_hash_never_overrides_an_existing_primary_credential(self):
+        self.users.documents[0]["hashed_password"] = hashlib.sha256(b"stale-password").hexdigest()
+        with self.assertRaises(HTTPException) as rejected:
+            await self.n["login_user"](self.n["UserLogin"](username="ariam", password="stale-password"))
+        self.assertEqual(rejected.exception.status_code, 401)
+        self.assertEqual(self.users.writes, 0)
+        self.users.documents[0].pop("password_hash")
+        self.users.documents[0]["hashed_password"] = "plaintext-is-not-a-hash"
+        with self.assertRaises(HTTPException) as rejected:
+            await self.n["login_user"](self.n["UserLogin"](username="ariam", password="plaintext-is-not-a-hash"))
+        self.assertEqual(rejected.exception.status_code, 401)
+        self.assertEqual(self.users.writes, 0)
+
+    async def test_alternate_migration_cannot_overwrite_a_concurrent_password_reset(self):
+        old_hash = self.users.documents[0].pop("password_hash")
+        self.users.documents[0]["hashed_password"] = old_hash
+        original_update = self.users.update_one
+        reset_hash = hashlib.sha256(b"new-reset-password").hexdigest()
+        async def raced_update(filters, update):
+            if "hashed_password" in filters:
+                self.users.documents[0]["password_hash"] = reset_hash
+            return await original_update(filters, update)
+        self.users.update_one = raced_update
+        with self.assertRaises(HTTPException) as rejected:
+            await self.n["login_user"](self.n["UserLogin"](username="ariam", password="old-password"))
+        self.assertEqual(rejected.exception.status_code, 401)
+        self.assertEqual(self.users.documents[0]["password_hash"], reset_hash)
+        self.assertEqual(self.users.documents[0]["active_session_id"], self.original["active_session_id"])
+
+    async def test_missing_legacy_hash_recovers_same_identity_without_new_registration(self):
+        self.users.documents[0].pop("password_hash")
+        self.users.documents[0].update(
+            bio="Existing profile", avatar_url="existing-photo", profile_banner="existing-banner",
+            following=["mentor"], followers=["friend"], experience_points=1234,
+            billing_entitlement={"managed_by": "manual_payment", "lifetime": True, "plan_id": "lifetime"},
+        )
+        preserved = deepcopy(self.users.documents[0])
+        with self.assertRaises(HTTPException) as rejected:
+            await self.n["login_user"](self.n["UserLogin"](username="ariam", password="anything"))
+        self.assertEqual(rejected.exception.status_code, 401)
+        self.assertEqual(self.users.writes, 0)
+        tasks = BackgroundTasks()
+        await self.n["request_password_reset"](request(), self.n["PasswordResetRequest"](email="ariam@example.test"), tasks)
+        token = tasks.tasks[0].args[2]
+        await self.n["confirm_password_reset"](request(),
+            self.n["PasswordResetConfirm"](token=token, new_password="restored-password"), BackgroundTasks())
+        for field in ("id", "email", "username", "status", "bio", "avatar_url", "profile_banner", "following", "followers", "experience_points", "billing_entitlement"):
+            self.assertEqual(self.users.documents[0][field], preserved[field], field)
+        self.assertEqual(len(self.users.documents), 1)
+        self.assertEqual(self.users.documents[0]["password_hash"], hashlib.sha256(b"restored-password").hexdigest())
+        result = await self.n["login_user"](self.n["UserLogin"](username="ariam", password="restored-password"))
+        self.assertEqual(result.id, preserved["id"])
+        self.assertEqual(result.status, self.n["UserStatus"].APPROVED)
+        self.assertEqual(self.n["email_service"].sent, [])  # Tasks use a local recorder only.
+
+    async def test_existing_trial_sign_in_accepts_timezone_aware_end_date(self):
+        original_end = datetime.now(timezone.utc) + timedelta(days=3)
+        self.users.documents[0].update(status="trial", membership_plan="14-Day Trial", trial_end_date=original_end)
+        result = await self.n["login_user"](self.n["UserLogin"](username="ariam", password="old-password"))
+        self.assertEqual(result.id, self.original["id"])
+        self.assertEqual(result.status, self.n["UserStatus"].TRIAL)
+        self.assertEqual(result.trial_end_date, original_end)
+        self.assertEqual(self.users.documents[0]["trial_end_date"], original_end)
 
     async def test_existing_trial_can_still_sign_in_with_original_plan_and_expiration(self):
         original_end = datetime.utcnow()+timedelta(days=3)

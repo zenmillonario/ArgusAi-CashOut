@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BotWorkspace from './BotWorkspace';
 import { adaptNativeSnapshot, accountMarks, BOT_ASSETS } from './snapshotAdapter';
-import { calculateAccountSummary, quotePurchase } from './practiceEngine';
+import { calculateAccountSummary, fromMoneyUnits, quotePurchase } from './practiceEngine';
+import { preferNewerPracticeLedger, roomAssetsToPoll, startVisiblePolling } from './roomPolling.mjs';
 
 let chartScriptPromise;
 export function loadNautilusChart() {
@@ -25,6 +26,9 @@ export default function BotTabContainer({ asset, currentUser, apiBase }) {
   const [busy, setBusy] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const polledAssetKey = roomAssetsToPoll(asset, ledger?.account?.positions, BOT_ASSETS).join(',');
+  const polledAssets = useMemo(() => polledAssetKey.split(',').filter(Boolean), [polledAssetKey]);
+  const hasPracticePositions = Boolean(ledger?.account?.positions?.some(position => position.quantity > 0));
   const root = useRef(null);
   const activeRoom = useRef(asset);
   const activeUser = useRef(currentUser.id);
@@ -49,7 +53,8 @@ export default function BotTabContainer({ asset, currentUser, apiBase }) {
       upstream?.removeEventListener('abort', cancel);
     }
   }, [apiBase, headers]);
-  const refreshAccount = useCallback(async () => setLedger(await request('/practice')), [request]);
+  const acceptLedger = useCallback(result => setLedger(previous => preferNewerPracticeLedger(previous, result)), []);
+  const refreshAccount = useCallback(async () => acceptLedger(await request('/practice')), [request, acceptLedger]);
 
   useEffect(() => { loadNautilusChart().catch(e => setError(e.message)); }, []);
   useEffect(() => {
@@ -57,44 +62,43 @@ export default function BotTabContainer({ asset, currentUser, apiBase }) {
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {
-    let disposed = false;
-    let timer;
-    let controller;
-    const update = async () => {
-      controller = new AbortController();
-      const results = await Promise.allSettled(BOT_ASSETS.map(async symbol => {
-        const result = await request(`/bots/${symbol}`, { signal: controller.signal });
+    return startVisiblePolling(async signal => {
+      const results = await Promise.allSettled(polledAssets.map(async symbol => {
+        const result = await request(`/bots/${symbol}`, { signal });
         return [symbol, result];
       }));
-      if (disposed) return;
+      if (signal.aborted) return;
       setFeeds(previous => {
-        const next = Object.fromEntries(results.filter(r => r.status === 'fulfilled').map(r => r.value));
+        const next = { ...previous, ...Object.fromEntries(results.filter(r => r.status === 'fulfilled').map(r => r.value)) };
         for (let i = 0; i < results.length; i++) if (results[i].status === 'rejected') {
-          const symbol = BOT_ASSETS[i];
+          const symbol = polledAssets[i];
           next[symbol] = { snapshot: previous[symbol]?.snapshot || null, receivedAt: previous[symbol]?.receivedAt, state: 'offline' };
         }
         return next;
       });
-      timer = setTimeout(update, 3000);
-    };
-    update();
-    return () => { disposed = true; clearTimeout(timer); controller?.abort(); };
-  }, [request]);
+    }, 3000);
+  }, [request, polledAssets]);
   useEffect(() => { refreshAccount().catch(e => setError(e.message)); }, [refreshAccount]);
   useEffect(() => {
-    let disposed = false;
-    let timer;
-    let controller;
+    if (!hasPracticePositions) return undefined;
+    return startVisiblePolling(async signal => {
+      const result = await request('/practice', { signal });
+      if (!signal.aborted) acceptLedger(result);
+    }, 15000, { onError: error => setError(error.message) });
+  }, [hasPracticePositions, request, acceptLedger]);
+  useEffect(() => {
     setMessages([]);
-    const update = async () => {
-      controller = new AbortController();
-      try { const result = await request(`/chat/${asset}`, { signal: controller.signal }); if (!disposed) setMessages(result.messages || []); }
-      catch (e) { if (!disposed) setError(e.message); }
-      if (!disposed) timer = setTimeout(update, 5000);
-    };
-    update();
-    return () => { disposed = true; clearTimeout(timer); controller?.abort(); };
+    return startVisiblePolling(async signal => {
+      try { const result = await request(`/chat/${asset}`, { signal }); if (!signal.aborted) setMessages(result.messages || []); }
+      catch (e) { if (!signal.aborted) setError(e.message); }
+    }, 5000);
   }, [asset, request]);
+  useEffect(() => {
+    if (!expanded) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [expanded]);
   useEffect(() => {
     const changed = () => setFullscreen(document.fullscreenElement === root.current);
     const key = event => { if (event.key === 'Escape') setExpanded(false); };
@@ -114,7 +118,7 @@ export default function BotTabContainer({ asset, currentUser, apiBase }) {
     setBusy(true); setError('');
     try {
       const result = await request(`/practice/${path}`, { method: 'POST', body: JSON.stringify({ ...payload, attemptId: ledger.account.attemptId, revision: ledger.revision, transactionId: crypto.randomUUID() }) });
-      setLedger(result); return true;
+      acceptLedger(result); return true;
     } catch (e) { setError(e.message); await refreshAccount().catch(() => {}); return false; }
     finally { setBusy(false); }
   };
@@ -128,6 +132,11 @@ export default function BotTabContainer({ asset, currentUser, apiBase }) {
   const snapshot = snapshots[asset] || adaptNativeSnapshot(null, asset);
   const practice = { ...summary, ready: Boolean(account), busy, exitFee: 0, feesIncluded: false, feeLabel: 'Fees excluded from this practice model', error,
     positions: (summary.positions || []).map(p => ({ ...p, entryPrice: p.entryPrice, currentBid: p.currentBid })),
+    results: (account?.transactions || []).filter(transaction => ['CLOSE', 'SETTLE'].includes(transaction.type)).slice(-20).map(transaction => ({
+      id: transaction.id, asset: transaction.asset, side: transaction.side, type: transaction.type,
+      realizedPnl: fromMoneyUnits(transaction.realizedPnlUnits), timestamp: transaction.timestamp,
+      officialWinningSide: transaction.officialWinningSide,
+    })),
     quotePurchase: ({ ask, budget }) => {
       if (!account) return { error: 'Loading your practice balance.' };
       if (!snapshot.canPractice) return { error: 'Practice entries need a current bot quote.' };

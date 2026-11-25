@@ -106,7 +106,7 @@ class ProfileContractTests(unittest.IsolatedAsyncioTestCase):
         for item in following["following"] + followers["followers"]:
             self.assertFalse({"email", "active_session_id", "password_hash", "reset_token_hash"} & item.keys())
         self.assertEqual(await self.n["get_user_following"]("other"), {"following": [], "count": 0})
-        profile = await self.n["get_user_profile"]("mentor")
+        profile = await self.n["get_user_profile"](request(), "mentor")
         self.assertEqual(profile["follower_count"], 1)
         self.assertNotIn("followers", profile)
         self.assertNotIn("following", profile)

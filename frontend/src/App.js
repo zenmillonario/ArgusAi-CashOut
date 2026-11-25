@@ -331,15 +331,15 @@ function App() {
   // Load favorites
   useEffect(() => {
     if (currentUser) {
-      const savedFavorites = localStorage.getItem(`cashoutai_favorites_${currentUser.id}`);
-      if (savedFavorites) {
-        setFavorites(JSON.parse(savedFavorites));
-      }
+      try {
+        const savedFavorites = JSON.parse(localStorage.getItem(`cashoutai_favorites_${currentUser.id}`) || '[]');
+        setFavorites(Array.isArray(savedFavorites) ? savedFavorites.filter(symbol => typeof symbol === 'string') : []);
+      } catch (_) { setFavorites([]); }
       
       // Load notifications for the user
       loadNotifications();
     }
-  }, [currentUser]);
+  }, [currentUser?.id, currentUser?.active_session_id]);
 
   const loadNotifications = async () => {
     const session = activeUserRef.current;
@@ -1532,10 +1532,11 @@ function App() {
         new_password: resetTokenForm.new_password
       });
       
-      alert('Password reset successfully! You can now log in with your new password.');
+      alert('Your existing account is ready. Sign in with your username and new password. Your profile and history remain on the same account.');
       setResetTokenForm({ token: '', new_password: '', confirm_password: '' });
       if (sessionAtStart) clearLocalSession(sessionAtStart);
       if (!activeUserRef.current) setShowLogin(true);
+      setIsRegistering(false);
       setShowForgotPassword(false);
     } catch (error) {
       alert(error.response?.data?.detail || 'Error resetting password');
@@ -1554,10 +1555,10 @@ function App() {
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
         <div role="dialog" aria-modal="true" aria-labelledby="password-recovery-title"
           className={`rounded-2xl p-6 w-full max-w-md border ${isDarkTheme ? 'bg-gray-900 border-white/20 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
-          <h2 id="password-recovery-title" className="text-2xl font-bold mb-3">{hasToken ? 'Set a new password' : 'Recover your password'}</h2>
+          <h2 id="password-recovery-title" className="text-2xl font-bold mb-3">{hasToken ? 'Set a new password' : 'Recover your existing account'}</h2>
           <p className="text-sm opacity-80 mb-6">{hasToken
-            ? 'Use at least 8 characters. This email link can be used once and expires after one hour.'
-            : 'We will email a verification link to the address on your account.'}</p>
+            ? 'Use at least 8 characters. This one-use link expires after one hour. Your existing account, profile, and history are preserved.'
+            : 'Enter the email you registered with. If it matches an account, we will send a verification link to set a password for that same account. You do not need to register again.'}</p>
           <form onSubmit={hasToken ? confirmPasswordReset : requestPasswordReset} className="space-y-4">
             {hasToken ? (
               <>
@@ -1665,6 +1666,7 @@ function App() {
     setUserXP({ experience_points: 0, level: 1 });
     setViewingUserId(null);
     setOpenPositions([]);
+    setFavorites([]);
     setPendingUsers([]);
     setAllUsers([]);
     setBillingReviewSelection({ userId: '', version: 0 });
@@ -1672,6 +1674,7 @@ function App() {
     setMemberDirectoryError('');
     setOnlineUsers([]);
     setShowEditProfile(false);
+    setShowProfileCustomization(false);
     setShowChangePassword(false);
     setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
     setIsConnected(false);
@@ -1875,7 +1878,7 @@ function App() {
               </p>
             </div>
 
-            {billingPlanId && <div className="billing-plan-intent"><p>Selected: {membershipPlan(billingPlanId)?.label} · {moneyFromCents(membershipPlan(billingPlanId)?.amount_cents)}</p><small>Already a member? Sign in with your existing account to review this option.</small></div>}
+            {billingPlanId && <div className="billing-plan-intent"><p>Selected: {membershipPlan(billingPlanId)?.label} · {moneyFromCents(membershipPlan(billingPlanId)?.amount_cents)}</p><small>Already a member? Sign in with your existing account to review this option. If your old password does not work, recover that account below.</small></div>}
             {openBillingOnLogin && !billingPlanId && <div className="billing-plan-intent"><p>Sign in to review your membership and payment status.</p><small>Returning from checkout does not confirm payment or activate access. Your account shows the server-verified status.</small></div>}
             
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -2038,17 +2041,16 @@ function App() {
                 )}
               </button>
 
-              {!isRegistering && (
                 <div className="text-center">
+                  <p className={`text-sm mb-2 ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>Used CashOutAI before? Keep your existing account. If your old password no longer works, recover access with your registered email.</p>
                   <button
                     type="button"
                     onClick={() => setShowForgotPassword(true)}
-                    className={`text-sm ${isDarkTheme ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-700'} transition-colors`}
+                    className={`text-sm ${isDarkTheme ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} transition-colors`}
                   >
-                    Forgot your password?
+                    Recover existing account
                   </button>
                 </div>
-              )}
               
               <div className="text-center">
                 <button
@@ -2098,7 +2100,7 @@ function App() {
         {section === 'community' && memberDirectoryError && <p className="cashout-community-error" role="alert">{memberDirectoryError}</p>}
         {activeTab === 'members' && <MembersDirectory key={`${currentUser.id}:${currentUser.active_session_id}`} members={communityMembers} onlineUsers={onlineUsers} currentUser={currentUser} onViewProfile={id => id === currentUser.id ? setActiveTab('profile') : handleViewProfile(id)} />}
 
-        {activeTab.startsWith('bot-') && <BotTabContainer asset={activeTab.slice(4)} currentUser={currentUser} apiBase={API} />}
+        {activeTab.startsWith('bot-') && <BotTabContainer key={`${currentUser.id}:${currentUser.active_session_id}`} asset={activeTab.slice(4)} currentUser={currentUser} apiBase={API} />}
         {activeTab === 'stocks' && <StocksWorkspace key={`${currentUser.id}:${currentUser.active_session_id}`} currentUser={currentUser} onOpenCommunity={() => setActiveTab('chat')} {...stocks} />}
 
         {/* Chat Tab */}
@@ -2626,6 +2628,7 @@ function App() {
                   &larr; Back to Profile
                 </button>
                 <ProfileCustomization 
+                  key={`${currentUser.id}:${currentUser.active_session_id}`}
                   currentUser={currentUser}
                   isDarkTheme={isDarkTheme}
                   onUpdate={() => {
@@ -3339,6 +3342,7 @@ function App() {
       {/* Public Profile Modal */}
       {viewingUserId && (
         <PublicProfile 
+          key={`${currentUser.id}:${currentUser.active_session_id}:${viewingUserId}`}
           userId={viewingUserId}
           onClose={closeProfileView}
           isDarkTheme={isDarkTheme}

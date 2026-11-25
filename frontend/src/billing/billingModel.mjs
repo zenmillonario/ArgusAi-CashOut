@@ -68,7 +68,7 @@ export function responseBelongsToSession(headers, session) {
   return get('X-User-ID') === session.id && get('X-Session-ID') === session.active_session_id;
 }
 export function billingError(error) {
-  if (error?.response?.status === 401) return 'Your payment session has expired. Sign in again to review your membership.';
+  if (error?.response?.status === 401) return 'Your payment session has expired. Sign in with the same account to review your membership. If your password no longer works, choose Recover existing account on the sign-in screen.';
   if (error?.response?.status === 503) return 'Account-linked checkout is unavailable. Refresh its status before retrying the same attempt.';
   if (error?.response?.status === 403) return 'This account cannot open that payment view. Sign in with the correct account.';
   return 'The payment information could not be loaded. Refresh to check the current status.';

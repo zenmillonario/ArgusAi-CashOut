@@ -21,12 +21,14 @@ from fastapi import APIRouter, HTTPException, Request
 
 try:
     from .membership import active_membership, MEMBERSHIP_REQUIRED
+    from .kalshi_settlements import NautilusSettlementService
     from .nautilus_practice import (
         PracticeError, buy_contracts, close_position, create_account,
         reset_account, to_money_units,
     )
 except ImportError:  # Existing deployment imports server.py as a top-level module.
     from membership import active_membership, MEMBERSHIP_REQUIRED
+    from kalshi_settlements import NautilusSettlementService
     from nautilus_practice import (
         PracticeError, buy_contracts, close_position, create_account,
         reset_account, to_money_units,
@@ -482,8 +484,9 @@ def _duplicate(document, body, fingerprint):
     return False
 
 
-def create_nautilus_router(db):
+def create_nautilus_router(db, settlement_service=None):
     router = APIRouter(prefix="/api/nautilus", tags=["Nautilus PAPER"])
+    settlements = settlement_service or NautilusSettlementService(db)
 
     @router.get("/bots/{asset}")
     async def get_bot(asset: str, request: Request):
@@ -550,7 +553,14 @@ def create_nautilus_router(db):
     @router.get("/practice")
     async def get_practice(request: Request):
         member = await _member(request, db)
-        return _account_view(await _get_account(db, member["id"]))
+        document = await _get_account(db, member["id"])
+        # A provider outage must never erase balances or block a member from
+        # reviewing/resetting their practice account. Unknown outcomes stay open.
+        try:
+            document = await settlements.reconcile(member["id"]) or document
+        except Exception:
+            pass
+        return _account_view(document)
 
     async def mutate(request, kind):
         member = await _member(request, db)
@@ -568,7 +578,9 @@ def create_nautilus_router(db):
             if kind == "buy":
                 quote_document = await db.nautilus_snapshots.find_one({"_id": body["asset"]})
                 price = trusted_quote(quote_document, body["asset"], body["contractId"], body["side"], "buy")
-                updated = buy_contracts(account, {**body, "ask": price, "fee": 0, "timestamp": _iso(time.time())})
+                updated = buy_contracts(account, {**body, "ask": price, "fee": 0,
+                    "contractCloseTime": _iso(quote_document["snapshot"]["market"]["close_ts"]),
+                    "timestamp": _iso(time.time())})
             elif kind == "close":
                 position = next((row for row in account["positions"] if row["id"] == body["positionId"]), None)
                 if position is None:

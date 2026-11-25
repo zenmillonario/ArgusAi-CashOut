@@ -20,7 +20,7 @@ Set `MEMBERSHIP_APPROVAL_MODE=manual` explicitly in the intended backend deploym
 
 **No Square API token, webhook key, subscription, or persistent billing worker is needed for this workflow.** The owner continues to receive their existing Square alert and reviews the payment in Square. The app does not read that alert or automatically verify the payment.
 
-The live app still needs its database, frontend-to-backend routing, administrator sign-in, and configured email service. Confirm the actual production service before deployment; a Vercel or Railway project's existence does not establish that it is the active backend. Database and email settings have not been changed by this review.
+The active backend is the existing Render `CashoutAi` web service at `https://cashoutai.onrender.com`; the frontend is the Render `CashoutAi-Static` site at `https://cashoutai.app`. The existing MongoDB and frontend-to-backend routing were verified during the hosting migration. This membership feature release still requires preserved member records, current administrator access, a restorable backup, and a verified email/recovery path. Database and email settings have not been changed by the release review.
 
 ## 3. Member entry and payment matching
 
@@ -69,7 +69,7 @@ Use an isolated app database and stubbed/non-production email service to verify 
 5. Expiry is enforced without deleting login or member history. Failed/unavailable email does not undo approval.
 6. Manual mode makes no provider API call and grants nothing through automatic webhook/worker paths, even with old Square flags or credentials present.
 
-These checks do not establish live email delivery, Square notification delivery, checkout settings, or production routing. Verify those deployment facts separately with the owner before opening the campaign. This code review does not send email, purchase anything, approve real users, or change hosting.
+These checks do not establish live email delivery, Square notification delivery, or checkout settings. Verify those facts before opening the campaign. Production routing was checked during the separate Render hosting migration; this feature review does not send email, purchase anything, or approve real users.
 
 ## 6. Optional future automatic mode — disabled for this launch
 
