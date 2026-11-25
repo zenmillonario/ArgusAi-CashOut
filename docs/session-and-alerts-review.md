@@ -1,6 +1,6 @@
 # Sessions, quotes, and stock alerts
 
-Updated: November 25, 2026. This document describes source findings and draft repairs. Production credentials, provider subscriptions, external automation state, and end-to-end delivery were not verified. No messages, push notifications, or test emails were sent.
+Updated: November 25, 2026. This document describes source findings and draft repairs. Read-only aggregate database and provider checks have been completed; provider subscriptions and display rights, external automation state, and end-to-end delivery still require verification. No real messages, push notifications, or test emails were sent, and no member data or credentials were changed.
 
 ## Accepted product direction
 
@@ -72,6 +72,8 @@ The app and Assistro branches can run together during adoption. Keep the existin
 
 ## Verification of this draft
 
-The previous session/practice baseline passed 49 backend and 19 JavaScript tests. The Stocks revision adds isolated ingestion, deduplication, dispatch, opt-in, context, expiry and worker tests; final consolidated results are recorded in the package README. App.js and its local modules are bundled with external vendor packages and the existing video asset excluded from the partial local checkout. The private preview displays an honest empty stock feed and disabled push controls; it does not exercise production accounts or Firebase delivery.
+The November 25 release candidate passed the complete CRA production build, **181 consolidated backend tests**, and **61 JavaScript tests**. The isolated tests cover ingestion, deduplication, dispatch, opt-in, session context, expiry, worker behavior, and the other account, practice, billing, and social contracts in this draft.
 
-The source changes are not merged into or deployed to cashoutai.app. GitHub write access for ArgusAi-CashOut is now verified, and the draft review branch is `codex/cashoutai-square-launch-2026-11-25`. Production database, provider credentials, the current Zapier action, and real notification destinations were not exercised.
+Browser QA used the actual compiled app with synthetic accounts and an isolated same-origin API fixture. Phone and TV frames had no horizontal overflow; fullscreen fallback, TV mode, room-chat open/Escape, entry inspection, practice reset and result presentation, manual-approval status, and community/profile/achievement screens were checked. Stocks displayed a labeled synthetic alert, accepted an NVDA ticker selection, and showed the honest unavailable state when the fixture blocked the external chart. Real email, payment, push, service-worker registration, and external provider connections were disabled. See [nautilus-rooms.md](nautilus-rooms.md) for the detailed checks and limits.
+
+The feature changes remain on the draft review branch `codex/cashoutai-square-launch-2026-11-25`; the current live app has not been updated with this release. Read-only readiness checks are separate from the isolated UI tests. A coordinated deployment, recovery-email delivery, the actual Zapier action, live publishers, official settlement retrieval, real-device push, and licensed streaming remain unverified.

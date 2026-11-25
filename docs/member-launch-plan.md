@@ -19,7 +19,7 @@ The draft repairs a specific legacy signup defect: registration could delete a r
 5. Check existing members' access before opening a new-member campaign. Preserve current membership terms; a sale must not silently replace existing lifetime plans or expiration dates.
 6. Retain a rollback that preserves new member activity and writes. Rolling back application code is different from restoring an older database and discarding activity since that backup.
 
-These are required operational steps, not actions already performed. Production database, email, payment and provider credentials have not been accessed or changed in this review.
+Read-only aggregate database and provider checks have been completed. They do not replace the backup/restore rehearsal, isolated member-continuity checks, recovery-email delivery verification, or coordinated deployment above. No member records, credentials, memberships, or payment records were changed, and no real emails or notifications were sent during these readiness checks.
 
 ### Password compatibility
 
@@ -96,6 +96,10 @@ Given the two-day window from this review date, a member preview and join event 
 
 The app baseline is [ArgusAi-CashOut commit 5702460](https://github.com/zenmillonario/ArgusAi-CashOut/tree/5702460a275cda067dba510dc4ba4432f1051359). Account and social findings come from `backend/server.py`, `frontend/src/App.js` and the profile, notification, chat and achievement components. The marketing baseline is [zenmillionaires-site commit 170c092](https://github.com/zenmillonario/zenmillionaires-site/tree/170c092639c575fd55b674886f8c8fe60c917f29).
 
-The live login and registration screens were inspected without submitting a registration. Render service state and aggregate database readiness were checked without changing member records, approving access, logging in as a member, or sending a message. Provider configuration presence is distinct from provider acceptance and delivery. The preview's demo interactions are isolated from production.
+The live login and registration screens were inspected without submitting a registration. Hosting state, aggregate database readiness, and provider responses were checked read-only without changing member records or credentials, approving access, logging in as a member, or sending a message. A provider response does not establish recovery-email delivery, device-push delivery, licensed streaming access, or end-to-end integration readiness.
+
+The complete CRA production build and **181 backend plus 61 JavaScript tests** passed for the release candidate. Browser checks used that compiled app with synthetic accounts and an isolated API fixture, including manual-approval presentation and a pending account becoming active on refresh. These fixture interactions did not change production data. The feature release remains a draft; the current live app has not been updated with it. See [nautilus-rooms.md](nautilus-rooms.md) for the responsive browser checks and their limits.
+
+The compiled-app signup screen showed only the three one-time membership plans and no trial option. The **Recover existing account** dialog displayed registered-email guidance and explained that recovery preserves the same account without re-registration. The dialog was canceled without submitting a request; this verifies its presentation, not email delivery or a completed recovery.
 
 See also [social-training-review.md](social-training-review.md), [session-and-alerts-review.md](session-and-alerts-review.md), [stock-alert-rollout.md](stock-alert-rollout.md), and [realtime-quotes-and-launch.md](realtime-quotes-and-launch.md).

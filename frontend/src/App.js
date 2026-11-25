@@ -2017,7 +2017,7 @@ function App() {
                     : 'bg-blue-50 border-blue-200 text-blue-600'
                 }`}>
                   <p className="text-sm">
-                    Create your account first, then review your payment options. Access begins after server-verified payment or explicit admin approval. No trial is included.
+                    Create your account first, then review your payment options. The team checks your purchase and approves access. No trial is included.
                   </p>
                 </div>
               )}

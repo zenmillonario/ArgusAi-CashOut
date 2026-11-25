@@ -96,7 +96,20 @@ The legacy router now binds its member operations to the verified active session
 
 The standalone private design preview uses real recorded PAPER packets and local browser-only practice/chat. It is separate from the current production app and does not exercise the production Mongo/email services.
 
-The November 25 release review passed **181 consolidated backend tests**, including **15 official-settlement tests** and the **20 existing Nautilus API/ledger tests**. Earlier private-preview browser checks covered desktop and a 390px-wide phone frame, full screen, TV text, entry at ask, close at bid, a shared balance between rooms, and reset to $100. Those preview checks used recorded data and do not establish current production member behavior. Run the complete release build and verify the deployed frontend/backend/service-worker combination separately from isolated source tests.
+The November 25 release candidate passed the **complete CRA production build**, **181 consolidated backend tests**, and **61 JavaScript tests**. The backend total includes **15 official-settlement tests** and the **20 existing Nautilus API/ledger tests**. Settlement tests use synthetic official-response fixtures; they do not verify live official-result retrieval.
+
+The current browser review served the actual compiled app inside a clearly labeled, isolated review fixture. It used synthetic accounts, messages, payments, and practice ledgers, plus unchanged archived PAPER packets. Real payments, email, push, service-worker registration, and external provider connections were disabled. Confirmed checks were:
+
+- Responsive layouts at 375px phone, 1280px desktop, and 1920px TV widths, with no horizontal app overflow at the phone and TV sizes; fullscreen fallback and TV mode.
+- Room chat opening and closing with Escape, plus inspection of a recorded entry.
+- A position awaiting settlement remaining reserved and unpriced; Reset starting a new $100 attempt; an explicitly synthetic settled result appearing in practice history.
+- Synthetic manual approval with the unavailable-email outcome displayed, followed by the pending account showing active membership after refresh.
+- Stocks accepting NVDA and showing its honest unavailable state when the external chart was blocked.
+- Community and profile screens, plus achievements retaining XP and badges without a cash-reward promise.
+
+These checks cover the compiled UI and fixture response contracts. They do not establish production authentication, calendar-month entitlement calculations, live feed freshness, fresh-quote executions, actual settlement retrieval, recovery-email delivery, device push, or licensed streaming. The feature release remains a draft and has not changed the current live app; the deployed frontend/backend/service-worker combination still needs coordinated verification.
+
+Earlier standalone design-preview checks covered a 390px phone frame, native fullscreen, entry at ask, close at bid, a shared balance between rooms, and reset. Those older checks used recorded data and browser-local state; they are separate from the current compiled-app review.
 
 ## November 24 revision: chart space, study guide, chat, and Stocks
 
@@ -104,13 +117,13 @@ The native chart measures formatted price labels to choose its price gutter. All
 
 A 45px chat strip is directly below Nautilus. It shows the latest real messages and moves slowly only when content overflows. Hover, keyboard focus, an open room, and reduced-motion settings pause motion. Clicking opens a larger chat dialog inside the fullscreen root, with Escape, focus trapping and focus restoration. Empty rooms are clearly empty.
 
-A sixth **Stocks** tab uses TradingView's public hosted advanced-chart widget, with explicit public symbol and interval settings. Users can enter a ticker or `EXCHANGE:TICKER`, save up to ten symbols and keep up to 2,000 characters of notes per symbol. Notes and watchlist are scoped to the current user in browser storage; they do not yet synchronize between devices. The widget receives the selected public symbol and chart configuration, never app credentials, member profile data or practice orders. The external widget and market availability may be delayed or unavailable; the page provides attribution, delay guidance and a failure state with a provider link. Browser verification loaded both AAPL and NVDA charts and confirmed the provider's own delay label.
+A sixth **Stocks** tab uses TradingView's public hosted advanced-chart widget, with explicit public symbol and interval settings. Users can enter a ticker or `EXCHANGE:TICKER`, save up to ten symbols and keep up to 2,000 characters of notes per symbol. Notes and watchlist are scoped to the current user in browser storage; they do not yet synchronize between devices. The widget receives the selected public symbol and chart configuration, never app credentials, member profile data or practice orders. The external widget and market availability may be delayed or unavailable; the page provides attribution, delay guidance and a failure state with a provider link. Earlier standalone-preview browser verification loaded AAPL and NVDA charts and confirmed the provider's own delay label. The current isolated compiled-app review blocked external providers and verified the unavailable state instead; it does not revalidate live chart availability.
 
 The draft app's stock discussion strip opens the existing community Chat tab. The standalone private preview instead has a browser-local per-symbol room. A native stock Nautilus, a stock bot, stock candle ingestion, and equity trade practice in this workspace are **not implemented**. Stocks do not use or spend the five-room binary practice balance. A native stock integration needs timestamped OHLCV bars, exchange sessions and timezone handling, split/dividend treatment, explicit quote delay/freshness, and a stock-specific practice model.
 
 The profile-update request model and follower-state/list contract mismatches found in the old app are corrected in this draft. See `docs/social-training-review.md` for the full feature audit, proposed training progression and remaining launch requirements. No new XP rules, leaderboard, cash payout or direct-message system has been activated.
 
-Additional browser checks confirmed entry inspection, side preselection without spending cash, chat inside native fullscreen, Escape returning focus, stock ticker switching, per-symbol note persistence and stock fullscreen.
+Additional checks in the earlier standalone preview confirmed entry inspection, side preselection without spending cash, chat inside native fullscreen, Escape returning focus, stock ticker switching, per-symbol note persistence and stock fullscreen. Current compiled-app checks are listed separately above.
 
 ## Single-login and alert integration review
 
