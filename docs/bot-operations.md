@@ -27,6 +27,16 @@ The source confirms:
 
 This is a source compatibility check. It does not establish which folder is currently running on the owner's computer, actual source freshness, the complete latest payload's acceptance by the deployed backend, or prospective bot performance. A current Windows packet and controlled end-to-end check remain necessary before presenting a feed as live.
 
+## Windows connection companion
+
+The release includes two small Windows entry points in `scripts/windows`, with instructions in [README.md](../scripts/windows/README.md). [CashOutAI_Publisher_Windows.zip](../downloads/CashOutAI_Publisher_Windows.zip) preserves that layout and includes the same standard-library publisher. Keep it beside the complete private bot package.
+
+**01_CHECK_LOCAL_FEEDS.cmd** can be used while waiting for the app release. It reads the five fixed local endpoints once, requires no key, and contacts no backend or public provider. A pass establishes reachable, matching read-only PAPER identities only; source freshness and backend schema acceptance remain separate checks.
+
+**02_START_PUBLISHER.cmd** is for the coordinated live connection after the new routes and matching key are configured. It uses the fixed HTTPS backend origin and asks for a hidden publisher key. That explicit prompt overrides an environment key for the current run, leaves the environment unchanged, and never saves or prints the key. It refuses an echoed-input fallback. Both helpers use the existing `py -3` launcher and preserve the exit status for review.
+
+Equivalent explicit modes are `py -3 scripts\publish_nautilus.py --check-local` and `py -3 scripts\publish_nautilus.py --backend https://cashoutai.onrender.com --prompt-key`. Native Windows double-click execution and deployed publication remain unverified until performed on the operator's machine.
+
 ## First live connection
 
 Complete the coordinated app release and access checks first. The prior live application does not become a five-bot app merely because its database tier changed.
@@ -53,7 +63,7 @@ These commands are recorded to explain the launcher; use the verified launcher s
 
 ### 2. Configure one publisher secret
 
-Set the same generated `NAUTILUS_PUBLISHER_KEY` in the Render backend's secret configuration and in the publisher's Windows process environment. The existing publisher requires 32–512 printable ASCII characters. Store it privately; it belongs only on those two systems, never in React settings, a public repository, a member's browser, or a chat post.
+Set the generated `NAUTILUS_PUBLISHER_KEY` in the Render backend's secret configuration. On Windows, supply that same key through the companion's hidden prompt or the publisher process environment. The existing publisher requires 32–512 printable ASCII characters. Store it privately; it belongs only on those two systems, never in React settings, a public repository, a member's browser, or a chat post.
 
 On the Windows publisher machine, set `NAUTILUS_BACKEND_URL` to the deployed backend origin, currently `https://cashoutai.onrender.com`. The publisher accepts HTTPS, refuses redirects, and sends its secret only to that configured backend. It sends no publisher secret to the local bots and contains no venue credentials or trading transport.
 
@@ -100,6 +110,26 @@ The app currently polls the visible asset and assets with open member practice p
 
 Before increasing audience size, observe actual packet size, backend response time, database operations, and transfer use. A future shared in-process cache or changed-snapshot/delta transport can reduce repeat work while preserving the source timestamps. Keep provider licensing and quote limits under the separate [quote and launch plan](realtime-quotes-and-launch.md).
 
+### Initial event measurements
+
+For a visible bot workspace, the source-defined cadence is approximately `20A + 12 + 4P` HTTP requests per minute, where `A` is the number of unique polled assets (one to five), and `P` is one while practice positions are open. That is about 32 requests/minute for one room without positions, 36 with positions only in that asset, or 116 with all five assets needed. Response duration reduces the polling rate; initial loads, actions, reconnections, and the broader app's community/session requests add separate traffic. These calculations are not a load test or a verified audience limit.
+
+Measure actual compressed snapshot response bytes, `C`, during the first controlled session. Snapshot transfer alone is approximately `20 × A × C` bytes per visible viewer per minute. The four-megabyte rejection limit is not a typical packet size. Five continuously changing publishers can produce approximately 300 ingest requests and up to 300 latest-snapshot writes per minute before request duration is accounted for.
+
+Use the following as proposed review thresholds for the first event, not configured alerts or guaranteed capacity:
+
+| Signal | Starting review threshold | Next check |
+| --- | --- | --- |
+| Bot/chat response latency | p95 above 750 ms for five minutes | Query plans, response size, backend saturation. |
+| Backend errors | More than 1% 5xx over five minutes with at least 100 requests | Investigate before further audience expansion; count expected stale-quote 409 responses separately. |
+| Backend resources | CPU above 70% or memory above 75% for ten minutes | Inspect sustained work before choosing more capacity. |
+| Bot display status | Stale/offline for 30 seconds during an advertised session | Inspect the corresponding Windows engine and publisher. Existing practice freshness checks remain immediate. |
+| Quote provider | Any 429 response | Confirm the account allowance and request pattern. |
+
+The FMP adapter already shares concurrent same-symbol requests inside one process and caches successful quotes for five seconds, with a two-second failure cache. Those controls are not a global daily budget. The new Stocks workspace's ten-symbol watchlist does not create ten FMP streams; legacy Favorites has no equivalent ten-symbol limit. Room polling pauses when hidden, but separate community/session fallback requests still exist. Monitor actual totals before describing an event size as supported.
+
+The release adds a non-unique `nautilus_chat_asset_created_at` index for the existing room filter and newest-message sort. Its query-plan verification uses synthetic room messages on the disposable real MongoDB CI instance. No production chat index or member record is changed while the release remains a draft.
+
 ## Troubleshooting
 
 | Observation | Check |
@@ -117,4 +147,4 @@ Before increasing audience size, observe actual packet size, backend response ti
 
 The inspected private engine source supplied the exact Windows launcher, six-hour limit, ports, protocol, and endpoint behavior above. No engine, strategy replay, public feed, real trade, or live venue request was run for this review.
 
-The publisher correction was verified with isolated responses for explicit acceptance, unchanged packets, malformed/mismatched acknowledgements, and unsuccessful HTTP statuses. Existing HTTPS/redirect and router checks remain in [test_nautilus_api.py](../backend/tests/test_nautilus_api.py). Actual Windows-to-Render publication, current five-bot payload acceptance, and mobile/TV viewing of live data still require the controlled deployed check.
+The publisher correction was verified with isolated responses for explicit acceptance, unchanged packets, malformed/mismatched acknowledgements, and unsuccessful HTTP statuses. The Windows companion adds eight checks for local-only behavior, bounded identity reads, hidden-key handling, cancellation, and prevention of echoed fallback. All 23 Nautilus API/publisher tests pass. Existing HTTPS/redirect and router checks remain in [test_nautilus_api.py](../backend/tests/test_nautilus_api.py). Actual Windows double-click execution, Windows-to-Render publication, current five-bot payload acceptance, and mobile/TV viewing of live data still require the controlled deployed check.

@@ -325,6 +325,9 @@ async def lifespan(app: FastAPI):
         await db.users.create_index("username")
         await db.users.create_index("email")
         await db.users.create_index("is_online")
+        await db.nautilus_chat.create_index(
+            [("asset", 1), ("createdAt", -1)], name="nautilus_chat_asset_created_at"
+        )
         logger.info("Ensured messages timestamp index exists")
     except Exception as e:
         logger.warning(f"Could not create index: {e}")

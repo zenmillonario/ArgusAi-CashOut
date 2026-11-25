@@ -3,6 +3,7 @@ import asyncio
 from copy import deepcopy
 from datetime import datetime, timezone
 import importlib.util
+import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -358,6 +359,132 @@ class PublisherTests(unittest.TestCase):
     def test_unsuccessful_http_status_cannot_report_acceptance(self):
         result = self.publish_with_acknowledgement({"accepted": True, "asset": "BTC", "receivedAt": "2026-11-25T20:00:00Z"}, status=503)
         self.assertEqual(result, (False, "backend did not accept the packet"))
+
+    def check_local_packet(self, asset, data):
+        class Response:
+            def read(self, limit):
+                raw = data if isinstance(data, bytes) else json.dumps(data).encode()
+                return raw[:limit]
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+        requests = []
+        def local_open(request, timeout):
+            requests.append((request, timeout))
+            return Response()
+        with patch.object(self.publisher, "build_opener", return_value=SimpleNamespace(open=local_open)) as opener:
+            result = self.publisher.check_local_one(asset)
+        opener.assert_called_once()
+        self.assertEqual(opener.call_args.args[0].proxies, {})
+        self.assertIsInstance(opener.call_args.args[1], self.publisher.NoRedirect)
+        self.assertEqual(len(requests), 1)
+        request, timeout = requests[0]
+        self.assertEqual(request.full_url, f"http://127.0.0.1:{self.publisher.ASSET_PORTS[asset]}/api/nautilus?ui_build=0.0.8.4")
+        self.assertEqual(request.get_method(), "GET")
+        self.assertEqual(timeout, 2)
+        self.assertEqual(request.headers, {"Accept": "application/json"})
+        return result
+
+    def test_local_check_reads_only_fixed_loopback_paper_sources(self):
+        for asset in self.publisher.ASSET_PORTS:
+            with self.subTest(asset=asset):
+                data = packet(asset)
+                data["run"]["fresh"] = False
+                data["quote"]["fresh"] = False
+                # This mode checks identity, not current source/quote health.
+                self.assertEqual(self.check_local_packet(asset, data),
+                                 (True, "reachable; matching read-only PAPER identity"))
+
+    def test_local_check_rejects_malformed_and_mismatched_identity(self):
+        for data in ([], {}, {"mode": "LIVE", "readonly": True, "asset": {"symbol": "BTC"}},
+                     {"mode": "PAPER_ONLY", "readonly": False, "asset": {"symbol": "BTC"}},
+                     {"mode": "PAPER_ONLY", "readonly": True, "asset": []}, packet("ETH")):
+            with self.subTest(data=data):
+                self.assertEqual(self.check_local_packet("BTC", data),
+                                 (False, "local source is not the matching read-only PAPER bot"))
+        for raw in (b"not JSON", b"x" * (self.publisher.MAX_PACKET_BYTES + 1)):
+            self.assertEqual(self.check_local_packet("BTC", raw),
+                             (False, "invalid or oversized local PAPER packet"))
+
+    def test_local_unavailable_source_does_not_trigger_another_request(self):
+        with patch.object(self.publisher, "read_local_paper", side_effect=self.publisher.URLError("offline")) as source:
+            self.assertEqual(self.publisher.check_local_one("BTC"), (False, "local source unavailable"))
+        source.assert_called_once_with("BTC")
+
+    def test_local_mode_never_reads_key_validates_backend_or_publishes(self):
+        class NoKeyEnvironment(dict):
+            def get(self, key, default=None):
+                if key == "NAUTILUS_PUBLISHER_KEY":
+                    raise AssertionError("local check must not read a publisher key")
+                return super().get(key, default)
+        for failed_asset, expected in ((None, 0), ("SOL", 1)):
+            with self.subTest(failed_asset=failed_asset), \
+                    patch.object(self.publisher.os, "environ", NoKeyEnvironment(NAUTILUS_BACKEND_URL="invalid backend")), \
+                    patch.object(self.publisher, "backend_base") as backend, \
+                    patch.object(self.publisher, "prompt_publisher_key") as prompt, \
+                    patch.object(self.publisher, "publish_one") as publish, \
+                    patch.object(self.publisher, "check_local_one", side_effect=lambda asset: (asset != failed_asset, "identity result")) as local, \
+                    patch("sys.stdout", new_callable=io.StringIO) as output:
+                self.assertEqual(self.publisher.main(["--check-local"]), expected)
+                self.assertCountEqual([call.args[0] for call in local.call_args_list], list(self.publisher.ASSET_PORTS))
+                backend.assert_not_called()
+                prompt.assert_not_called()
+                publish.assert_not_called()
+                self.assertIn("backend acceptance and source/quote freshness are not checked", output.getvalue())
+
+    def test_explicit_prompt_overrides_environment_only_for_this_run(self):
+        environment_key = "different-existing-environment-key-123456"
+        with patch.dict(self.publisher.os.environ, {"NAUTILUS_PUBLISHER_KEY": environment_key}), \
+                patch.object(self.publisher.getpass, "getpass", return_value=SECRET) as prompt, \
+                patch.object(self.publisher, "publish_one", return_value=(True, "snapshot accepted")) as publish, \
+                patch("sys.stdout", new_callable=io.StringIO) as output, \
+                patch("sys.stderr", new_callable=io.StringIO) as errors:
+            self.assertEqual(self.publisher.main(["--backend", "https://example.test", "--prompt-key", "--once"]), 0)
+            prompt.assert_called_once_with("Publisher key (hidden; not saved): ")
+            self.assertEqual(len(publish.call_args_list), 5)
+            for call in publish.call_args_list:
+                self.assertEqual(call.args[1:], ("https://example.test", SECRET))
+            self.assertEqual(self.publisher.os.environ["NAUTILUS_PUBLISHER_KEY"], environment_key)
+            self.assertNotIn(SECRET, output.getvalue() + errors.getvalue())
+            self.assertNotIn(environment_key, output.getvalue() + errors.getvalue())
+
+    def test_hidden_prompt_refuses_getpass_echo_fallback_before_input(self):
+        with patch.object(self.publisher.getpass, "getpass", self.publisher.getpass.fallback_getpass), \
+                patch.object(self.publisher.getpass, "_raw_input") as echoed_input, \
+                patch.object(self.publisher, "publish_one") as publish, \
+                patch("sys.stderr", new_callable=io.StringIO) as errors:
+            with self.assertRaises(SystemExit) as stopped:
+                self.publisher.main(["--backend", "https://example.test", "--prompt-key", "--once"])
+            self.assertEqual(stopped.exception.code, 2)
+            echoed_input.assert_not_called()
+            publish.assert_not_called()
+            self.assertIn("Hidden key entry is unavailable", errors.getvalue())
+
+    def test_failed_cancelled_or_invalid_key_prompt_never_starts_publishing(self):
+        for outcome in (EOFError(), OSError("terminal unavailable"), "short"):
+            with self.subTest(outcome=type(outcome).__name__), \
+                    patch.object(self.publisher.getpass, "getpass", side_effect=[outcome]), \
+                    patch.object(self.publisher, "publish_one") as publish, \
+                    patch("sys.stderr", new_callable=io.StringIO):
+                with self.assertRaises(SystemExit) as stopped:
+                    self.publisher.main(["--backend", "https://example.test", "--prompt-key", "--once"])
+                self.assertEqual(stopped.exception.code, 2)
+                publish.assert_not_called()
+        with patch.object(self.publisher.getpass, "getpass", side_effect=KeyboardInterrupt), \
+                patch.object(self.publisher, "publish_one") as publish, patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(self.publisher.main(["--backend", "https://example.test", "--prompt-key"]), 130)
+            publish.assert_not_called()
+
+    def test_local_check_and_prompt_modes_cannot_be_combined(self):
+        with patch.object(self.publisher, "check_local_sources") as local, \
+                patch.object(self.publisher, "prompt_publisher_key") as prompt, \
+                patch("sys.stderr", new_callable=io.StringIO):
+            with self.assertRaises(SystemExit) as stopped:
+                self.publisher.main(["--check-local", "--prompt-key"])
+            self.assertEqual(stopped.exception.code, 2)
+            local.assert_not_called()
+            prompt.assert_not_called()
 
 
 if __name__ == "__main__":

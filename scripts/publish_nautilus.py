@@ -6,6 +6,10 @@ Run on the machine hosting the existing bot engines:
   export NAUTILUS_PUBLISHER_KEY=<the same secret configured on the backend>
   python scripts/publish_nautilus.py
 
+Use --check-local for a single read-only local identity check with no backend
+or key. Use --prompt-key to enter a key privately for this run; that explicit
+option overrides an environment key and never saves the entered value.
+
 Generate the secret separately (at least 32 characters). It is never passed to
 the local engine or printed. Sources are fixed to 127.0.0.1:8787..8791. This
 process has no venue credentials, no order API, and no strategy controls.
@@ -15,16 +19,22 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+import getpass
 import json
 import os
 import sys
 import time
+import warnings
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 ASSET_PORTS = {"BTC": 8787, "ETH": 8788, "SOL": 8789, "XRP": 8790, "DOGE": 8791}
 MAX_PACKET_BYTES = 4 * 1024 * 1024
+
+
+class LocalIdentityError(ValueError):
+    pass
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -58,20 +68,66 @@ def _read_bounded(response):
     return raw
 
 
-def publish_one(asset, backend, secret):
-    """Return a short status; do not emit response bodies or secret-bearing URLs."""
+def read_local_paper(asset):
+    """Read one fixed local endpoint; validate only its matching PAPER identity."""
     if asset not in ASSET_PORTS:
         raise ValueError("Unknown bot asset")
     # Proxy environment settings must never send localhost telemetry elsewhere.
     local_opener = build_opener(ProxyHandler({}), NoRedirect())
-    remote_opener = build_opener(NoRedirect())
     source = f"http://127.0.0.1:{ASSET_PORTS[asset]}/api/nautilus?ui_build=0.0.8.4"
+    with local_opener.open(Request(source, headers={"Accept": "application/json"}), timeout=2) as response:
+        raw = _read_bounded(response)
+    packet = json.loads(raw)
+    if (not isinstance(packet, dict) or packet.get("mode") != "PAPER_ONLY"
+            or packet.get("readonly") is not True or not isinstance(packet.get("asset"), dict)
+            or packet["asset"].get("symbol") != asset):
+        raise LocalIdentityError("local source is not the matching read-only PAPER bot")
+    return raw
+
+
+def check_local_one(asset):
+    """Check a local identity once; do not publish or assess quote freshness."""
     try:
-        with local_opener.open(Request(source, headers={"Accept": "application/json"}), timeout=2) as response:
-            raw = _read_bounded(response)
-        packet = json.loads(raw)
-        if not isinstance(packet, dict) or packet.get("mode") != "PAPER_ONLY" or packet.get("readonly") is not True or (packet.get("asset") or {}).get("symbol") != asset:
-            return False, "local source is not the matching read-only PAPER bot"
+        read_local_paper(asset)
+        return True, "reachable; matching read-only PAPER identity"
+    except LocalIdentityError as error:
+        return False, str(error)
+    except HTTPError as error:
+        return False, f"local HTTP {error.code}; check this bot's local endpoint"
+    except (URLError, TimeoutError, OSError):
+        return False, "local source unavailable"
+    except (ValueError, TypeError, AttributeError, RecursionError):
+        return False, "invalid or oversized local PAPER packet"
+
+
+def check_local_sources():
+    print("Checking five fixed local PAPER endpoints; no backend publication.", flush=True)
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = {asset: pool.submit(check_local_one, asset) for asset in ASSET_PORTS}
+        statuses = {asset: future.result() for asset, future in futures.items()}
+    for asset, (_, message) in statuses.items():
+        print(f"{asset}: {message}", flush=True)
+    print("Identity check only: backend acceptance and source/quote freshness are not checked.", flush=True)
+    return 0 if all(ok for ok, _ in statuses.values()) else 1
+
+
+def prompt_publisher_key():
+    """Require hidden terminal input; never fall back to echoed key entry."""
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", getpass.GetPassWarning)
+            return getpass.getpass("Publisher key (hidden; not saved): ")
+    except (getpass.GetPassWarning, EOFError, OSError):
+        raise ValueError("Hidden key entry is unavailable. Open a normal terminal and run again.") from None
+
+
+def publish_one(asset, backend, secret):
+    """Return a short status; do not emit response bodies or secret-bearing URLs."""
+    if asset not in ASSET_PORTS:
+        raise ValueError("Unknown bot asset")
+    try:
+        raw = read_local_paper(asset)
+        remote_opener = build_opener(NoRedirect())
         request = Request(
             backend + "/api/nautilus/ingest/" + asset,
             data=raw,
@@ -97,6 +153,8 @@ def publish_one(asset, backend, secret):
         if acknowledgement["accepted"] is not True:
             return False, "source unchanged; no new snapshot accepted"
         return True, "snapshot accepted"
+    except LocalIdentityError as error:
+        return False, str(error)
     except HTTPError as error:
         return False, f"HTTP {error.code}; check the source, backend URL, and publisher configuration"
     except (URLError, TimeoutError, OSError):
@@ -111,16 +169,31 @@ def main(argv=None):
     parser.add_argument("--interval", type=float, default=1.0, help="Seconds between polling rounds; default 1")
     parser.add_argument("--once", action="store_true", help="Publish one round, then exit")
     parser.add_argument("--allow-local-http", action="store_true", help="Development only: allow an explicit localhost HTTP backend")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check-local", action="store_true", help="Read five fixed localhost endpoints once; no backend or key required")
+    mode.add_argument("--prompt-key", action="store_true", help="Enter a hidden key for this run, overriding the environment key; never save it")
     args = parser.parse_args(argv)
+    if args.check_local:
+        try:
+            return check_local_sources()
+        except KeyboardInterrupt:
+            print("Local identity check cancelled.", flush=True)
+            return 130
     try:
         backend = backend_base(args.backend, args.allow_local_http)
     except ValueError as error:
         parser.error(str(error))
-    secret = os.environ.get("NAUTILUS_PUBLISHER_KEY", "")
-    if not 32 <= len(secret) <= 512 or any(ord(c) < 32 or ord(c) > 126 for c in secret):
-        parser.error("NAUTILUS_PUBLISHER_KEY must contain 32–512 printable ASCII characters.")
     if not 0.25 <= args.interval <= 2.0:
         parser.error("Use a polling interval between 0.25 and 2 seconds to preserve short native quote validity.")
+    try:
+        secret = prompt_publisher_key() if args.prompt_key else os.environ.get("NAUTILUS_PUBLISHER_KEY", "")
+    except ValueError as error:
+        parser.error(str(error))
+    except KeyboardInterrupt:
+        print("Publisher start cancelled.", flush=True)
+        return 130
+    if not 32 <= len(secret) <= 512 or any(ord(c) < 32 or ord(c) > 126 for c in secret):
+        parser.error("Publisher key must contain 32–512 printable ASCII characters.")
     print("Nautilus publisher: five fixed local PAPER sources; no venue orders.", flush=True)
     previous, last_report = {}, 0.0
     try:

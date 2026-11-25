@@ -318,7 +318,7 @@ Getting started:
 
 Practice balances and bot examples are for training. They do not place real-money trades.
 
-If you need help, reply to this email.
+For account help, contact the ZenMillionaires team through the channel where you joined.
 
 The CashOutAI Team
 """
@@ -355,7 +355,7 @@ The CashOutAI Team
         <li>Join the conversation and share your learning progress.</li>
       </ol>
       <p style="font-size:14px;color:#526174;">Practice balances and bot examples are for training. They do not place real-money trades.</p>
-      <p>If you need help, reply to this email.</p>
+      <p>For account help, contact the ZenMillionaires team through the channel where you joined.</p>
       <p>The CashOutAI Team</p>
     </section>
   </main>

@@ -202,7 +202,45 @@ async def seed_synthetic(db):
         await db.users.insert_one(row)
         await db.messages.insert_one({"id": "saved-" + label, "user_id": row["id"], "content": "Synthetic saved win"})
         await db.notifications.insert_one({"id": "saved-" + label, "user_id": row["id"], "read": False})
+    # Only an explicitly empty synthetic database receives these two rooms.
+    # More than 50 rows per room exercises the ordinary latest-message limit.
+    await db.nautilus_chat.insert_many([
+        {"_id": f"synthetic-chat-{asset}-{index}", "id": f"synthetic-chat-{asset}-{index}",
+         "asset": asset, "authorId": "rehearsal-member", "author": "Synthetic Recovery Account",
+         "content": "Synthetic room-index fixture", "isAdmin": False,
+         "createdAt": (now - timedelta(seconds=index)).isoformat(timespec="milliseconds") + "Z"}
+        for asset in ("BTC", "ETH") for index in range(60)
+    ])
     return {"member_id": "rehearsal-member", "admin_id": "rehearsal-admin"}
+
+
+async def verify_synthetic_chat_query(db):
+    """Check the real startup index and the unchanged room query on fake data."""
+    name = "nautilus_chat_asset_created_at"
+    index = (await db.nautilus_chat.index_information()).get(name)
+    require(index is not None and index.get("key") == [("asset", 1), ("createdAt", -1)]
+            and not index.get("unique", False), "The room-chat startup index is unavailable or incorrect")
+    rows = await db.nautilus_chat.find({"asset": "BTC"}).sort("createdAt", -1).limit(50).to_list(length=50)
+    require([row["id"] for row in rows] == [f"synthetic-chat-BTC-{number}" for number in range(50)],
+            "The ordinary room query did not return the newest 50 messages for its room")
+    plan = await db.command("explain", {
+        "find": "nautilus_chat", "filter": {"asset": "BTC"},
+        "sort": {"createdAt": -1}, "limit": 50,
+    }, verbosity="executionStats")
+
+    def uses_index(node):
+        if isinstance(node, dict):
+            return node.get("indexName") == name or any(uses_index(value) for value in node.values())
+        return isinstance(node, list) and any(uses_index(value) for value in node)
+
+    require(uses_index(plan.get("queryPlanner", {}).get("winningPlan", {})),
+            "The ordinary room query did not use the expected startup index")
+    statistics = plan.get("executionStats", {})
+    require(statistics.get("nReturned") == 50, "The explained room query returned an unexpected number of messages")
+    return {"result": "PASS", "index": name, "non_unique": True,
+            "fixture_rooms": 2, "fixture_messages": 120, "returned_messages": statistics["nReturned"],
+            "keys_examined": statistics.get("totalKeysExamined"),
+            "documents_examined": statistics.get("totalDocsExamined")}
 
 
 async def selected_accounts(db, selection, *, require_missing_credential=True):
@@ -540,16 +578,29 @@ async def run(configuration, state_dir, guard):
         server = load_app(configuration, captures, stack)
         try:
             if configuration.mode == "exercise":
+                chat_index_evidence = None
                 async with server.app.router.lifespan_context(server.app):
                     await server.stock_alert_service.initialize()
+                    if configuration.seed_synthetic:
+                        chat_index_evidence = await verify_synthetic_chat_query(server.db)
+                        chat_indexes = await server.db.nautilus_chat.index_information()
                     results = await exercise(server, accounts, captures)
                     additions = await verify_preservation(server.db, baseline, accounts)
+                if configuration.seed_synthetic:
+                    # Re-enter the real lifespan to prove repeated startup is
+                    # harmless. Never add this fixture to a restored database.
+                    async with server.app.router.lifespan_context(server.app):
+                        require(await server.db.nautilus_chat.index_information() == chat_indexes,
+                                "Repeated startup changed the room-chat index definition")
+                        await verify_preservation(server.db, baseline, accounts)
+                    chat_index_evidence["repeated_startup"] = "PASS"
                 require(not guard.denied, "The rehearsal attempted a forbidden external operation")
                 return {"result": "PASS", "storage": "real_local_MongoDB_8", "accounts": results,
                         "captured_emails": len(captures.messages), "real_emails_sent": 0,
                         "external_network_attempts": len(guard.denied), "login_history_additions": additions,
                         "continuous_workers": "idle", "backup_restore_verified": False,
-                        "browser_reset_completed": False}
+                        "browser_reset_completed": False,
+                        **({"synthetic_chat_query": chat_index_evidence} if chat_index_evidence else {})}
 
             from starlette.staticfiles import StaticFiles
             import uvicorn
