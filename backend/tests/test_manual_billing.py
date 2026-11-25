@@ -46,6 +46,130 @@ class ManualBillingTests(unittest.IsolatedAsyncioTestCase):
                 "confirm_payment_reviewed": True, **changes}
         return await self.client.post("/api/billing/admin/approve", headers=self.admin_headers, json=body)
 
+    def trial_cleanup(self):
+        """Load the real worker operation without starting production services."""
+        source = Path(__file__).resolve().parents[1] / "server.py"
+        function = next(node for node in ast.parse(source.read_text()).body
+                        if isinstance(node, ast.AsyncFunctionDef) and node.name == "check_expired_trials")
+        self.trial_emails = []
+
+        async def capture(*args):
+            self.trial_emails.append(args)
+
+        self.n["send_trial_upgrade_email"] = capture
+        exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), self.n)
+        return self.n["check_expired_trials"]
+
+    def expired_trial(self):
+        user = self.db.users.rows[0]
+        user.update(status="trial", trial_end_date=self.clock - timedelta(days=1),
+                    membership_plan="7DaysTrial")
+        return user
+
+    async def test_trial_cleanup_cannot_overwrite_concurrent_paid_approval(self):
+        cleanup = self.trial_cleanup()
+        original = deepcopy(self.expired_trial())
+
+        async def approve_after_scan(query, update):
+            self.db.users.before_update = None
+            response = await self.approve()
+            self.assertEqual(response.status_code, 200, response.text)
+
+        self.db.users.before_update = approve_after_scan
+        await cleanup()
+        user = await self.user()
+        self.assertEqual(user["status"], "approved")
+        self.assertTrue(active_membership(user, self.clock))
+        self.assertEqual(user["billing_entitlement"]["managed_by"], "manual_payment")
+        for field in ("id", "bio", "followers", "experience_points", "active_session_id"):
+            self.assertEqual(user[field], original[field], field)
+        self.assertEqual(len(self.sent), 1)
+        self.assertFalse(self.trial_emails)
+        self.assertFalse(user.get("trial_upgrade_email_sent"))
+
+    async def test_trial_cleanup_cannot_overwrite_concurrent_complimentary_approval(self):
+        cleanup = self.trial_cleanup()
+        self.expired_trial()
+
+        async def approve_after_scan(query, update):
+            self.db.users.before_update = None
+            response = await self.client.post("/api/users/approve", headers=self.admin_headers, json={
+                "user_id": "member", "admin_id": "admin", "approved": True, "role": "member",
+            })
+            self.assertEqual(response.status_code, 200, response.text)
+
+        self.db.users.before_update = approve_after_scan
+        await cleanup()
+        user = await self.user()
+        self.assertEqual(user["status"], "approved")
+        self.assertTrue(user["manual_access_granted"])
+        self.assertTrue(active_membership(user, self.clock))
+        self.assertFalse(self.trial_emails)
+
+    async def test_trial_cleanup_skips_a_changed_deadline_or_access_state(self):
+        changes = (
+            {"trial_end_date": self.clock + timedelta(days=1)},
+            {"status": "rejected"},
+            {"disabled": True},
+            {"manual_access_granted": True},
+            {"billing_entitlement": {"managed_by": "manual_payment", "version": 1,
+                                     "paid_through": self.clock + timedelta(days=30)}},
+        )
+        for changed in changes:
+            with self.subTest(changed=changed):
+                self.db.users.rows[0] = deepcopy(self.pending)
+                cleanup = self.trial_cleanup()
+                self.expired_trial()
+
+                async def change_after_scan(query, update):
+                    self.db.users.before_update = None
+                    self.db.users.rows[0].update(deepcopy(changed))
+
+                self.db.users.before_update = change_after_scan
+                before = deepcopy(self.db.users.rows[0])
+                await cleanup()
+                self.assertEqual(await self.user(), {**before, **changed})
+                self.assertFalse(self.trial_emails)
+
+    async def test_trial_cleanup_expires_only_due_trials_and_notifies_once(self):
+        cleanup = self.trial_cleanup()
+        original = deepcopy(self.expired_trial())
+        future = {**deepcopy(original), "id": "future", "_id": "future",
+                  "trial_end_date": self.clock + timedelta(days=1)}
+        self.db.users.rows.append(future)
+        approved = deepcopy(self.db.users.rows[2])
+        await cleanup()
+        await cleanup()
+        user = await self.user()
+        self.assertEqual(user["status"], "trial_expired")
+        self.assertTrue(user["trial_upgrade_email_sent"])
+        self.assertFalse(active_membership(user, self.clock))
+        self.assertEqual({key: value for key, value in user.items()
+                          if key not in {"status", "trial_upgrade_email_sent"}},
+                         {key: value for key, value in original.items() if key != "status"})
+        self.assertEqual(self.trial_emails, [("learner@example.test", "learner")])
+        self.assertEqual(await self.db.users.find_one({"id": "future"}), future)
+        self.assertEqual(await self.db.users.find_one({"id": "other"}), approved)
+
+    async def test_overlapping_trial_cleanup_workers_send_one_expiration_email(self):
+        cleanup = self.trial_cleanup()
+        self.expired_trial()
+
+        async def yield_before_write(query, update):
+            await asyncio.sleep(0)
+
+        self.db.users.before_update = yield_before_write
+        await asyncio.gather(*(cleanup() for _ in range(5)))
+        self.assertEqual((await self.user())["status"], "trial_expired")
+        self.assertEqual(len(self.trial_emails), 1)
+
+    async def test_trial_cleanup_preserves_existing_email_marker(self):
+        cleanup = self.trial_cleanup()
+        self.expired_trial()["trial_upgrade_email_sent"] = True
+        await cleanup()
+        self.assertEqual((await self.user())["status"], "trial_expired")
+        self.assertFalse(self.trial_emails)
+
     async def test_manual_default_requires_an_explicit_new_automatic_selection(self):
         environment = {
             "SQUARE_BILLING_ENABLED": "true", "SQUARE_ENVIRONMENT": "production",

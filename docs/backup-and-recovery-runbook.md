@@ -22,13 +22,15 @@ Before starting the app, compare the captured backup state with the restored cop
 - The stable member-ID set and account status, membership plan, original expiry, administrator status, and credential-field presence.
 - Preserved profiles, follows, XP, badges, community content, and practice/trade history.
 
-Record aggregate counts and equality results or private digests. Account for the backup timestamp rather than comparing with a moving production database. Keep any discrepancies unresolved until explained.
+Record aggregate counts and equality results or private digests from the raw restored baseline **before application startup or rehearsal changes**. Retain the source backup so the working copy can be recreated. Account for the backup timestamp rather than comparing with a moving production database. Keep any discrepancies unresolved until explained.
 
 ## 3. Start the release only inside the isolated environment
 
 Set `MONGO_URL` and `DB_NAME` explicitly **before importing `server.py`**; the module reads them before `load_dotenv`. Use database credentials restricted to the isolated target. Do not copy the production environment file or provider credentials into the rehearsal. Set `FRONTEND_URL` to the isolated frontend so captured reset links cannot lead to production.
 
-Install a captured email transport and deny outbound provider traffic before startup. Preserve the actual application routes, validation, password hashing, and database operations; replace only external delivery boundaries. Captured tokens remain private rehearsal data.
+Use a separate launcher with the **real Motor client and restored MongoDB**, not the synthetic script's mocked client or seed routine. Validate the target before import, construct a minimal environment, and disable dotenv loading in both the server and email module. Permit network traffic only to the isolated database and preview origins; the synthetic script's blanket socket denial cannot support a real database or browser.
+
+Install a captured email transport and deny outbound provider traffic before startup. Preserve the actual application routes, validation, password hashing, database operations, and email templates; capture the final Resend SDK send. Restrict captured recipients to the selected restored test identities and keep messages, addresses, and reset tokens private. Replace the FCM module before import: clearing environment variables alone is insufficient because `fcm_service.py` can load `/app/backend/firebase-admin.json`.
 
 The release has no global switch that disables every worker. Starting it can change the database even before member traffic:
 
@@ -40,7 +42,9 @@ The release has no global switch that disables every worker. Starting it can cha
 | Practice settlement worker | May settle open virtual positions using verified official outcomes. |
 | Cleanup after ten minutes | Updates stale presence and existing trial expiry; may send expiry email. |
 
-These effects are acceptable only in the isolated copy during rehearsal. Keep manual approval explicitly selected with `MEMBERSHIP_APPROVAL_MODE=manual`.
+For the targeted recovery rehearsal, replace `server.periodic_cleanup`, `server.stock_alert_service.run`, and `server.nautilus_settlement_service.run` with cancellation-safe idle coroutines **before entering the real lifespan**. This prevents restored queues and historical trial records from being processed while recovery is under examination. Keep the actual lifespan and real index initialization; explicitly call `stock_alert_service.initialize()` once if validating its indexes, since its replaced `run()` would normally initialize them. Keep manual approval explicitly selected with `MEMBERSHIP_APPROVAL_MODE=manual`.
+
+The idle substitutions belong only in the isolated rehearsal launcher. They do not change production worker behavior or establish that processing restored queues has been tested. Build the matching frontend for the isolated API and use a fresh preview origin with external requests and service workers blocked.
 
 ## 4. Rehearse recovery of an existing identity
 
@@ -51,6 +55,8 @@ Use an approved account from the restored copy that lacks a saved password hash.
 3. Open the captured link in the matching isolated frontend, choose a valid password, and complete recovery through the real API.
 4. Verify the consumed token cannot be reused, the new credential verifies, and only that member's previous session is invalidated.
 5. Sign in with the new password. Confirm the same member ID, membership, expiry, profile, follows, badges, and history. Normal login may update presence, streak, and XP; it must not create another account or require another purchase.
+
+Compare strict account/history preservation immediately after reset confirmation. Then evaluate login separately: its real background reward task can legitimately add XP, achievements, notifications, and achievement chat posts. Record those expected additions and require existing records, identity, and entitlement to remain intact. Do not reuse the synthetic fixture's exact post-login equality check without accounting for its deliberately current login dates, or suppress real login rewards and claim that behavior was exercised.
 
 No production member credentials or access are changed by this rehearsal. The confirmed plain-email delivery and captured recovery exercise provide different evidence; neither should be described as a completed production recovery.
 
@@ -105,3 +111,24 @@ The core application versions above match their production pins. These supportin
 ### Limits of this evidence
 
 This rehearsal does **not** complete the backup, restore, and restored-data comparisons in sections 1–5. Synthetic Mongo storage does not establish Atlas durability, deployed index behavior, or real database concurrency. Captured delivery verifies email generation and invocation, not provider or Inbox delivery. Actual backend ASGI requests do not verify browser rendering, opening a reset link in the frontend, public routing, or the deployed frontend/backend combination. Empty worker queues do not exercise live Windows feeds, official settlement retrieval, stock quotes, Square, or FCM. No production member was reset or changed.
+
+## 7. Atlas inspection — November 25, 2026
+
+Atlas integration reads now succeed. The inspected CashOutAI database is on the **Free / M0 tier**, reports **IDLE**, and has no open project alerts. Its dashboard shows **Backups OFF**, and no usable snapshot was available. These observations establish the current backup gap; they do not establish a completed backup or restore.
+
+The account's inspected upgrade screen offered Free with **No backups**, Flex with daily backups, and M10. Although MongoDB documents a paid Free-tier backup private preview, that option was not offered in this account's observed UI; do not treat it as an available plan. See the [Free-tier backup private preview](https://www.mongodb.com/docs/atlas/backup/cloud-backup/free-cluster-backup/).
+
+The Flex option was prepared for owner review with the following observed terms:
+
+| Item | Reviewed setting or term |
+| --- | --- |
+| Provider and region | AWS `us-east-1`, matching the existing source |
+| Storage | 5 GB |
+| Price | From $0.011 per hour, up to $30 per month, excluding tax |
+| Upgrade interruption | Estimated 7–10 minutes of downtime |
+| Reversibility | The upgrade is irreversible; a direct return to Free is unavailable |
+| Backup schedule | Automatic daily snapshots retained for eight days; no on-demand snapshot |
+
+MongoDB documents the first Flex snapshot as occurring 24 hours after cluster creation. An upgrade must therefore not be treated as an immediately completed backup: wait for an actual snapshot to finish, verify its timestamp and restore eligibility, and then perform the separate restore checks. See [Flex costs](https://www.mongodb.com/docs/atlas/billing/atlas-flex-costs/) and [Flex backup behavior](https://www.mongodb.com/docs/atlas/backup/cloud-backup/flex-cluster-backup/).
+
+**The upgrade was prepared only; it was not applied. No production backup or isolated restore has been performed.** The alternative consistent BSON backup route in section 1 remains subject to its writer-pause, durable-storage, and restore requirements.

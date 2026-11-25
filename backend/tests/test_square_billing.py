@@ -56,6 +56,8 @@ def matches(row, query):
                     return False
                 if operator == "$lte" and (actual is None or actual > operand):
                     return False
+                if operator == "$lt" and (actual is None or actual >= operand):
+                    return False
                 if operator == "$regex":
                     import re
                     if re.search(operand, actual or "", re.I if expected.get("$options") == "i" else 0) is None:

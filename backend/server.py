@@ -283,17 +283,27 @@ async def check_expired_trials():
             logger.info(f"🕒 Found {len(expired_trials)} expired trials to process")
             
             for user in expired_trials:
-                # Update status to trial_expired
-                await db.users.update_one(
-                    {"id": user["id"]},
+                # Expire only the access state this scan observed. Payment or
+                # complimentary approval, an extended trial, or another worker
+                # may have changed it while this operation was waiting.
+                expected = {
+                    "id": user["id"], "status": UserStatus.TRIAL,
+                    "trial_end_date": user["trial_end_date"],
+                    **{field: user[field] if field in user else {"$exists": False}
+                       for field in ("billing_entitlement", "manual_access_granted", "disabled")},
+                }
+                result = await db.users.update_one(
+                    expected,
                     {"$set": {"status": UserStatus.TRIAL_EXPIRED}}
                 )
+                if result.modified_count != 1:
+                    continue
                 
                 # Send upgrade email if not already sent
                 if not user.get("trial_upgrade_email_sent", False):
                     await send_trial_upgrade_email(user["email"], user.get("real_name", user["username"]))
                     await db.users.update_one(
-                        {"id": user["id"]},
+                        {**expected, "status": UserStatus.TRIAL_EXPIRED},
                         {"$set": {"trial_upgrade_email_sent": True}}
                     )
                 

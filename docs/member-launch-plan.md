@@ -109,3 +109,23 @@ The complete CRA production build and **189 backend plus 61 JavaScript tests** p
 The compiled-app signup screen showed only the three one-time membership plans and no trial option. The **Recover existing account** dialog displayed registered-email guidance and explained that recovery preserves the same account without re-registration. The dialog was canceled without submitting a request; this verifies its presentation, not email delivery or a completed recovery.
 
 See also [social-training-review.md](social-training-review.md), [session-and-alerts-review.md](session-and-alerts-review.md), [stock-alert-rollout.md](stock-alert-rollout.md), and [realtime-quotes-and-launch.md](realtime-quotes-and-launch.md).
+
+## Proposed open practice event — owner review, not enabled
+
+On November 25, 2026, the owner proposed opening registration for a short practice event followed by a Cyber Monday membership cutoff. This is a proposal to evaluate. Ordinary trial registration remains disabled, and no event, promotional price, campaign email, or public launch date has been activated.
+
+The working interpretation is **Friday, November 27 through Monday, November 30**, ending **Tuesday, December 1 at 12:00 a.m. America/New_York** (`2026-12-01T05:00:00Z`). Confirm this interpretation and the start time before implementing or announcing the schedule. Every participant receives the same deadline; enrollment on the last day must not create a new rolling trial.
+
+Recommended experience:
+
+1. Register once, verify email ownership, and receive an event-specific temporary grant automatically. Returning members recover their existing identity. The current signup confirmation email is informational; real email verification is additional implementation work.
+2. Begin with a short walkthrough of a bot entry, the Nautilus, YES/NO practice, and the resettable virtual $100 balance. Use clearly labeled recorded examples when teaching; an unavailable publisher must not appear live.
+3. Show the event deadline and a membership action in the app. Event access is for practice and education; no real-money prize or promised return is introduced.
+4. At the fixed cutoff, expire only the event grant, including already-open sessions and sockets. Preserve the account, profile, history, XP, and practice results. Keep sign-in/recovery and membership purchase/status available.
+5. A manual paid approval continues access on the same account. Existing paid, lifetime, complimentary, and legacy access takes precedence over event expiration.
+
+Do not implement this by bulk-approving visitors: an approved account without a billing entitlement currently receives legacy access. Keep enrollment idempotent, reject disabled/rejected accounts, and enforce the deadline in the shared server-side access decision rather than relying on periodic cleanup or a browser countdown. Verify concurrent approval, expiry, and enrollment behavior before opening registration. Review posting/upload/login limits and moderation for public participation; shared quote caching is useful but does not establish a provider spending ceiling or public-event capacity.
+
+For a sale, separate the **Square payment completion deadline** from the owner's review time. A completed eligible payment before the advertised cutoff should retain the offer even when reviewed the next morning. A claimed payment alone must not grant paid access. The present manual approval record has the receipt/reference and approval time, but no dedicated Square completion timestamp; add or explicitly document that evidence before using a payment-time cutoff. Any temporary review grace must be explicit and bounded.
+
+The supplied $99 / $499 / $899 links remain the regular one-time offers. A discounted price and matching Square offer require a separate owner decision; do not describe the existing links as newly discounted. Keep the actual launch date conditional on a verified backup/restore, recovered-account rehearsal, working bot feeds, and deployed access-expiry checks.
