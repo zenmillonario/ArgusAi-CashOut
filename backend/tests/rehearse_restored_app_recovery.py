@@ -137,7 +137,10 @@ class LoopbackGuard:
             denied = True
         elif event == "socket.__new__":
             denied = args[1] not in {socket.AF_UNIX, socket.AF_INET}
-            denied |= args[1] == socket.AF_INET and args[2] != socket.SOCK_STREAM
+            # PyMongo adds CLOEXEC at socket creation. It changes descriptor
+            # inheritance, not the stream protocol or allowed destination.
+            socket_type = args[2] & ~getattr(socket, "SOCK_CLOEXEC", 0)
+            denied |= args[1] == socket.AF_INET and socket_type != socket.SOCK_STREAM
         elif event in {"socket.connect", "socket.bind"}:
             sock, address = args[:2]
             if sock.family != socket.AF_UNIX:
@@ -638,10 +641,18 @@ def self_test():
             raise RehearsalError("Unsafe server passed the refusal self-test")
     guard = LoopbackGuard(good)
     sys.addaudithook(guard)
+    # Match the real driver's stream creation without opening a connection.
+    stream_with_cloexec = socket.SOCK_STREAM | getattr(socket, "SOCK_CLOEXEC", 0)
+    with socket.socket(socket.AF_INET, stream_with_cloexec):
+        pass
     for operation in (lambda: socket.getaddrinfo("example.invalid", 443),
                       lambda: socket.socket().connect(("198.51.100.1", 443)),
-                      lambda: socket.socket().connect(("127.0.0.1", 27017)),
-                      lambda: socket.socket().bind(("0.0.0.0", 4185))):
+                      lambda: socket.socket(socket.AF_INET, stream_with_cloexec).connect(("127.0.0.1", 27017)),
+                      lambda: socket.socket().bind(("0.0.0.0", 4185)),
+                      lambda: socket.socket(socket.AF_INET, socket.SOCK_DGRAM),
+                      lambda: socket.socket(socket.AF_INET, socket.SOCK_DGRAM | getattr(socket, "SOCK_CLOEXEC", 0)),
+                      lambda: socket.socket(socket.AF_INET, socket.SOCK_RAW),
+                      lambda: socket.socket(socket.AF_INET6, socket.SOCK_STREAM)):
         try:
             operation()
         except RehearsalError:
