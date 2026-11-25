@@ -9,19 +9,23 @@ const UserList = ({ onlineUsers, allUsers, currentUser, isDarkTheme, showUserLis
   const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
   React.useEffect(() => {
+    let cancelled = false;
     // Fetch current user's following list
     const fetchFollowingList = async () => {
+      setFollowingUsers([]);
       if (!currentUser) return;
       
       try {
-        const response = await axios.get(`${API}/users/${currentUser.id}/profile`);
-        setFollowingUsers(response.data.following || []);
+        const response = await axios.get(`${API}/users/${currentUser.id}/following`);
+        if (cancelled) return;
+        setFollowingUsers((response.data.following || []).map(user => user.id));
       } catch (error) {
-        console.error('Error fetching following list:', error);
+        if (!cancelled) console.error('Error fetching following list:', error);
       }
     };
 
     fetchFollowingList();
+    return () => { cancelled = true; };
   }, [currentUser, API]);
 
   React.useEffect(() => {

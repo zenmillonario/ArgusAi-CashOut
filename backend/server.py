@@ -11,13 +11,38 @@ import shutil
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Public profiles, lists and notifications must never carry authentication or
+# private billing records. Billing endpoints use their own owner-only projection.
+AUTH_PRIVATE_FIELDS = frozenset({
+    "password", "password_hash", "hashed_password", "active_session_id",
+    "session_created_at", "new_session_id", "reset_token", "reset_token_hash", "reset_expires",
+    "billing_entitlement", "billing_token", "credential_fingerprint",
+    "manual_access_granted", "manual_access_granted_at", "manual_access_granted_by",
+})
+
+def redact_auth_fields(value):
+    if isinstance(value, BaseModel):
+        value = value.model_dump()
+    if isinstance(value, dict):
+        return {key: redact_auth_fields(item) for key, item in value.items() if key not in AUTH_PRIVATE_FIELDS}
+    if isinstance(value, (list, tuple)):
+        return [redact_auth_fields(item) for item in value]
+    return value
+
+def public_socket_message(message: str) -> str:
+    """Apply the same credential boundary to all structured socket messages."""
+    try:
+        return json.dumps(redact_auth_fields(json.loads(message)), default=str)
+    except (TypeError, ValueError):
+        return message
+
 # Import database and app setup early
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Union
 import asyncio
 import motor.motor_asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks, Query, Request, status
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks, Query, Request, Depends, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -286,41 +311,27 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not create index: {e}")
     
-    # Create default admin if none exists
+    # Administrator provisioning is an operator action. Never seed a public
+    # account with a predictable password or elevate the first registration.
     admin_exists = await db.users.find_one({"is_admin": True})
     if not admin_exists:
-        admin_user = {
-            "id": str(uuid.uuid4()),
-            "username": "admin",
-            "email": "admin@cashoutai.com",
-            "password_hash": hash_password("admin123"),
-            "is_admin": True,
-            "status": "approved",
-            "real_name": "Admin",
-            "screen_name": "Admin",
-            "avatar_url": None,
-            "total_profit": 0.0,
-            "win_percentage": 0.0,
-            "trades_count": 0,
-            "average_gain": 0.0,
-            "created_at": datetime.utcnow(),
-            "is_online": False,
-            "experience_points": 0,
-            "level": 1
-        }
-        await db.users.insert_one(admin_user)
-        logger.info("Created default admin user: admin / admin123")
+        logger.warning("No administrator is provisioned; public registration remains pending approval.")
     
     # Start background cleanup task
     cleanup_task = asyncio.create_task(periodic_cleanup())
+    stock_push_task = asyncio.create_task(stock_alert_service.run())
+    billing_task = asyncio.create_task(square_billing_service.run())
     logger.info("Started periodic stale session cleanup (every 10 minutes)")
     yield
     # Clean up on shutdown
     cleanup_task.cancel()
-    try:
-        await cleanup_task
-    except asyncio.CancelledError:
-        pass
+    stock_push_task.cancel()
+    billing_task.cancel()
+    for task in (cleanup_task, stock_push_task, billing_task):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 # Use the existing app initialized at the top and add lifespan
 app.router.lifespan_context = lifespan
@@ -336,34 +347,80 @@ class FCMToken(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
+async def get_active_fcm_tokens(user_ids):
+    """Only devices registered by the member's current login may receive push.
+
+    Store a fingerprint, not a second copy of the session credential. Legacy
+    unbound device records are ignored until a current login registers again.
+    """
+    if not user_ids:
+        return []
+    selected_ids = list(set(user_ids))
+    users = await db.users.find({"id": {"$in": selected_ids}}).to_list(len(selected_ids))
+    active_fingerprints = {
+        user["id"]: hashlib.sha256(user["active_session_id"].encode()).hexdigest()
+        for user in users if isinstance(user.get("active_session_id"), str) and user["active_session_id"]
+    }
+    if not active_fingerprints:
+        return []
+    # Query only current-login records. Historical registrations must not consume
+    # the result limit and hide a valid device after many prior logins.
+    registrations = await db.fcm_tokens.find({"$or": [
+        {"user_id": user_id, "session_fingerprint": fingerprint}
+        for user_id, fingerprint in active_fingerprints.items()
+    ]}).to_list(len(active_fingerprints))
+    return [registration for registration in registrations
+            if isinstance(registration.get("token"), str) and registration["token"]]
+
+
 @api_router.post("/fcm/register-token")
-async def register_fcm_token(token_data: Dict[str, str]):
-    """Register FCM token for a user"""
+async def register_fcm_token(request: Request, token_data: Dict[str, str]):
+    """Bind a device registration to the authenticated member's current login."""
     user_id = token_data.get("user_id")
     token = token_data.get("token")
-    
-    if not user_id or not token:
-        raise HTTPException(status_code=400, detail="user_id and token are required")
-    
+    if not user_id or not token or len(user_id) > 240 or len(token) > 4096:
+        raise HTTPException(status_code=400, detail="Valid user_id and token are required")
+    user = await require_profile_owner(request, user_id)
+    session_id = user["active_session_id"]
+    fingerprint = hashlib.sha256(session_id.encode()).hexdigest()
+    record_id = f"session:{user_id}:{fingerprint}"
+    now = datetime.utcnow()
+    update = {
+        "$set": {"user_id": user_id, "token": token, "session_fingerprint": fingerprint, "updated_at": now},
+        "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": now},
+    }
     try:
-        # Check if token already exists for this user
-        existing_token = await db.fcm_tokens.find_one({"user_id": user_id})
-        
-        if existing_token:
-            # Update existing token
+        # A deterministic Mongo _id prevents duplicate current-login records.
+        try:
+            await db.fcm_tokens.update_one({"_id": record_id}, update, upsert=True)
+        except Exception as error:
+            if getattr(error, "code", None) != 11000:
+                raise
+            await db.fcm_tokens.update_one({"_id": record_id}, {"$set": update["$set"]})
+        if not await db.users.find_one({"id": user_id, "active_session_id": session_id}):
+            raise HTTPException(status_code=401, detail="This session is no longer active. Sign in again.")
+        # A browser token can be reused by another account on the same browser.
+        # Keep one atomic ownership marker. Capturing `now` before any writes
+        # prevents an older delayed request from reclaiming a newer registration.
+        owner_id = "token-owner:" + hashlib.sha256(token.encode()).hexdigest()
+        try:
             await db.fcm_tokens.update_one(
-                {"user_id": user_id},
-                {"$set": {"token": token, "updated_at": datetime.utcnow()}}
+                {"_id": owner_id, "$or": [{"claimed_at": {"$lte": now}}, {"claimed_at": {"$exists": False}}]},
+                {"$set": {"owner_user_id": user_id, "owner_session_fingerprint": fingerprint, "claimed_at": now}},
+                upsert=True,
             )
-        else:
-            # Create new token entry
-            fcm_token = FCMToken(user_id=user_id, token=token)
-            await db.fcm_tokens.insert_one(fcm_token.dict())
-        
+        except Exception as error:
+            if getattr(error, "code", None) != 11000:
+                raise
+            # Existing newer ownership failed the time predicate; preserve it.
+        if not await db.users.find_one({"id": user_id, "active_session_id": session_id}):
+            raise HTTPException(status_code=401, detail="This session is no longer active. Sign in again.")
         return {"message": "Token registered successfully"}
-    except Exception as e:
-        logger.error(f"Error registering FCM token: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to register token")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error("Could not register the current-session notification device")
+        raise HTTPException(status_code=500, detail="Could not register this notification device")
 
 @api_router.get("/fcm/status")
 async def fcm_status():
@@ -371,7 +428,7 @@ async def fcm_status():
     try:
         from fcm_service import fcm_service
         has_creds = bool(os.getenv("FIREBASE_ADMIN_CREDENTIALS"))
-        token_count = await db.fcm_tokens.count_documents({})
+        token_count = await db.fcm_tokens.count_documents({"token": {"$exists": True}})
         return {
             "initialized": fcm_service.initialized,
             "credentials_configured": has_creds,
@@ -381,88 +438,28 @@ async def fcm_status():
         return {"initialized": False, "error": str(e)}
 
 @api_router.post("/fcm/test-notification")
-async def test_notification(test_data: Dict[str, str]):
+async def test_notification(request: Request, test_data: Dict[str, str]):
     """Send test notification"""
     token = test_data.get("token")
     
     if not token:
         raise HTTPException(status_code=400, detail="token is required")
+    actor_id = request.headers.get("x-user-id", "")
+    await require_profile_owner(request, actor_id)
+    current_devices = await get_active_fcm_tokens([actor_id])
+    if not any(device["token"] == token for device in current_devices):
+        raise HTTPException(status_code=403, detail="Register this device for the current login first.")
     
-    try:
-        from fcm_service import fcm_service
-        
-        if not fcm_service.initialized:
-            logger.warning("FCM service not initialized - push notifications disabled")
-            return {"success": False, "message": "Push notifications not available - FIREBASE_ADMIN_CREDENTIALS not configured"}
-        
-        logger.info(f"Sending test notification to token: {token[:20]}...")
-        
-        success = await fcm_service.send_notification(
-            token=token,
-            title="Test Notification",
-            body="This is a test notification from ArgusAI CashOut!",
-            data={"type": "test"}
-        )
-        
-        return {"success": success, "message": "Test notification sent" if success else "Failed to send"}
-    except Exception as e:
-        logger.error(f"Error sending test notification: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to send test notification: {str(e)}")
+    return {"success": False, "suppressed": True,
+            "message": "Only verified Stocks alerts trigger push. This legacy test does not send a notification."}
 
 async def send_notification_to_admins(title: str, body: str, data: Optional[Dict[str, str]] = None):
-    """Send notification to all admin users"""
-    try:
-        from fcm_service import fcm_service
-        
-        if not fcm_service.initialized:
-            logger.warning("FCM service not initialized - admin notifications disabled")
-            return
-        
-        # Get all admin users
-        admin_users = await db.users.find({"is_admin": True}).to_list(1000)
-        admin_user_ids = [user["id"] for user in admin_users]
-        
-        # Get FCM tokens for admin users
-        admin_tokens = await db.fcm_tokens.find({"user_id": {"$in": admin_user_ids}}).to_list(1000)
-        token_list = [token["token"] for token in admin_tokens]
-        
-        if token_list:
-            result = await fcm_service.send_to_multiple(
-                tokens=token_list,
-                title=title,
-                body=body,
-                data=data
-            )
-            logger.info(f"Sent notification to {result.get('success_count', 0)} admin users")
-            return result
-    except Exception as e:
-        logger.error(f"Error sending notification to admins: {str(e)}")
-        return None
+    """Administrative activity remains in-app; only verified Stocks alerts push."""
+    return {"success_count": 0, "suppressed": True}
 
 async def send_notification_to_user(user_id: str, title: str, body: str, data: Optional[Dict[str, str]] = None):
-    """Send notification to a specific user"""
-    try:
-        from fcm_service import fcm_service
-        
-        if not fcm_service.initialized:
-            logger.warning("FCM service not initialized - user notifications disabled")
-            return False
-        
-        # Get FCM token for user
-        user_token = await db.fcm_tokens.find_one({"user_id": user_id})
-        
-        if user_token:
-            success = await fcm_service.send_notification(
-                token=user_token["token"],
-                title=title,
-                body=body,
-                data=data
-            )
-            logger.info(f"Sent notification to user {user_id}: {success}")
-            return success
-    except Exception as e:
-        logger.error(f"Error sending notification to user {user_id}: {str(e)}")
-        return False
+    """Replies, follows, XP and other social activity remain in-app."""
+    return False
 
 async def create_user_notification(user_id: str, notification_type: str, title: str, message: str, data: Dict[str, Any] = None):
     """Create a notification for a user"""
@@ -472,7 +469,7 @@ async def create_user_notification(user_id: str, notification_type: str, title: 
         "type": notification_type,
         "title": title,
         "message": message,
-        "data": data or {},
+        "data": redact_auth_fields(data or {}),
         "read": False,
         "created_at": datetime.utcnow(),
         "expires_at": None
@@ -487,15 +484,15 @@ async def create_user_notification(user_id: str, notification_type: str, title: 
     # Send real-time notification via WebSocket if user is online
     if user_id in manager.user_connections:
         try:
-            await manager.user_connections[user_id].send_text(json.dumps({
+            await manager.send_personal_message(json.dumps({
                 "type": "notification",
                 "notification": websocket_notification
-            }))
+            }), manager.user_connections[user_id])
         except:
             pass  # Ignore WebSocket errors
     
     # Send FCM notification
-    await send_notification_to_user(user_id, title, message, data)
+    await send_notification_to_user(user_id, title, message, redact_auth_fields(data or {}))
     
     return notification
 
@@ -504,55 +501,101 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
         self.user_connections: Dict[str, WebSocket] = {}
+        self.connection_sessions = {}
 
-    async def connect(self, websocket: WebSocket, user_id: str):
+    async def connect(self, websocket: WebSocket, user_id: str, session_id: str):
         await websocket.accept()
         self.active_connections.append(websocket)
         self.user_connections[user_id] = websocket
+        self.connection_sessions[websocket] = (user_id, session_id)
 
     def disconnect(self, websocket: WebSocket, user_id: str):
-        self.active_connections.remove(websocket)
-        if user_id in self.user_connections:
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        self.connection_sessions.pop(websocket, None)
+        if self.user_connections.get(user_id) is websocket:
             del self.user_connections[user_id]
+            for remaining in reversed(self.active_connections):
+                if self.connection_sessions.get(remaining, (None,))[0] == user_id:
+                    self.user_connections[user_id] = remaining
+                    break
+
+    async def revoke_connection(self, connection: WebSocket, user_id: str):
+        """Close this particular connection; never close a replacement by user ID."""
+        self.disconnect(connection, user_id)
+        try:
+            await connection.send_text(json.dumps({
+                "type": "session_invalidated",
+                "message": "Your session has ended. Please sign in again."
+            }))
+        except Exception:
+            pass
+        finally:
+            try:
+                await connection.close(code=4001, reason="Session revoked")
+            except Exception:
+                pass
+
+    async def validate_connection(self, websocket: WebSocket):
+        """Recheck Mongo before private delivery, including across app workers."""
+        identity = self.connection_sessions.get(websocket)
+        if identity is None:
+            return False
+        user_id, session_id = identity
+        try:
+            user = await db.users.find_one({"id": user_id})
+            active = (user or {}).get("active_session_id")
+            if isinstance(active, str) and active and secrets.compare_digest(active.encode(), session_id.encode()):
+                if not active_membership(user, datetime.utcnow()):
+                    self.disconnect(websocket, user_id)
+                    try:
+                        await websocket.close(code=4403, reason="membership_required")
+                    except Exception:
+                        pass
+                    return False
+                return True
+        except Exception:
+            logger.warning("Socket session verification unavailable for user %s", user_id)
+        await self.revoke_connection(websocket, user_id)
+        return False
 
     async def send_personal_message(self, message: str, websocket: WebSocket):
-        await websocket.send_text(message)
+        if not await self.validate_connection(websocket):
+            return False
+        await websocket.send_text(public_socket_message(message))
+        return True
 
     async def broadcast(self, message: str):
-        for connection in self.active_connections:
+        message = public_socket_message(message)
+        for connection in tuple(self.active_connections):
             try:
-                await connection.send_text(message)
-            except:
+                await self.send_personal_message(message, connection)
+            except Exception:
                 pass
 
     async def send_admin_notification(self, message: str):
         """Send notifications to all connected admins"""
+        message = public_socket_message(message)
         admin_users = await db.users.find({"is_admin": True}).to_list(1000)
         admin_ids = [user["id"] for user in admin_users]
         
         for user_id in admin_ids:
             if user_id in self.user_connections:
                 try:
-                    await self.user_connections[user_id].send_text(message)
-                except:
+                    await self.send_personal_message(message, self.user_connections[user_id])
+                except Exception:
                     pass
 
-    async def send_session_invalidation(self, user_id: str, new_session_id: str):
-        """Send session invalidation message to user's old sessions"""
-        if user_id in self.user_connections:
-            try:
-                # Send message but don't close connection immediately
-                await self.user_connections[user_id].send_text(json.dumps({
-                    "type": "session_invalidated",
-                    "message": "Your session has been terminated due to login from another location",
-                    "new_session_id": new_session_id
-                }))
-                print(f"Sent session invalidation message to user {user_id}")
-            except Exception as e:
-                print(f"Error sending session invalidation message to user {user_id}: {e}")
-                # Force remove the connection even if sending fails
-                if user_id in self.user_connections:
-                    del self.user_connections[user_id]
+    async def send_session_invalidation(self, user_id: str, revoked_session_id: Optional[str] = None):
+        """Revoke only sockets bound to the exact session replaced atomically."""
+        if not revoked_session_id:
+            return
+        for connection in tuple(self.active_connections):
+            identity = self.connection_sessions.get(connection)
+            # Untracked entries can only be legacy in-process connections.
+            legacy_connection = identity is None and self.user_connections.get(user_id) is connection
+            if identity == (user_id, revoked_session_id) or legacy_connection:
+                await self.revoke_connection(connection, user_id)
 
 manager = ConnectionManager()
 
@@ -568,16 +611,15 @@ async def cleanup_stale_sessions():
             "last_seen": {"$lt": thirty_minutes_ago}
         }).to_list(1000)
         
-        if stale_sessions:
-            stale_ids = [user['id'] for user in stale_sessions]
-            result = await db.users.update_many(
-                {"id": {"$in": stale_ids}},
+        for user in stale_sessions:
+            # Do not mark a newly active/replaced session offline from an older
+            # cleanup snapshot.
+            result = await db.users.update_one(
+                {"id": user["id"], "active_session_id": user.get("active_session_id"),
+                 "last_seen": user.get("last_seen"), "is_online": True},
                 {"$set": {"is_online": False}}
             )
-            logger.info(f"🧹 Cleaned up {result.modified_count} stale sessions")
-            
-            # Broadcast user_left for each stale session
-            for user in stale_sessions:
+            if result.modified_count:
                 await manager.broadcast(json.dumps({
                     "type": "user_left",
                     "user_id": user['id']
@@ -586,104 +628,98 @@ async def cleanup_stale_sessions():
     except Exception as e:
         logger.error(f"Error cleaning up stale sessions: {e}")
 
+# Recheck quiet sockets as well as every private outbound delivery.
+SESSION_RECHECK_SECONDS = 10
+
 # WebSocket endpoint for real-time chat
 @app.websocket("/api/ws/{user_id}/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str, session_id: str):
-    # ONLINE USERS FIX: Clean up stale sessions before connecting
-    await cleanup_stale_sessions()
-    
-    # Validate user and session
-    user = await db.users.find_one({"id": user_id, "active_session_id": session_id})
-    if not user:
-        # Log why the connection was rejected
-        user_check = await db.users.find_one({"id": user_id}, {"_id": 0, "username": 1, "active_session_id": 1})
-        if user_check:
-            logger.warning(f"❌ WS rejected for user {user_check.get('username')}: session mismatch. Expected: {user_check.get('active_session_id')}, Got: {session_id}")
-        else:
-            logger.warning(f"❌ WS rejected: user_id {user_id} not found in database")
+    if not user_id or not session_id or len(user_id) > 240 or len(session_id) > 240:
         await websocket.close(code=1008, reason="Invalid user or session")
         return
-    
-    logger.info(f"✅ WS connected: {user.get('username')} (user_id: {user_id})")
-    await manager.connect(websocket, user_id)
-    
-    # Update user as online
-    await db.users.update_one(
-        {"id": user_id},
-        {
-            "$set": {
-                "is_online": True,
-                "last_seen": datetime.utcnow()
-            }
-        }
-    )
-    
-    # Send current online users list to the newly connected user
-    online_users = await db.users.find({"is_online": True}).to_list(1000)
-    # Remove sensitive data from user objects
-    clean_users = []
-    for user_data in online_users:
-        clean_user = {
-            "id": user_data["id"],
-            "username": user_data["username"],
-            "real_name": user_data.get("real_name"),
-            "screen_name": user_data.get("screen_name"),
-            "is_admin": user_data.get("is_admin", False),
-            "avatar_url": user_data.get("avatar_url"),
-            "last_seen": user_data.get("last_seen")
-        }
-        clean_users.append(clean_user)
-    
-    await manager.send_personal_message(json.dumps({
-        "type": "online_users",
-        "users": clean_users
-    }, default=str), websocket)
-    
-    # Notify all other users that this user joined
-    user_join_data = {
-        "id": user["id"],
-        "username": user["username"],
-        "real_name": user.get("real_name"),
-        "screen_name": user.get("screen_name"),
-        "is_admin": user.get("is_admin", False),
-        "avatar_url": user.get("avatar_url")
-    }
-    
-    await manager.broadcast(json.dumps({
-        "type": "user_joined",
-        "user": user_join_data
-    }, default=str))
-    
+    user = await db.users.find_one({"id": user_id})
+    active = (user or {}).get("active_session_id")
+    if not isinstance(active, str) or not active or not secrets.compare_digest(active.encode(), session_id.encode()):
+        await websocket.close(code=1008, reason="Invalid user or session")
+        return
+    if not active_membership(user, datetime.utcnow()):
+        await websocket.accept()
+        await websocket.close(code=4403, reason="membership_required")
+        return
+
+    await manager.connect(websocket, user_id, session_id)
     try:
-        while True:
-            # Keep connection alive and handle heartbeat
-            data = await websocket.receive_text()
-            try:
-                message = json.loads(data)
-                if message.get("type") == "heartbeat":
-                    # Respond to heartbeat
-                    await websocket.send_text(json.dumps({"type": "heartbeat_ack"}))
-            except:
-                pass  # Ignore invalid JSON messages
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, user_id)
-        
-        # Update user as offline
-        await db.users.update_one(
-            {"id": user_id},
-            {
-                "$set": {
-                    "is_online": False,
-                    "last_seen": datetime.utcnow()
-                }
-            }
+        # Login can replace a session while the socket handshake is in flight.
+        online_update = await db.users.update_one(
+            {"id": user_id, "active_session_id": session_id},
+            {"$set": {"is_online": True, "last_seen": datetime.utcnow()}}
         )
-        
-        # Notify all users that this user left
+        if online_update.matched_count != 1:
+            await manager.revoke_connection(websocket, user_id)
+            return
+
+        online_users = await db.users.find({"is_online": True}).to_list(1000)
+        clean_users = [{
+            "id": member["id"], "username": member["username"],
+            "real_name": member.get("real_name"), "screen_name": member.get("screen_name"),
+            "is_admin": member.get("is_admin", False), "avatar_url": member.get("avatar_url"),
+            "last_seen": member.get("last_seen")
+        } for member in online_users]
+        delivered = await manager.send_personal_message(json.dumps({
+            "type": "online_users", "users": clean_users
+        }, default=str), websocket)
+        if not delivered:
+            return
+
+        user_join_data = {
+            "id": user["id"], "username": user["username"],
+            "real_name": user.get("real_name"), "screen_name": user.get("screen_name"),
+            "is_admin": user.get("is_admin", False), "avatar_url": user.get("avatar_url")
+        }
         await manager.broadcast(json.dumps({
-            "type": "user_left",
-            "user_id": user_id
+            "type": "user_joined", "user": user_join_data
         }, default=str))
+
+        while True:
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=SESSION_RECHECK_SECONDS)
+            except asyncio.TimeoutError:
+                data = None
+            if not await manager.validate_connection(websocket):
+                break
+            heartbeat_update = await db.users.update_one(
+                {"id": user_id, "active_session_id": session_id},
+                {"$set": {"is_online": True, "last_seen": datetime.utcnow()}}
+            )
+            if heartbeat_update.matched_count != 1:
+                await manager.revoke_connection(websocket, user_id)
+                break
+            if data is not None:
+                try:
+                    message = json.loads(data)
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(message, dict) and message.get("type") == "heartbeat":
+                    await manager.send_personal_message(json.dumps({"type": "heartbeat_ack"}), websocket)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        logger.warning("Chat connection ended for user %s", user_id)
+        try:
+            await websocket.close(code=1011, reason="Connection unavailable")
+        except Exception:
+            pass
+    finally:
+        manager.disconnect(websocket, user_id)
+        # Another tab on this same login can remain connected. A replaced login
+        # must never change the replacement's presence or send a false user_left.
+        if not any(identity == (user_id, session_id) for identity in manager.connection_sessions.values()):
+            offline_update = await db.users.update_one(
+                {"id": user_id, "active_session_id": session_id, "is_online": True},
+                {"$set": {"is_online": False, "last_seen": datetime.utcnow()}}
+            )
+            if offline_update.modified_count:
+                await manager.broadcast(json.dumps({"type": "user_left", "user_id": user_id}))
 
 # Define Enums
 class UserStatus(str, Enum):
@@ -735,8 +771,8 @@ class User(BaseModel):
     average_gain: float = 0.0
     is_online: bool = False  # NEW: Online status
     last_seen: Optional[datetime] = None  # NEW: Last seen timestamp
-    active_session_id: Optional[str] = None  # NEW: Single active session tracking
-    session_created_at: Optional[datetime] = None  # NEW: Session timestamp
+    active_session_id: Optional[str] = Field(default=None, exclude=True)
+    session_created_at: Optional[datetime] = Field(default=None, exclude=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     approved_at: Optional[datetime] = None
     approved_by: Optional[str] = None
@@ -786,12 +822,17 @@ class User(BaseModel):
     total_cash_earned: float = 0.0  # Total cash prizes earned
     pending_cash_review: List[Dict[str, Any]] = Field(default_factory=list)  # Pending admin review
 
+class AuthenticatedUser(User):
+    """Only a successful password-verified login may return session credentials."""
+    active_session_id: str = Field(exclude=False)
+    session_created_at: Optional[datetime] = Field(default=None, exclude=False)
+
 class UserCreate(BaseModel):
     username: str
     email: str
     real_name: str  # NEW: Required real name
     membership_plan: str
-    is_trial: Optional[bool] = False  # NEW: Trial registration option  # NEW: Required membership plan
+    is_trial: Optional[bool] = False  # Legacy input retained so trial attempts can be rejected explicitly.
     password: str
     referral_code: Optional[str] = None  # Optional referral code of referring user
 
@@ -815,11 +856,11 @@ class PasswordChange(BaseModel):
     new_password: str
 
 class PasswordResetRequest(BaseModel):
-    email: str
+    email: str = Field(min_length=3, max_length=254)
 
 class PasswordResetConfirm(BaseModel):
-    token: str
-    new_password: str
+    token: str = Field(min_length=32, max_length=200)
+    new_password: str = Field(min_length=8, max_length=72)
 
 class UserApproval(BaseModel):
     user_id: str
@@ -828,8 +869,12 @@ class UserApproval(BaseModel):
     role: Optional[UserRole] = UserRole.MEMBER  # NEW: Role assignment during approval
 
 class UserRoleUpdate(BaseModel):
-    user_id: str
-    new_role: UserRole
+    # Both historic field names are accepted; the authenticated actor, never a
+    # supplied administrator ID, controls authorization.
+    user_id: Optional[str] = None
+    new_role: Optional[UserRole] = None
+    role: Optional[UserRole] = None
+    admin_id: Optional[str] = None
 
 # NEW: XP and Achievement Models
 class XPAction(BaseModel):
@@ -919,6 +964,8 @@ class PaperTrade(BaseModel):
     action: str  # "BUY" or "SELL"
     quantity: int
     price: float
+    price_source: str = "legacy_unverified"
+    price_verified: bool = False
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     notes: Optional[str] = None
     position_id: Optional[str] = None  # Links to open position
@@ -1131,7 +1178,7 @@ ACHIEVEMENTS = {
     "referral_master": {
         "id": "referral_master",
         "name": "Referral Master",
-        "description": "Successfully referred a new member - WIN UP TO $400 CASH! 💸",
+        "description": "Welcome a new member to the community.",
         "icon": "💰",
         "points_reward": 200,
         "requirement_type": "referral",
@@ -1463,14 +1510,90 @@ async def handle_message_mentions(message_content: str, sender_user: dict, messa
         logger.error(f"Error handling message mentions: {e}")
 
 # Utility functions for authentication and image processing
+def validate_new_password(password: str):
+    if not isinstance(password, str) or len(password) < 8 or len(password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=400, detail="Use a password of at least 8 characters and no more than 72 UTF-8 bytes.")
+
+async def require_profile_owner(request: Request, user_id: str):
+    """Authenticate changes to the recovery email using the existing session."""
+    claimed_user = request.headers.get("x-user-id")
+    token = request.headers.get("x-session-id", "")
+    authorization = request.headers.get("authorization", "")
+    if not token and authorization.startswith("Bearer "):
+        token = authorization[7:].strip()
+    if claimed_user and claimed_user != user_id:
+        raise HTTPException(status_code=403, detail="This profile belongs to another member.")
+    user = await db.users.find_one({"id": user_id})
+    stored_token = (user or {}).get("active_session_id")
+    if not token or len(token) > 240 or not isinstance(stored_token, str) or not stored_token or not secrets.compare_digest(token.encode(), stored_token.encode()):
+        raise HTTPException(status_code=401, detail="Please sign in again.")
+    return user
+
+async def require_authenticated_admin(request: Request, claimed_admin_id=None):
+    actor_id = request.headers.get("x-user-id", "")
+    if not actor_id or len(actor_id) > 240:
+        raise HTTPException(status_code=401, detail="Please sign in again.")
+    actor = await require_profile_owner(request, actor_id)
+    if (not actor.get("is_admin") or actor.get("status") != "approved"
+            or actor.get("disabled") is True or (claimed_admin_id is not None and claimed_admin_id != actor_id)):
+        raise HTTPException(status_code=403, detail="Administrator access required.")
+    return actor
+
+# Applied only to the legacy API router. The Nautilus router has its own member
+# and publisher authentication. Match exact operation + route templates, never
+# broad prefixes such as /users, /bot, or /admin.
+LEGACY_SESSION_EXEMPT_OPERATIONS = frozenset({
+    ("GET", "/api/"),
+    ("GET", "/api/health"),
+    ("POST", "/api/users/register"),
+    ("POST", "/api/users/login"),
+    ("POST", "/api/users/reset-password-request"),
+    ("POST", "/api/users/reset-password-direct"),
+    ("POST", "/api/users/reset-password-confirm"),
+    ("GET", "/api/referral/{referral_code}"),
+    # External stock intake uses its own server-side Zapier shared secret.
+    ("POST", "/api/bot/message"),
+    ("POST", "/api/bot/email-webhook"),
+    # These endpoints verify the specific presented session themselves; status
+    # returns a boolean and stale logout is an idempotent no-op.
+    ("GET", "/api/users/{user_id}/session-status"),
+    ("POST", "/api/users/logout"),
+})
+
+async def require_legacy_active_session(request: Request):
+    if request.method == "OPTIONS":
+        return
+    route_path = getattr(request.scope.get("route"), "path", None)
+    if (request.method, route_path) in LEGACY_SESSION_EXEMPT_OPERATIONS:
+        return
+    actor_id = request.headers.get("x-user-id", "")
+    if not actor_id or len(actor_id) > 240:
+        raise HTTPException(status_code=401, detail="Please sign in again.")
+    request.state.session_user = await require_profile_owner(request, actor_id)
+    actor = request.state.session_user
+    if not active_membership(actor, datetime.utcnow()):
+        # Administrators must still be able to review billing and manage access
+        # if their own paid term ends. This does not make member rooms public.
+        admin_operation = (route_path or "").startswith("/api/admin/") or route_path in {
+            "/api/users/pending", "/api/users/approve", "/api/users/change-role", "/api/users/{user_id}/role",
+        }
+        if not (admin_operation and actor.get("is_admin") and actor.get("status") == "approved"
+                and actor.get("disabled") is not True):
+            raise HTTPException(status_code=403, detail=MEMBERSHIP_REQUIRED)
+
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt"""
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def verify_password(password: str, hashed: str) -> bool:
     """Verify a password - supports both bcrypt and legacy SHA-256"""
+    if not isinstance(hashed, str) or not isinstance(password, str):
+        return False
     if hashed.startswith('$2b$') or hashed.startswith('$2a$'):
-        return bcrypt.checkpw(password.encode(), hashed.encode())
+        try:
+            return bcrypt.checkpw(password.encode(), hashed.encode())
+        except (ValueError, TypeError):
+            return False
     # Legacy SHA-256 fallback
     return hashlib.sha256(password.encode()).hexdigest() == hashed
 
@@ -1478,7 +1601,9 @@ async def migrate_password_if_needed(user_id: str, password: str, stored_hash: s
     """Auto-migrate SHA-256 hash to bcrypt on successful login"""
     if not (stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$')):
         new_hash = hash_password(password)
-        await db.users.update_one({"id": user_id}, {"$set": {"hashed_password": new_hash}})
+        await db.users.update_one({"id": user_id, "password_hash": stored_hash}, {"$set": {"password_hash": new_hash}})
+        return new_hash
+    return stored_hash
 
 def process_uploaded_image(file_content: bytes, max_size: int = 1024 * 1024) -> str:
     """Process uploaded image and return base64 data URL"""
@@ -1489,110 +1614,29 @@ def process_uploaded_image(file_content: bytes, max_size: int = 1024 * 1024) -> 
     base64_content = base64.b64encode(file_content).decode('utf-8')
     return f"data:image/jpeg;base64,{base64_content}"
 
-async def get_current_stock_price(symbol: str) -> float:
-    """Get current stock price from API or mock data"""
-    try:
-        # Use FMP API key from environment
-        api_key = os.environ.get('FMP_API_KEY')
-        
-        # Try /stable/quote first
-        url = f"https://financialmodelingprep.com/stable/quote?symbol={symbol}&apikey={api_key}"
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, timeout=10.0)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if isinstance(data, list) and len(data) > 0:
-                    return data[0]['price']
-            
-            # Fallback to /stable/profile for penny/small stocks
-            url2 = f"https://financialmodelingprep.com/stable/profile?symbol={symbol}&apikey={api_key}"
-            response2 = await client.get(url2, timeout=10.0)
-            if response2.status_code == 200:
-                data2 = response2.json()
-                if isinstance(data2, list) and len(data2) > 0 and data2[0].get('price'):
-                    return data2[0]['price']
-            
-            return await get_mock_stock_price(symbol)
-                
-    except Exception as e:
-        print(f"Error fetching real price for {symbol}: {e}")
-        return await get_mock_stock_price(symbol)
+# One provider-read adapter is shared by ticker cards and legacy portfolios.
+try:
+    from .stock_quotes import stock_quote_service, QuoteUnavailable, number as quote_number, iso as quote_iso, utcnow as quote_now
+except ImportError:
+    from stock_quotes import stock_quote_service, QuoteUnavailable, number as quote_number, iso as quote_iso, utcnow as quote_now
 
-async def get_mock_stock_price(symbol: str) -> float:
-    """Enhanced mock prices with realistic variation"""
-    import random
-    import hashlib
-    
-    # Base prices for popular stocks (updated with more realistic recent prices)
-    mock_prices = {
-        "TSLA": 242.65,
-        "AAPL": 188.40,
-        "MSFT": 425.20,
-        "NVDA": 885.50,
-        "GOOGL": 145.30,
-        "AMZN": 158.75,
-        "META": 495.80,
-        "NFLX": 430.15,
-        "AMD": 205.60,
-        "INTC": 48.20,
-        "SPY": 458.90,
-        "QQQ": 382.45,
-        "IWM": 225.30,
-        "VTI": 248.80,
-        "BTC": 43500.0,
-        "ETH": 2650.0,
-        # Add GMNI and other symbols
-        "GMNI": 0.0008,  # Penny stock price
-        "PENNY1": 0.0025,
-        "PENNY2": 0.0001,
-        "PENNY3": 0.008,
-        "GME": 18.75,
-        "AMC": 5.25,
-        "PLTR": 22.80,
-        "SOFI": 7.95,
-        "RIOT": 12.40
-    }
-    
-    # Get base price or generate random one based on symbol hash for consistency
-    symbol_upper = symbol.upper()
-    if symbol_upper in mock_prices:
-        base_price = mock_prices[symbol_upper]
-    else:
-        # Generate consistent price based on symbol hash
-        symbol_hash = int(hashlib.md5(symbol_upper.encode()).hexdigest()[:8], 16)
-        random.seed(symbol_hash)
-        
-        # Different price ranges based on symbol characteristics
-        if len(symbol) <= 3:
-            base_price = random.uniform(100, 800)  # Major stocks
-        elif "PENNY" in symbol_upper or len(symbol) > 4:
-            base_price = random.uniform(0.0001, 0.01)  # Penny stocks
-        else:
-            base_price = random.uniform(10, 200)  # Mid-range stocks
-    
-    # Add small realistic variation (±0.5% to ±2%) but keep it consistent per session
-    import time
-    # Use daily seed for consistent prices within the same day
-    daily_seed = int(time.time() / 86400)  # Change once per day
-    random.seed(hash(symbol_upper + str(daily_seed)) % 2**32)
-    
-    if base_price < 0.01:
-        # For penny stocks, use smaller variation
-        variation = random.uniform(-0.005, 0.005)  # ±0.5%
-    else:
-        # For regular stocks, use normal variation
-        variation = random.uniform(-0.02, 0.02)  # ±2%
-    
-    current_price = base_price * (1 + variation)
-    
-    # Return appropriate precision based on price
-    if current_price < 0.01:
-        return round(current_price, 8)  # High precision for penny stocks
-    elif current_price < 1:
-        return round(current_price, 4)
-    else:
-        return round(current_price, 2)
+async def get_current_stock_price(symbol: str) -> float:
+    """Return an execution-eligible quote or fail before a price-based mutation.
+
+    The current last-price endpoint cannot verify market session and delay
+    entitlement. Its observations remain displayable but never authorize fills.
+    """
+    try:
+        quote = await stock_quote_service.get_quote(symbol)
+    except QuoteUnavailable as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail()) from None
+    if not quote.get("execution_eligible") or quote.get("status") != "recent":
+        raise HTTPException(status_code=503, detail={
+            "code": "quote_not_execution_eligible", "symbol": quote["symbol"],
+            "message": "A verified fresh market-session quote is unavailable. Use an explicitly entered manual journal price, or try again after the data integration is verified.",
+            "source": quote["source"], "status": quote["status"],
+        })
+    return quote["price"]
 
 # Utility function to manage positions
 async def update_or_create_position(user_id: str, symbol: str, action: str, quantity: int, price: float, trade_id: str, stop_loss: float = None, take_profit: float = None):
@@ -1691,68 +1735,51 @@ async def update_or_create_position(user_id: str, symbol: str, action: str, quan
 
 # Utility function to update position P&L and check for auto-close triggers
 async def update_positions_pnl(user_id: str):
-    """Update current P&L for all open positions and check for stop-loss/take-profit triggers"""
+    """Mark observed valuation with provenance; never synthesize or auto-fill.
+
+    Automatic stop/take-profit execution is suspended until a verified market
+    session, data delay and paper-fill policy are integrated. A GET request must
+    not close a position using an unqualified last-price observation.
+    """
     open_positions = await db.positions.find({"user_id": user_id, "is_open": True}).to_list(1000)
-    
     for position in open_positions:
-        current_price = await get_current_stock_price(position["symbol"])
-        unrealized_pnl = (current_price - position["avg_price"]) * position["quantity"]
-        
-        # Check for auto-close triggers
-        should_close = False
-        close_reason = None
-        
-        # Check stop-loss (price dropped below stop-loss level)
-        if position.get("stop_loss") and current_price <= position["stop_loss"]:
-            should_close = True
-            close_reason = "STOP_LOSS"
-        
-        # Check take-profit (price reached take-profit level)
-        elif position.get("take_profit") and current_price >= position["take_profit"]:
-            should_close = True
-            close_reason = "TAKE_PROFIT"
-        
-        if should_close:
-            # Auto-close the position
-            realized_pnl = (current_price - position["avg_price"]) * position["quantity"]
-            
-            # Create a SELL trade to record the auto-close
-            close_trade = PaperTrade(
-                user_id=user_id,
-                symbol=position["symbol"],
-                action="SELL",
-                quantity=position["quantity"],
-                price=current_price,
-                position_id=position["id"],
-                is_closed=True,
-                notes=f"Auto-closed by {close_reason.replace('_', ' ').lower()} at ${current_price}"
-            )
-            
-            await db.paper_trades.insert_one(close_trade.dict())
-            
-            # Close the position
+        try:
+            quote = await stock_quote_service.get_quote(position["symbol"])
+        except QuoteUnavailable as error:
+            # Retain previous valuation numbers and their observation timestamps.
+            # Legacy numbers without provenance are explicitly unverified.
             await db.positions.update_one(
-                {"id": position["id"]},
-                {"$set": {
-                    "is_open": False,
-                    "closed_at": datetime.utcnow(),
-                    "current_price": current_price,
-                    "unrealized_pnl": round(realized_pnl, 8),
-                    "auto_close_reason": close_reason
-                }}
+                {"id": position["id"], "user_id": user_id, "is_open": True},
+                {"$set": {"quote": {**error.detail(), "received_at": quote_iso(quote_now()),
+                                    "source_timestamp": None, "execution_eligible": False},
+                          "valuation_status": "unavailable", "execution_eligible": False,
+                          "price_provenance": position.get("price_provenance", "legacy_unverified")}},
             )
-            
-            print(f"Auto-closed position {position['symbol']} - {close_reason}: ${realized_pnl:.2f}")
-            
-        else:
-            # Update position with current price and P&L
+            continue
+        try:
+            unrealized_pnl = (quote["price"] - position["avg_price"]) * position["quantity"]
+        except (TypeError, ValueError, OverflowError):
+            unrealized_pnl = None
+        if quote_number(unrealized_pnl) is None:
+            # Even finite inputs can overflow when calculating a position value.
+            # Never persist NaN/Infinity or erase the last valid valuation.
+            error = QuoteUnavailable("valuation_invalid", "A finite position valuation could not be calculated.", position["symbol"])
             await db.positions.update_one(
-                {"id": position["id"]},
-                {"$set": {
-                    "current_price": current_price,
-                    "unrealized_pnl": round(unrealized_pnl, 8)
-                }}
+                {"id": position["id"], "user_id": user_id, "is_open": True},
+                {"$set": {"quote": {**error.detail(), "received_at": quote["received_at"],
+                                    "source_timestamp": quote["source_timestamp"], "execution_eligible": False},
+                          "valuation_status": "unavailable", "execution_eligible": False,
+                          "price_provenance": position.get("price_provenance", "legacy_unverified")}},
             )
+            continue
+        await db.positions.update_one(
+            {"id": position["id"], "user_id": user_id, "is_open": True,
+             "quantity": position["quantity"], "avg_price": position["avg_price"]},
+            {"$set": {"current_price": quote["price"], "unrealized_pnl": round(unrealized_pnl, 8),
+                      "quote": quote, "valuation_status": quote["status"],
+                      "valuation_as_of": quote["source_timestamp"], "valuation_received_at": quote["received_at"],
+                      "price_provenance": "provider_observation", "execution_eligible": False}},
+        )
 
 # Utility function to calculate user trading performance
 async def calculate_user_performance(user_id: str) -> dict:
@@ -1880,38 +1907,46 @@ async def test_email_service():
 @api_router.post("/users/register", response_model=User)
 @limiter.limit("5/minute")
 async def register_user(request: Request, user_data: UserCreate, background_tasks: BackgroundTasks):
-    # Check if username already exists (allow rejected users to register again)
-    existing_user = await db.users.find_one({"username": user_data.username})
-    if existing_user and existing_user.get("status") != UserStatus.REJECTED:
-        raise HTTPException(status_code=400, detail="Username already exists")
-    
-    # Check if email already exists (allow rejected users to register again)
-    existing_email = await db.users.find_one({"email": user_data.email})
-    if existing_email and existing_email.get("status") != UserStatus.REJECTED:
-        raise HTTPException(status_code=400, detail="Email already exists")
-    
-    # If user was previously rejected, remove the old account to allow fresh registration
-    if existing_user and existing_user.get("status") == UserStatus.REJECTED:
-        logger.info(f"🔄 REJECTED USER RE-REGISTERING: {user_data.username} - Removing old rejected account")
-        # Clean up old rejected user data
-        await db.users.delete_one({"username": user_data.username})
-        await db.messages.delete_many({"user_id": existing_user["id"]})
-        await db.notifications.delete_many({"user_id": existing_user["id"]})
-        
-    if existing_email and existing_email.get("status") == UserStatus.REJECTED and existing_email["id"] != existing_user.get("id", ""):
-        logger.info(f"🔄 REJECTED EMAIL RE-REGISTERING: {user_data.email} - Removing old rejected account")
-        # Clean up old rejected user data by email
-        await db.users.delete_one({"email": user_data.email})
-        await db.messages.delete_many({"user_id": existing_email["id"]})
-        await db.notifications.delete_many({"user_id": existing_email["id"]})
-    
-    # Create new user with pending status (in production, hash the password!)
+    validate_new_password(user_data.password)
+    # New trial enrollment is paused. This gate applies only to creation; it
+    # never rewrites existing members, trials, expiration dates or paid plans.
+    # Normalize casing, separators and compatibility characters so an old or
+    # crafted client cannot bypass the removed trial option with a label variant.
+    import unicodedata
+    plan_label = unicodedata.normalize("NFKD", user_data.membership_plan).casefold()
+    compact_plan_label = re.sub(r"[^a-z]", "", plan_label)
+    if user_data.is_trial or "trial" in compact_plan_label:
+        raise HTTPException(
+            status_code=403,
+            detail="New trial registrations are currently disabled. Choose a paid membership plan; access still requires payment verification and approval.",
+        )
+    # Registration creates a new identity; it never replaces an existing one.
+    # Normalize only this new submission. Legacy records and their stable IDs,
+    # relationships, profile, membership and history are not rewritten here.
+    username = user_data.username.strip()
+    email = user_data.email.strip().lower()
+    if not username or not email:
+        raise HTTPException(status_code=422, detail="Username and email are required.")
+    # Match old case/outer-whitespace variants without renaming existing members.
+    existing_user = await db.users.find_one({
+        "username": {"$regex": rf"^\s*{re.escape(username)}\s*$", "$options": "i"}
+    })
+    existing_email = await db.users.find_one({
+        "email": {"$regex": rf"^\s*{re.escape(email)}\s*$", "$options": "i"}
+    })
+    if existing_user or existing_email:
+        raise HTTPException(
+            status_code=409,
+            detail="An account already uses this username or email. Sign in or use password recovery. Contact an administrator if the account needs review.",
+        )
+    user_data = user_data.model_copy(update={"username": username, "email": email})
+
+    # Keep the password hash in the database record, outside public User output.
     user_dict = user_data.dict()
     
     # Store referral code for processing after user creation
     referral_code = user_dict.pop('referral_code', None)
     
-    # Store the password for testing purposes (in a real app, you'd hash it)
     password = user_dict.pop('password')
     hashed_password = hash_password(password)
     user_dict['password_hash'] = hashed_password
@@ -1919,50 +1954,40 @@ async def register_user(request: Request, user_data: UserCreate, background_task
     # Generate unique referral code for this user
     user_dict['referral_code'] = generate_referral_code(user_data.username)
     
-    # For testing: Make the first user an admin and auto-approve
-    users_count = await db.users.count_documents({})
-    if users_count == 0 or user_data.username == "admin":
-        user_dict["is_admin"] = True
-        user_dict["status"] = UserStatus.APPROVED
-        user_dict["role"] = UserRole.ADMIN
-        user_dict["approved_at"] = datetime.utcnow()
-        user_dict["approved_by"] = "system"
-        user = User(**user_dict)
-    else:
-        # All registrations require admin approval
-        user = User(**user_dict, status=UserStatus.PENDING)
-        logger.info(f"📋 NEW USER REGISTERED (pending approval): {user.username} - Plan: {user_data.membership_plan}")
-        
-        # Send email notification to admin for new registration
-        if email_service:
-            admin_email = os.getenv("ADMIN_EMAIL")
-            background_tasks.add_task(
-                email_service.send_registration_notification,
-                admin_email,
-                user_dict
-            )
-            logger.info(f"📧 Scheduled admin notification for registration: {user_data.username}")
-            
-            # Send confirmation email to user
-            background_tasks.add_task(
-                send_registration_confirmation_to_user,
-                user_data.email,
-                user_dict.get('real_name', user_data.username)
-            )
-            logger.info(f"📧 Scheduled user confirmation email to: {user_data.email}")
-        else:
-            logger.warning(f"Email service unavailable. Would send registration notification for user: {user_data.username}")
-            
-        # Send push notification to admins
-        background_tasks.add_task(
-            send_notification_to_admins,
-            "🔔 New User Registration",
-            f"{user_dict.get('real_name', user_data.username)} has registered and needs approval",
-            {"type": "new_registration", "username": user_data.username}
-        )
+    # All public registrations require approval, regardless of username.
+    user = User(**user_dict, status=UserStatus.PENDING)
+    logger.info(f"📋 NEW USER REGISTERED (pending approval): {user.username} - Plan: {user_data.membership_plan}")
     
+    # Send email notification to admin for new registration
+    if email_service:
+        admin_email = os.getenv("ADMIN_EMAIL")
+        background_tasks.add_task(
+            email_service.send_registration_notification,
+            admin_email,
+            redact_auth_fields(user_dict)
+        )
+        logger.info(f"📧 Scheduled admin notification for registration: {user_data.username}")
+        
+        # Send confirmation email to user
+        background_tasks.add_task(
+            send_registration_confirmation_to_user,
+            user_data.email,
+            user_dict.get('real_name', user_data.username)
+        )
+        logger.info(f"📧 Scheduled user confirmation email to: {user_data.email}")
+    else:
+        logger.warning(f"Email service unavailable. Would send registration notification for user: {user_data.username}")
+        
+    # Send push notification to admins
+    background_tasks.add_task(
+        send_notification_to_admins,
+        "🔔 New User Registration",
+        f"{user_dict.get('real_name', user_data.username)} has registered and needs approval",
+        {"type": "new_registration", "username": user_data.username}
+    )
+
     # Insert user into database
-    await db.users.insert_one(user.dict())
+    await db.users.insert_one({**user.dict(), "password_hash": hashed_password})
     
     # Handle referral if provided
     if referral_code:
@@ -1977,7 +2002,7 @@ async def register_user(request: Request, user_data: UserCreate, background_task
     
     return user
 
-@api_router.post("/users/login", response_model=User)
+@api_router.post("/users/login", response_model=AuthenticatedUser)
 async def login_user(login_data: UserLogin):
     # Make username case-insensitive by converting to lowercase
     username_lower = login_data.username.lower()
@@ -1985,18 +2010,19 @@ async def login_user(login_data: UserLogin):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    # Check password (in a real app, you'd verify the hash)
-    if 'password_hash' in user:
-        if not verify_password(login_data.password, user['password_hash']):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-        # Auto-migrate legacy SHA-256 to bcrypt
-        await migrate_password_if_needed(user['id'], login_data.password, user['password_hash'])
+    # Older registrations may be missing a persisted hash. They must use the
+    # verified email-reset flow; absence of a hash must never grant access.
+    if not user.get('password_hash') or not verify_password(login_data.password, user['password_hash']):
+        raise HTTPException(status_code=401, detail="Invalid credentials. Use password recovery if needed.")
+    if user.get("disabled") is True:
+        raise HTTPException(status_code=403, detail="Account access requires administrator review.")
+    verified_hash = await migrate_password_if_needed(user['id'], login_data.password, user['password_hash'])
     
     user_obj = User(**user)
     
     # Check user status including trial system
     if user_obj.status == UserStatus.PENDING:
-        raise HTTPException(status_code=403, detail="Account pending admin approval. You will be notified within 5 minutes once approved.")
+        raise HTTPException(status_code=403, detail="Membership is pending payment verification or administrator review. Open billing to review your access.")
     elif user_obj.status == UserStatus.REJECTED:
         raise HTTPException(status_code=403, detail="Account has been rejected")
     elif user_obj.status == UserStatus.TRIAL:
@@ -2020,16 +2046,8 @@ async def login_user(login_data: UserLogin):
     elif user_obj.status not in [UserStatus.APPROVED, UserStatus.TRIAL_EXPIRED]:
         raise HTTPException(status_code=403, detail="Account access denied")
     
-    # Store the old session ID before generating new one
-    old_session_id = user.get("active_session_id")
-    
     # Generate new session ID
     new_session_id = str(uuid.uuid4())
-    
-    # If user has an active session, invalidate it AFTER setting the new session
-    if old_session_id:
-        # Notify the old session to logout (but don't close connection yet)
-        await manager.send_session_invalidation(user_obj.id, new_session_id)
     
     # PERFORMANCE OPTIMIZATION: Batch all login-related updates into a single operation
     today = datetime.utcnow().strftime('%Y-%m-%d')
@@ -2075,10 +2093,15 @@ async def login_user(login_data: UserLogin):
         })
     
     # SINGLE database update for all login data
-    await db.users.update_one(
-        {"id": user_obj.id},
+    previous_user = await db.users.find_one_and_update(
+        {"id": user_obj.id, "password_hash": verified_hash},
         {"$set": update_data}
     )
+    if previous_user is None:
+        raise HTTPException(status_code=401, detail="Credentials changed. Please sign in again.")
+    # Mongo returns the exact preceding session. A delayed notification from an
+    # earlier login must not close a newer login's connection.
+    await manager.send_session_invalidation(user_obj.id, previous_user.get("active_session_id"))
     
     # PERFORMANCE OPTIMIZATION: Process XP/achievements asynchronously in background
     if xp_to_add > 0:
@@ -2098,9 +2121,9 @@ async def login_user(login_data: UserLogin):
         user_obj.last_login_date = today
         user_obj.daily_login_streak = current_streak
     
-    print(f"🚀 FAST LOGIN: User {user_obj.username} logged in with session: {new_session_id} (XP processing in background)")
+    logger.info("User %s logged in", user_obj.username)
     
-    return user_obj
+    return AuthenticatedUser(**user_obj.dict(), active_session_id=new_session_id, session_created_at=user_obj.session_created_at)
 
 async def process_login_rewards_async(user_id: str, streak: int, xp_added: int):
     """Process heavy login rewards (achievements, notifications) in background"""
@@ -2221,23 +2244,43 @@ async def get_online_count():
         raise HTTPException(status_code=500, detail="Failed to get online count")
 
 @api_router.get("/users/{user_id}/session-status")
-async def check_session_status(user_id: str, session_id: str):
-    """Check if a user's session is still valid"""
+async def check_session_status(request: Request, user_id: str, session_id: Optional[str] = None):
+    """Return only validity; prefer header credentials in current clients."""
+    claimed_user = request.headers.get("x-user-id")
+    header_token = request.headers.get("x-session-id", "")
+    authorization = request.headers.get("authorization", "")
+    if not header_token and authorization.startswith("Bearer "):
+        header_token = authorization[7:].strip()
+    # The legacy query parameter remains accepted for existing app versions.
+    # If both are supplied they must describe the same session.
+    token = header_token or session_id or ""
     user = await db.users.find_one({"id": user_id})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    is_valid = user.get("active_session_id") == session_id
+    active = (user or {}).get("active_session_id")
+    is_valid = bool(
+        token and len(token) <= 240 and isinstance(active, str) and active
+        and (not claimed_user or claimed_user == user_id)
+        and (not session_id or not header_token or session_id == header_token)
+        and secrets.compare_digest(token.encode(), active.encode())
+    )
     return {
         "valid": is_valid,
         "message": "Session is valid" if is_valid else "Session is invalid or expired"
     }
 
 @api_router.post("/users/logout")
-async def logout_user(user_id: str):
-    """Update user offline status and clear session"""
-    await db.users.update_one(
-        {"id": user_id},
+async def logout_user(request: Request, user_id: str):
+    """Revoke only the presented login, including when logouts race logins."""
+    claimed_user = request.headers.get("x-user-id")
+    token = request.headers.get("x-session-id", "")
+    authorization = request.headers.get("authorization", "")
+    if not token and authorization.startswith("Bearer "):
+        token = authorization[7:].strip()
+    if claimed_user and claimed_user != user_id:
+        raise HTTPException(status_code=403, detail="This session belongs to another member.")
+    if not token or len(token) > 240:
+        raise HTTPException(status_code=401, detail="Please sign in again.")
+    result = await db.users.update_one(
+        {"id": user_id, "active_session_id": token},
         {"$set": {
             "is_online": False, 
             "last_seen": datetime.utcnow(),
@@ -2245,7 +2288,37 @@ async def logout_user(user_id: str):
             "session_created_at": None
         }}
     )
+    if result.matched_count:
+        await manager.send_session_invalidation(user_id, token)
     return {"message": "Logged out successfully"}
+
+@api_router.get("/community/members")
+async def get_community_members(request: Request):
+    """Public community profile projection, bounded to 200 active members."""
+    actor_id = request.headers.get("x-user-id", "")
+    if not actor_id or len(actor_id) > 240:
+        raise HTTPException(status_code=401, detail="Please sign in again.")
+    actor = await require_profile_owner(request, actor_id)
+    now = datetime.utcnow()
+    if not active_membership(actor, now):
+        raise HTTPException(status_code=403, detail="An active membership is required to open the member directory.")
+    users = []
+    has_more = False
+    cursor = db.users.find({"status": {"$in": ["approved", "trial"]}}).sort("username", 1)
+    async for member in cursor:
+        if not active_membership(member, now) or not isinstance(member.get("id"), str) or not member["id"]:
+            continue
+        if len(users) == 200:
+            has_more = True
+            break
+        users.append({
+            "id": member["id"], "username": member.get("username", "Member"),
+            "screen_name": member.get("screen_name"), "avatar_url": member.get("avatar_url"),
+            "level": member.get("level", 1), "is_admin": bool(member.get("is_admin", False)),
+            "role": member.get("role", "member"), "is_online": bool(member.get("is_online", False)),
+            "follower_count": member.get("follower_count", 0),
+        })
+    return {"users": users, "has_more": has_more, "limit": 200}
 
 @api_router.get("/users", response_model=List[User])
 async def get_users():
@@ -2276,7 +2349,7 @@ async def get_pending_users():
     
     for user in trial_expired_users:
         user["is_trial_expired"] = True
-        user["admin_note"] = f"⏰ TRIAL EXPIRED: User paid for membership plan '{user.get('membership_plan', 'Unknown')}' - Convert to Member after payment verification"
+        user["admin_note"] = f"⏰ TRIAL EXPIRED: Membership plan '{user.get('membership_plan', 'Unknown')}' - Verify payment before converting to Member"
     
     # Combine and sort by creation date (most recent first)
     all_users = pending_users + trial_users + trial_expired_users
@@ -2285,12 +2358,9 @@ async def get_pending_users():
     return [User(**user) for user in all_users]
 
 @api_router.post("/users/approve")
-async def approve_user(approval: UserApproval, background_tasks: BackgroundTasks):
+async def approve_user(request: Request, approval: UserApproval, background_tasks: BackgroundTasks):
     """Approve or reject a user - admin only"""
-    # Verify admin status (in production, use proper JWT auth)
-    admin = await db.users.find_one({"id": approval.admin_id})
-    if not admin or not admin.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Admin access required")
+    admin = await require_authenticated_admin(request, approval.admin_id)
     
     # Get user before updating to get email and name
     user_to_approve = await db.users.find_one({"id": approval.user_id})
@@ -2307,6 +2377,8 @@ async def approve_user(approval: UserApproval, background_tasks: BackgroundTasks
     
     # Set role if approved
     if approval.approved:
+        update_data.update(manual_access_granted=True, manual_access_granted_at=datetime.utcnow(),
+                           manual_access_granted_by=admin["id"])
         update_data["role"] = approval.role
         if approval.role == UserRole.ADMIN:
             update_data["is_admin"] = True
@@ -2361,7 +2433,7 @@ async def approve_user(approval: UserApproval, background_tasks: BackgroundTasks
     return {"message": f"User {status_text} successfully"}
 
 @api_router.post("/users/change-role")
-async def change_user_role(role_change: Dict[str, Any], background_tasks: BackgroundTasks):
+async def change_user_role(request: Request, role_change: Dict[str, Any], background_tasks: BackgroundTasks):
     """Change user role - admin only (including demoting other admins)"""
     required_fields = ["user_id", "admin_id", "new_role"]
     for field in required_fields:
@@ -2372,10 +2444,7 @@ async def change_user_role(role_change: Dict[str, Any], background_tasks: Backgr
     admin_id = role_change["admin_id"]
     new_role = role_change["new_role"]
     
-    # Verify admin status
-    admin = await db.users.find_one({"id": admin_id})
-    if not admin or not admin.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Admin access required")
+    admin = await require_authenticated_admin(request, admin_id)
     
     # Get target user
     target_user = await db.users.find_one({"id": user_id})
@@ -2518,30 +2587,29 @@ async def change_password(password_data: PasswordChange, background_tasks: Backg
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Verify current password
-    if 'password_hash' in user:
-        if not verify_password(password_data.current_password, user['password_hash']):
-            raise HTTPException(status_code=400, detail="Current password is incorrect")
-    else:
-        # Legacy password check (remove in production)
-        if user.get('password') != password_data.current_password:
-            raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if not user.get('password_hash') or not verify_password(password_data.current_password, user['password_hash']):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    validate_new_password(password_data.new_password)
     
     # Hash new password
     new_password_hash = hash_password(password_data.new_password)
     
     # Update password
     result = await db.users.update_one(
-        {"id": user_id},
+        {"id": user_id, "password_hash": user['password_hash']},
         {"$set": {
             "password_hash": new_password_hash,
-            "modified_at": datetime.utcnow()
-        }}
+            "modified_at": datetime.utcnow(),
+            "active_session_id": None,
+            "session_created_at": None,
+            "is_online": False,
+        }, "$unset": {"reset_token": "", "reset_token_hash": "", "reset_expires": "", "password": ""}}
     )
     
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Failed to update password")
     
+    await manager.send_session_invalidation(user_id, user.get("active_session_id"))
     # Send email notification about password change
     user_email = user.get('email')
     user_name = user.get('real_name', user.get('username'))
@@ -2556,26 +2624,30 @@ async def change_password(password_data: PasswordChange, background_tasks: Backg
     return {"message": "Password changed successfully"}
 
 @api_router.post("/users/reset-password-request")
-async def request_password_reset(reset_request: PasswordResetRequest, background_tasks: BackgroundTasks):
-    """Request password reset via email"""
+@limiter.limit("5/minute")
+async def request_password_reset(request: Request, reset_request: PasswordResetRequest, background_tasks: BackgroundTasks):
+    """Email proof is required; the request itself never changes a password."""
+    if not email_service:
+        raise HTTPException(status_code=503, detail="Password recovery email is temporarily unavailable. Please contact support.")
     # Find user by email (case-insensitive)
-    user = await db.users.find_one({"email": {"$regex": f"^{re.escape(reset_request.email)}$", "$options": "i"}})
+    user = await db.users.find_one({"email": {"$regex": f"^{re.escape(reset_request.email.strip())}$", "$options": "i"}})
     
     # Always return success for security (don't reveal if email exists)
     if not user:
         return {"message": "If an account with that email exists, you will receive a password reset link."}
     
     # Generate reset token
-    reset_token = str(uuid.uuid4())
+    reset_token = secrets.token_urlsafe(32)
+    reset_token_hash = hashlib.sha256(reset_token.encode("utf-8")).hexdigest()
     reset_expires = datetime.utcnow() + timedelta(hours=1)  # Token expires in 1 hour
     
     # Store reset token
     await db.users.update_one(
         {"id": user["id"]},
         {"$set": {
-            "reset_token": reset_token,
+            "reset_token_hash": reset_token_hash,
             "reset_expires": reset_expires
-        }}
+        }, "$unset": {"reset_token": ""}}
     )
     
     # Send reset email
@@ -2592,70 +2664,37 @@ async def request_password_reset(reset_request: PasswordResetRequest, background
     
     return {"message": "If an account with that email exists, you will receive a password reset link."}
 
-class DirectPasswordReset(BaseModel):
-    email: str
-    new_password: str
-
 @api_router.post("/users/reset-password-direct")
-async def direct_password_reset(reset_data: DirectPasswordReset):
-    """Reset password by verifying email exists on an account"""
-    if len(reset_data.new_password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
-    
-    # Find user by email (case-insensitive)
-    user = await db.users.find_one({
-        "email": {"$regex": f"^{re.escape(reset_data.email)}$", "$options": "i"}
-    })
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="No account found with that email address")
-    
-    # Hash and update password
-    new_password_hash = hash_password(reset_data.new_password)
-    result = await db.users.update_one(
-        {"id": user["id"]},
-        {"$set": {
-            "password_hash": new_password_hash,
-            "modified_at": datetime.utcnow()
-        }}
-    )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=500, detail="Failed to reset password")
-    
-    return {"message": "Password reset successfully! You can now log in with your new password."}
+async def direct_password_reset():
+    """Reject obsolete clients that attempt email-only password replacement."""
+    raise HTTPException(status_code=410, detail="Request a password recovery email and use its verification link.")
 
 @api_router.post("/users/reset-password-confirm")
-async def confirm_password_reset(reset_confirm: PasswordResetConfirm, background_tasks: BackgroundTasks):
-    """Confirm password reset with token"""
-    # Find user by reset token
-    user = await db.users.find_one({
-        "reset_token": reset_confirm.token,
-        "reset_expires": {"$gt": datetime.utcnow()}
-    })
-    
-    if not user:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-    
-    # Hash new password
+@limiter.limit("10/minute")
+async def confirm_password_reset(request: Request, reset_confirm: PasswordResetConfirm, background_tasks: BackgroundTasks):
+    """Consume one unexpired email token atomically and revoke prior sessions."""
+    validate_new_password(reset_confirm.new_password)
+    token_hash = hashlib.sha256(reset_confirm.token.encode("utf-8")).hexdigest()
     new_password_hash = hash_password(reset_confirm.new_password)
-    
-    # Update password and clear reset token
-    result = await db.users.update_one(
-        {"id": user["id"]},
+    user = await db.users.find_one_and_update(
+        {"reset_token_hash": token_hash, "reset_expires": {"$gt": datetime.utcnow()}},
         {"$set": {
             "password_hash": new_password_hash,
-            "modified_at": datetime.utcnow()
+            "modified_at": datetime.utcnow(),
+            "active_session_id": None,
+            "session_created_at": None,
+            "is_online": False,
         },
         "$unset": {
             "reset_token": "",
-            "reset_expires": ""
+            "reset_token_hash": "",
+            "reset_expires": "",
+            "password": "",
         }}
     )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Failed to reset password")
-    
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    await manager.send_session_invalidation(user["id"], user.get("active_session_id"))
     # Send confirmation email
     user_email = user.get('email')
     user_name = user.get('real_name', user.get('username'))
@@ -2738,7 +2777,7 @@ async def send_password_reset_email(email: str, user_name: str, reset_token: str
     
     # Use environment variable for frontend URL, fallback to production domain
     frontend_url = os.getenv('FRONTEND_URL') or os.getenv('REACT_APP_FRONTEND_URL') or 'https://cashoutai.app'
-    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+    reset_link = f"{frontend_url.rstrip('/')}/?reset_token={reset_token}"
     
     plain_body = f"""
 Hi {user_name},
@@ -2862,63 +2901,29 @@ ArgusAI CashOut Team
 
 @api_router.get("/stock/{symbol}")
 async def get_stock_price(symbol: str):
-    """Get real-time stock price using FMP API with proper formatting"""
-    fmp_api_key = os.getenv("FMP_API_KEY")
-    if not fmp_api_key:
-        raise HTTPException(status_code=500, detail="FMP API key not configured")
-    
+    """Last reported provider price with observation time, receipt and limits."""
     try:
-        async with aiohttp.ClientSession() as session:
-            # Try /stable/quote first
-            url = f"https://financialmodelingprep.com/stable/quote?symbol={symbol}&apikey={fmp_api_key}"
-            async with session.get(url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data and len(data) > 0:
-                        stock_data = data[0]
-                        raw_price = stock_data.get("price", 0)
-                        return {
-                            "symbol": symbol,
-                            "price": raw_price,
-                            "formatted_price": format_price_display(raw_price),
-                            "change": stock_data.get("change", 0),
-                            "changesPercentage": stock_data.get("changesPercentage", 0),
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-            
-            # Fallback to /stable/profile for penny/small stocks
-            url2 = f"https://financialmodelingprep.com/stable/profile?symbol={symbol}&apikey={fmp_api_key}"
-            async with session.get(url2) as response2:
-                if response2.status == 200:
-                    data2 = await response2.json()
-                    if data2 and len(data2) > 0 and data2[0].get("price"):
-                        raw_price = data2[0]["price"]
-                        return {
-                            "symbol": symbol,
-                            "price": raw_price,
-                            "formatted_price": format_price_display(raw_price),
-                            "change": data2[0].get("changes", 0) or 0,
-                            "changesPercentage": 0,
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-            
-            raise HTTPException(status_code=404, detail=f"Stock symbol {symbol} not found")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Error fetching stock price for {symbol}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error fetching stock price")
+        quote = await stock_quote_service.get_quote(symbol)
+    except QuoteUnavailable as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail()) from None
+    return {**quote, "formatted_price": format_price_display(quote["price"])}
 
 @api_router.post("/users/{user_id}/role")
-async def update_user_role(user_id: str, role_update: UserRoleUpdate):
+async def update_user_role(request: Request, user_id: str, role_update: UserRoleUpdate):
     """Update user role - admin only"""
-    # Verify admin status
-    admin = await db.users.find_one({"id": role_update.admin_id})
-    if not admin or not admin.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Admin access required")
+    admin = await require_authenticated_admin(request, role_update.admin_id)
+    if role_update.user_id is not None and role_update.user_id != user_id:
+        raise HTTPException(status_code=400, detail="The target member does not match.")
+    if user_id == admin["id"]:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+    if role_update.role and role_update.new_role and role_update.role != role_update.new_role:
+        raise HTTPException(status_code=400, detail="Conflicting role values.")
+    new_role = role_update.role or role_update.new_role
+    if new_role is None:
+        raise HTTPException(status_code=400, detail="A role is required.")
     
-    update_data = {"role": role_update.role}
-    if role_update.role == UserRole.ADMIN:
+    update_data = {"role": new_role, "modified_by": admin["id"], "modified_at": datetime.utcnow()}
+    if new_role == UserRole.ADMIN:
         update_data["is_admin"] = True
     else:
         update_data["is_admin"] = False
@@ -3092,8 +3097,9 @@ async def get_all_achievements():
 
 # NEW: Profile Customization Endpoints  
 @api_router.post("/users/{user_id}/profile")
-async def update_user_profile(user_id: str, profile_update: ProfileUpdate):
+async def update_user_profile(request: Request, user_id: str, profile_update: ProfileUpdate):
     """Update user profile customization"""
+    await require_profile_owner(request, user_id)
     update_data = {}
     
     if profile_update.bio is not None:
@@ -3296,12 +3302,9 @@ async def review_cash_prize(review: CashPrizeReview, admin_id: str):
     return {"message": f"Cash prize {review.status} successfully"}
 
 @api_router.post("/admin/convert-trial")
-async def convert_trial_to_member(user_id: str, admin_id: str):
+async def convert_trial_to_member(request: Request, user_id: str, admin_id: str):
     """Admin endpoint to convert trial_expired users to member status after payment"""
-    # Verify admin
-    admin = await db.users.find_one({"id": admin_id})
-    if not admin or not admin.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Admin access required")
+    admin = await require_authenticated_admin(request, admin_id)
     
     # Find the trial expired user
     user = await db.users.find_one({"id": user_id})
@@ -3318,7 +3321,10 @@ async def convert_trial_to_member(user_id: str, admin_id: str):
             "status": UserStatus.APPROVED,
             "role": UserRole.MEMBER,
             "approved_by": admin["username"],
-            "approved_at": datetime.utcnow()
+            "approved_at": datetime.utcnow(),
+            "manual_access_granted": True,
+            "manual_access_granted_at": datetime.utcnow(),
+            "manual_access_granted_by": admin["id"]
         }}
     )
     
@@ -3759,100 +3765,77 @@ async def unfollow_user(user_id: str, follow_request: FollowRequest):
     return {"message": "Successfully unfollowed user"}
 
 @api_router.get("/users/{user_id}/notifications")
-async def get_user_notifications(user_id: str, limit: int = 50, offset: int = 0):
-    """Get user notifications and automatically mark them as read when viewed"""
+async def get_user_notifications(request: Request, user_id: str, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0)):
+    """Read the member's inbox without changing unread state."""
+    await require_profile_owner(request, user_id)
     notifications = await db.notifications.find(
         {"user_id": user_id}
     ).sort("created_at", -1).skip(offset).limit(limit).to_list(limit)
-    
-    # Convert datetime objects to ISO strings for JSON serialization
     for notification in notifications:
-        if "created_at" in notification and notification["created_at"]:
-            notification["created_at"] = notification["created_at"].isoformat()
-        if "expires_at" in notification and notification["expires_at"]:
-            notification["expires_at"] = notification["expires_at"].isoformat()
-        # Remove MongoDB's _id field if present
-        if "_id" in notification:
-            del notification["_id"]
-    
-    # Auto-mark all fetched notifications as read
-    if notifications:
-        notification_ids = [notif["id"] for notif in notifications if not notif.get("read", False)]
-        if notification_ids:
-            await db.notifications.update_many(
-                {
-                    "id": {"$in": notification_ids},
-                    "user_id": user_id
-                },
-                {"$set": {"read": True, "read_at": datetime.utcnow()}}
-            )
-            logger.info(f"Auto-marked {len(notification_ids)} notifications as read for user {user_id}")
-            
-            # Update the notifications list to reflect read status
-            for notif in notifications:
-                if notif["id"] in notification_ids:
-                    notif["read"] = True
-                    notif["read_at"] = datetime.utcnow().isoformat()
-    
-    return notifications
+        for field in ("created_at", "expires_at", "read_at"):
+            if isinstance(notification.get(field), datetime):
+                notification[field] = notification[field].isoformat()
+        notification.pop("_id", None)
+    return redact_auth_fields(notifications)
 
 @api_router.put("/users/{user_id}/notifications/{notification_id}/read")
-async def mark_notification_as_read(user_id: str, notification_id: str):
-    """Mark a notification as read"""
+async def mark_notification_as_read(request: Request, user_id: str, notification_id: str):
+    """Mark a notification read only after an explicit owner action."""
+    await require_profile_owner(request, user_id)
     result = await db.notifications.update_one(
         {"id": notification_id, "user_id": user_id},
-        {"$set": {"read": True}}
+        {"$set": {"read": True, "read_at": datetime.utcnow()}}
     )
-    
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Notification not found")
-    
     return {"message": "Notification marked as read"}
 
 @api_router.post("/users/{user_id}/notifications/read-all")
-async def mark_all_notifications_as_read(user_id: str):
-    """Mark all notifications as read for a user"""
+async def mark_all_notifications_as_read(request: Request, user_id: str):
+    """Mark all of this member's notifications read after an explicit action."""
+    await require_profile_owner(request, user_id)
     result = await db.notifications.update_many(
         {"user_id": user_id, "read": False},
-        {"$set": {"read": True}}
+        {"$set": {"read": True, "read_at": datetime.utcnow()}}
     )
-    
-    return {"message": f"Marked {result.modified_count} notifications as read"}
+    return {"message": f"Marked {result.modified_count} notifications as read", "count": result.modified_count}
 
 @api_router.delete("/users/{user_id}/notifications/{notification_id}")
-async def delete_notification(user_id: str, notification_id: str):
-    """Delete a notification"""
-    result = await db.notifications.delete_one(
-        {"id": notification_id, "user_id": user_id}
-    )
-    
+async def delete_notification(request: Request, user_id: str, notification_id: str):
+    """Delete only the authenticated member's own notification."""
+    await require_profile_owner(request, user_id)
+    result = await db.notifications.delete_one({"id": notification_id, "user_id": user_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Notification not found")
-    
     return {"message": "Notification deleted"}
 
 @api_router.get("/users/{user_id}/notifications/unread-count")
-async def get_unread_notification_count(user_id: str):
-    """Get count of unread notifications for a user"""
-    count = await db.notifications.count_documents(
-        {"user_id": user_id, "read": False}
-    )
-    
-    return {"message": f"Unread notification count: {count}"}
+async def get_unread_notification_count(request: Request, user_id: str):
+    await require_profile_owner(request, user_id)
+    count = await db.notifications.count_documents({"user_id": user_id, "read": False})
+    return {"count": count, "message": f"Unread notification count: {count}"}
 
 # Message Reaction Endpoints
+REACTION_EMOJI = {"heart": "❤️", "thumbs_up": "👍", "money": "💰", "rocket": "🚀"}
+REACTION_ALIASES = {"heart": "heart", "❤️": "heart", "❤": "heart",
+                    "thumbs_up": "thumbs_up", "👍": "thumbs_up", "like": "thumbs_up",
+                    "money": "money", "💰": "money", "rocket": "rocket", "🚀": "rocket"}
+
+def normalize_reaction_type(value):
+    if not isinstance(value, str) or value not in REACTION_ALIASES:
+        raise HTTPException(status_code=422, detail="Choose heart, thumbs_up, money or rocket.")
+    return REACTION_ALIASES[value]
+
 @api_router.post("/messages/{message_id}/react")
-async def add_message_reaction(message_id: str, reaction_data: dict, background_tasks: BackgroundTasks):
+async def add_message_reaction(request: Request, message_id: str, reaction_data: dict, background_tasks: BackgroundTasks):
     """Add a reaction to a message"""
     user_id = reaction_data.get("user_id")
-    reaction_type = reaction_data.get("reaction_type", "heart")  # Default to heart
-    
-    if not user_id:
+    reaction_type = normalize_reaction_type(reaction_data.get("reaction_type", "heart"))
+    if not isinstance(user_id, str) or not user_id or len(user_id) > 240:
         raise HTTPException(status_code=400, detail="User ID required")
-    
-    # Get the message and user
+    user = await require_profile_owner(request, user_id)
+    # Get the existing message; the authenticated actor supplies the reaction.
     message = await db.messages.find_one({"id": message_id})
-    user = await db.users.find_one({"id": user_id})
     
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
@@ -3863,7 +3846,7 @@ async def add_message_reaction(message_id: str, reaction_data: dict, background_
     existing_reaction = await db.reactions.find_one({
         "message_id": message_id,
         "user_id": user_id,
-        "reaction_type": reaction_type
+        "reaction_type": {"$in": [alias for alias, canonical in REACTION_ALIASES.items() if canonical == reaction_type]}
     })
     
     if existing_reaction:
@@ -3878,7 +3861,17 @@ async def add_message_reaction(message_id: str, reaction_data: dict, background_
         "created_at": datetime.utcnow()
     }
     
-    await db.reactions.insert_one(reaction)
+    # A stable unique Mongo key prevents simultaneous taps/retries from awarding
+    # the same initial reaction twice. Existing legacy reactions remain valid.
+    reaction_key = hashlib.sha256((message_id + "\0" + user_id + "\0" + reaction_type).encode()).hexdigest()
+    try:
+        inserted = await db.reactions.update_one({"_id": reaction_key}, {"$setOnInsert": reaction}, upsert=True)
+    except Exception as error:
+        if getattr(error, "code", None) != 11000:
+            raise
+        raise HTTPException(status_code=400, detail="Already reacted to this message")
+    if inserted.upserted_id is None:
+        raise HTTPException(status_code=400, detail="Already reacted to this message")
     
     # Award XP for giving reaction
     await award_xp(user_id, "heart_reaction", 2)
@@ -3886,7 +3879,7 @@ async def add_message_reaction(message_id: str, reaction_data: dict, background_
     # Create notification for the message author (if not reacting to own message)
     if message["user_id"] != user_id:
         reactor_name = user.get("screen_name") or user.get("username")
-        reaction_emoji = "❤️" if reaction_type == "heart" else "👍"
+        reaction_emoji = REACTION_EMOJI[reaction_type]
         
         await create_user_notification(
             user_id=message["user_id"],
@@ -3904,20 +3897,24 @@ async def add_message_reaction(message_id: str, reaction_data: dict, background_
             }
         )
     
+    await manager.broadcast(json.dumps({"type": "reaction_updated", "message_id": message_id}))
     return {"message": "Reaction added successfully"}
 
 @api_router.delete("/messages/{message_id}/react")
-async def remove_message_reaction(message_id: str, user_id: str, reaction_type: str = "heart"):
-    """Remove a reaction from a message"""
-    result = await db.reactions.delete_one({
+async def remove_message_reaction(request: Request, message_id: str, user_id: str, reaction_type: str = "heart"):
+    """Remove only this member's reaction, including its legacy emoji alias."""
+    await require_profile_owner(request, user_id)
+    reaction_type = normalize_reaction_type(reaction_type)
+    result = await db.reactions.delete_many({
         "message_id": message_id,
         "user_id": user_id,
-        "reaction_type": reaction_type
+        "reaction_type": {"$in": [alias for alias, canonical in REACTION_ALIASES.items() if canonical == reaction_type]}
     })
     
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Reaction not found")
     
+    await manager.broadcast(json.dumps({"type": "reaction_updated", "message_id": message_id}))
     return {"message": "Reaction removed successfully"}
 
 @api_router.get("/messages/{message_id}/reactions")
@@ -3928,7 +3925,9 @@ async def get_message_reactions(message_id: str):
     # Group reactions by type and get user info
     reaction_summary = {}
     for reaction in reactions:
-        reaction_type = reaction["reaction_type"]
+        reaction_type = REACTION_ALIASES.get(reaction["reaction_type"])
+        if not reaction_type:
+            continue  # Preserve unsupported legacy records without exposing new UI types.
         if reaction_type not in reaction_summary:
             reaction_summary[reaction_type] = []
         
@@ -4013,61 +4012,9 @@ async def get_follow_status(user_id: str, target_user_id: str):
 
 # Bot Message System
 @api_router.post("/bot/message")
-async def create_bot_message(message_data: dict):
-    """Create a message from external bot (e.g., email alerts)"""
-    try:
-        # Parse the raw email content
-        raw_content = message_data.get("content", "")
-        email_subject = message_data.get("subject", "")
-        sender = message_data.get("sender", "")
-        
-        logger.info(f"Bot message received: subject='{email_subject}', content='{raw_content[:100]}...'")
-        
-        # Parse price alert emails
-        formatted_message = parse_price_alert(raw_content, email_subject)
-        
-        if formatted_message:
-            # Get or create bot user
-            bot_user = await get_or_create_bot_user()
-            
-            # Create chat message using proper Message model
-            ticker_objects = extract_tickers(formatted_message)
-            ticker_strings = [ticker["symbol"] for ticker in ticker_objects] if ticker_objects else []
-            
-            chat_message = Message(
-                user_id=bot_user["id"],
-                username=bot_user["username"],
-                content=formatted_message,
-                content_type="text",
-                is_admin=True,
-                real_name=bot_user["real_name"],
-                screen_name=bot_user.get("screen_name"),
-                avatar_url=bot_user.get("avatar_url"),
-                highlighted_tickers=ticker_strings,
-                reply_to_id=None,
-                reply_to=None
-            )
-            
-            # Insert into database
-            await db.messages.insert_one(chat_message.dict())
-            
-            # Broadcast bot message to all connected users via WebSocket
-            await manager.broadcast(json.dumps({
-                "type": "message",
-                "data": chat_message.dict()
-            }, default=str))
-            
-            logger.info(f"Bot message created and broadcast: {formatted_message}")
-            
-            return {"message": "Bot message posted successfully", "formatted_content": formatted_message}
-        else:
-            # Parsing failed - log it but don't post debug info to chat
-            logger.warning(f"Could not parse bot message. Subject: {email_subject}, Content: {raw_content[:200]}")
-            return {"message": "Bot message parsing failed - not posted to chat", "subject": email_subject}
-            
-    except Exception as e:
-        logger.error(f"Error creating bot message: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create bot message")
+async def create_bot_message(request: Request, message_data: dict):
+    """Compatible Zapier URL; accepts only authenticated stock-alert intake."""
+    return await stock_alert_service.ingest(request, message_data)
 
 async def get_or_create_bot_user():
     """Get existing bot user or create one"""
@@ -4243,52 +4190,9 @@ def extract_tickers(message: str) -> list:
 
 # Email-to-Chat Bridge endpoint
 @api_router.post("/bot/email-webhook")
-async def email_webhook(request: dict):
-    """Webhook endpoint for email-to-chat bridge services (like Zapier, IFTTT, etc.)"""
-    try:
-        # Log the raw request data for debugging
-        logger.info(f"🔍 RAW WEBHOOK DATA: {json.dumps(request, indent=2)}")
-        
-        # This endpoint can be used with services like:
-        # - Zapier Email Parser
-        # - IFTTT Email trigger
-        # - Custom email forwarding rules
-        
-        # Try multiple possible field names that Zapier might use
-        content = (request.get("body", "") or 
-                  request.get("content", "") or 
-                  request.get("text", "") or
-                  request.get("message", "") or
-                  request.get("email_body", "") or
-                  request.get("Body", ""))
-        
-        subject = (request.get("subject", "") or 
-                  request.get("Subject", "") or
-                  request.get("title", "") or
-                  request.get("email_subject", ""))
-        
-        sender = (request.get("from", "") or 
-                 request.get("sender", "") or
-                 request.get("From", "") or
-                 request.get("email_from", ""))
-        
-        logger.info(f"📧 EXTRACTED DATA - Subject: '{subject}', Content: '{content[:200]}...', Sender: '{sender}'")
-        
-        # Smart filtering: Only process emails that look like price alerts
-        if is_price_alert_email(content, subject, sender):
-            return await create_bot_message({
-                "content": content,
-                "subject": subject,
-                "sender": sender
-            })
-        else:
-            # Log unrelated emails but don't post to chat
-            logger.info(f"Filtered out non-alert email: subject='{subject}', sender='{sender}'")
-            return {"message": "Email filtered - not a price alert", "filtered": True}
-        
-    except Exception as e:
-        logger.error(f"Error processing email webhook: {e}")
-        raise HTTPException(status_code=500, detail="Failed to process email webhook")
+async def email_webhook(request: Request, payload: dict):
+    """Schwab thinkorswim email -> Zapier -> the persisted Stocks feed."""
+    return await stock_alert_service.ingest(request, payload)
 
 def is_price_alert_email(content: str, subject: str, sender: str) -> bool:
     """Determine if an email is a price alert that should be posted to chat"""
@@ -4423,50 +4327,21 @@ async def post_message_tasks(message_data, message, user, reply_to_data):
         # Handle @mentions
         await handle_message_mentions(message_data.content, user, message.id)
         
-        # FCM push for admin messages only
+        # Chat/admin messages keep their in-app WebSocket behavior. Device
+        # pushes are reserved for the separately authenticated Stocks pipeline.
         if user.get("is_admin"):
-            try:
-                other_users = await db.users.find({
-                    "id": {"$ne": message_data.user_id},
-                    "status": UserStatus.APPROVED
-                }).to_list(1000)
-                other_user_ids = [u["id"] for u in other_users]
-                tokens = await db.fcm_tokens.find({"user_id": {"$in": other_user_ids}}).to_list(1000)
-                token_list = [t["token"] for t in tokens]
-                
-                if token_list:
-                    sender_name = user.get("screen_name") or user.get("real_name") or user["username"]
-                    message_preview = "📷 Admin sent an image" if message_data.content_type == "image" else (message_data.content[:100] + "..." if len(message_data.content) > 100 else message_data.content)
-                    
-                    from fcm_service import fcm_service
-                    if fcm_service.initialized:
-                        await fcm_service.send_to_multiple(
-                            tokens=token_list,
-                            title=f"👑 Admin {sender_name}",
-                            body=message_preview,
-                            data={
-                                "type": "admin_message",
-                                "sender_id": message_data.user_id,
-                                "sender_name": sender_name,
-                                "message_type": message_data.content_type,
-                                "timestamp": str(int(datetime.utcnow().timestamp()))
-                            }
-                        )
-            except Exception as e:
-                print(f"FCM notification error: {e}")
-            
             # Admin WebSocket notifications
             try:
                 non_admin_users = await db.users.find({"is_admin": {"$ne": True}, "is_online": True}).to_list(1000)
                 for nau in non_admin_users:
                     if nau["id"] in manager.user_connections:
                         try:
-                            await manager.user_connections[nau["id"]].send_text(json.dumps({
+                            await manager.send_personal_message(json.dumps({
                                 "type": "admin_notification",
                                 "message": f"Admin {user.get('real_name') or user['username']}: {message_data.content}",
                                 "admin_username": user['username'],
                                 "content": message_data.content
-                            }, default=str))
+                            }, default=str), manager.user_connections[nau["id"]])
                         except:
                             pass
             except Exception as e:
@@ -4634,8 +4509,11 @@ async def create_paper_trade(trade_data: PaperTradeCreate, user_id: str):
     if not user or user.get("status") != UserStatus.APPROVED:
         raise HTTPException(status_code=403, detail="User not found or not approved")
     
+    if quote_number(trade_data.price, positive=True) is None or trade_data.quantity <= 0 or trade_data.action not in {"BUY", "SELL"}:
+        raise HTTPException(status_code=422, detail="Use a positive quantity and finite, positive manual journal price.")
     trade = PaperTrade(
         user_id=user_id,
+        price_source="manual_journal", price_verified=False,
         **trade_data.dict()
     )
     
@@ -4713,6 +4591,14 @@ async def get_user_positions(user_id: str):
     formatted_positions = []
     for position in positions:
         formatted_position = Position(**position).dict()
+        formatted_position.update({
+            "quote": position.get("quote"),
+            "valuation_status": position.get("valuation_status", "unavailable"),
+            "valuation_as_of": position.get("valuation_as_of"),
+            "valuation_received_at": position.get("valuation_received_at"),
+            "price_provenance": position.get("price_provenance", "legacy_unverified"),
+            "execution_eligible": position.get("execution_eligible", False),
+        })
         # Add formatted values for frontend
         formatted_position["formatted_avg_price"] = format_price_display(position.get("avg_price"))
         formatted_position["formatted_current_price"] = format_price_display(position.get("current_price"))
@@ -4728,11 +4614,19 @@ async def position_action(position_id: str, action_data: PositionAction, user_id
     if not position:
         raise HTTPException(status_code=404, detail="Position not found")
     
-    # Get current price if not provided
-    current_price = action_data.price or await get_current_stock_price(position["symbol"])
+    # User-supplied journal prices remain permitted, with explicit provenance.
+    # Omitting one requires an execution-qualified quote and otherwise fails.
+    if action_data.price is not None:
+        current_price = quote_number(action_data.price, positive=True)
+        if current_price is None:
+            raise HTTPException(status_code=422, detail="Enter a finite, positive manual journal price.")
+        price_source = "manual_journal"
+    else:
+        current_price = await get_current_stock_price(position["symbol"])
+        price_source = "provider_paper_fill"
     
     if action_data.action == "BUY_MORE":
-        if not action_data.quantity:
+        if not action_data.quantity or action_data.quantity <= 0:
             raise HTTPException(status_code=400, detail="Quantity required for buy more action")
         
         # Create BUY trade
@@ -4742,6 +4636,8 @@ async def position_action(position_id: str, action_data: PositionAction, user_id
             action="BUY",
             quantity=action_data.quantity,
             price=current_price,
+            price_source=price_source,
+            price_verified=False,
             position_id=position_id,
             notes=f"Added to existing position"
         )
@@ -4759,7 +4655,7 @@ async def position_action(position_id: str, action_data: PositionAction, user_id
             }}
         )
         
-        return {"message": f"Added {action_data.quantity} shares at ${current_price}"}
+        return {"message": f"Added {action_data.quantity} shares at ${current_price}", "price_source": price_source, "price_verified": False}
     
     elif action_data.action in ["SELL_PARTIAL", "SELL_ALL"]:
         sell_quantity = action_data.quantity if action_data.action == "SELL_PARTIAL" else position["quantity"]
@@ -4777,6 +4673,8 @@ async def position_action(position_id: str, action_data: PositionAction, user_id
             action="SELL",
             quantity=sell_quantity,
             price=current_price,
+            price_source=price_source,
+            price_verified=False,
             position_id=position_id,
             is_closed=(sell_quantity == position["quantity"]),
             notes=f"{'Full' if sell_quantity == position['quantity'] else 'Partial'} position close"
@@ -4806,7 +4704,7 @@ async def position_action(position_id: str, action_data: PositionAction, user_id
             )
         
         profit_loss = (current_price - position["avg_price"]) * sell_quantity
-        return {"message": f"Sold {sell_quantity} shares at ${current_price}", "profit_loss": round(profit_loss, 2)}
+        return {"message": f"Sold {sell_quantity} shares at ${current_price}", "profit_loss": round(profit_loss, 2), "price_source": price_source, "price_verified": False}
     
     else:
         raise HTTPException(status_code=400, detail="Invalid action")
@@ -4894,6 +4792,8 @@ async def get_user_trade_history(user_id: str, limit: int = 50):
             "action": action,
             "quantity": quantity,
             "price": price,
+            "price_source": trade.get("price_source", "legacy_unverified"),
+            "price_verified": trade.get("price_verified", False),
             "timestamp": trade["timestamp"],
             "formatted_price": format_price_display(price),
             "profit_loss": None,
@@ -4937,12 +4837,9 @@ async def get_user_performance(user_id: str):
     return performance
 
 @api_router.put("/users/{user_id}/profile", response_model=User)
-async def update_user_profile(user_id: str, profile_data: ProfileUpdate):
+async def update_user_profile(request: Request, user_id: str, profile_data: ExistingProfileUpdate):
     """Update user profile information"""
-    # Check if user exists
-    user = await db.users.find_one({"id": user_id})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = await require_profile_owner(request, user_id)
     
     # Prepare update data
     update_data = {}
@@ -5029,8 +4926,29 @@ async def upload_intro_video(video: UploadFile = File(...)):
         logger.error(f"Error uploading video: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
 
+# Stock intake and reads use their own external/member authentication boundaries.
+try:
+    from .stock_alerts import StockAlertService, active_membership
+    from .membership import MEMBERSHIP_REQUIRED
+    from .square_billing import SquareBillingService
+except ImportError:
+    from stock_alerts import StockAlertService, active_membership
+    from membership import MEMBERSHIP_REQUIRED
+    from square_billing import SquareBillingService
+stock_alert_service = StockAlertService(db, require_profile_owner, get_active_fcm_tokens)
+app.include_router(stock_alert_service.router())
+square_billing_service = SquareBillingService(db, require_profile_owner, verify_password)
+app.include_router(square_billing_service.router())
+
 # Include the router in the main app
-app.include_router(api_router)
+app.include_router(api_router, dependencies=[Depends(require_legacy_active_session)])
+
+# Five authenticated PAPER observation rooms and per-member practice accounts.
+try:
+    from .nautilus_api import create_nautilus_router
+except ImportError:
+    from nautilus_api import create_nautilus_router
+app.include_router(create_nautilus_router(db))
 
 # Configure logging
 logging.basicConfig(

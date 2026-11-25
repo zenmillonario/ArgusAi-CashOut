@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { formatPrice, formatPnL, formatPercentage, formatCurrency } from './utils';
+import QuoteObservation from './QuoteObservation';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
@@ -61,7 +62,8 @@ const PortfolioTab = ({
   const openActionModal = (position, action) => {
     setActionModal({ position, action });
     setActionQuantity('');
-    setActionPrice(position.current_price || '');
+    // A last-observed quote must not become a user-confirmed manual fill.
+    setActionPrice('');
   };
 
   const executeAction = async () => {
@@ -70,6 +72,11 @@ const PortfolioTab = ({
     const { position, action } = actionModal;
     let quantity = null;
     let price = parseFloat(actionPrice) || null;
+    if ((price !== null && (!Number.isFinite(price) || price <= 0)) ||
+        (price === null && position.execution_eligible !== true)) {
+      alert('Enter a positive manual journal price. A verified current quote is not available for automatic fills.');
+      return;
+    }
     
     if (action === 'BUY_MORE') {
       quantity = parseInt(actionQuantity);
@@ -85,8 +92,8 @@ const PortfolioTab = ({
       }
     }
     
-    await handlePositionAction(position.id, action, quantity, price);
-    setActionModal(null);
+    const saved = await handlePositionAction(position.id, action, quantity, price);
+    if (saved !== false) setActionModal(null);
   };
 
   return (
@@ -100,6 +107,7 @@ const PortfolioTab = ({
         <h2 className={`text-xl font-bold mb-3 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
           📊 Portfolio Summary
         </h2>
+        <p className={`text-xs mb-3 ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>Stock practice journal · Manual entries are self-reported. This history is separate from your $100 bot practice balance.</p>
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="text-center">
@@ -178,9 +186,9 @@ const PortfolioTab = ({
                     
                     {/* Current Price */}
                     <div>
-                      <div className={isDarkTheme ? 'text-gray-400' : 'text-gray-600'}>Current</div>
+                      <div className={isDarkTheme ? 'text-gray-400' : 'text-gray-600'}>{position.price_provenance === 'provider_observation' ? 'Last observed' : 'Last saved'}</div>
                       <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                        ${position.current_price ? formatPrice(position.current_price) : 'Loading...'}
+                        {position.current_price ? `$${formatPrice(position.current_price)}` : 'Unavailable'}
                       </div>
                     </div>
                     
@@ -199,6 +207,11 @@ const PortfolioTab = ({
                       </div>
                     </div>
                   </div>
+
+                  {position.price_provenance === 'provider_observation'
+                    ? <QuoteObservation quote={{ ...position.quote, source_timestamp: position.valuation_as_of }} unavailable={position.valuation_status === 'unavailable'} />
+                    : <p className="text-xs mt-2 opacity-75">Previously saved value · Quote provenance is unverified.</p>}
+                  {position.execution_eligible !== true && <p className="text-xs mt-1 opacity-75">Automatic stock fills and stop/target closes are paused until a current execution quote is verified.</p>}
 
                   {/* Compact Action Buttons */}
                   <div className="flex gap-1 mt-2">
@@ -384,7 +397,7 @@ const PortfolioTab = ({
                 Current Position: {actionModal.position.quantity} shares @ ${formatPrice(actionModal.position.avg_price)}
               </div>
               <div className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                Current Price: ${actionModal.position.current_price ? formatPrice(actionModal.position.current_price) : 'Loading...'}
+                Last saved price: {actionModal.position.current_price ? `$${formatPrice(actionModal.position.current_price)}` : 'Unavailable'}
               </div>
             </div>
 
@@ -413,11 +426,13 @@ const PortfolioTab = ({
               
               <div>
                 <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Price per Share
+                  Manual journal price per share
                 </label>
                 <input
                   type="number"
                   step="0.00000001"
+                  min="0.00000001"
+                  required={actionModal.position.execution_eligible !== true}
                   className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     isDarkTheme 
                       ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
@@ -425,8 +440,9 @@ const PortfolioTab = ({
                   }`}
                   value={actionPrice}
                   onChange={(e) => setActionPrice(e.target.value)}
-                  placeholder="Current market price"
+                  placeholder="Enter your practice fill price"
                 />
+                <p className="text-xs mt-2 opacity-75">This is a self-reported practice entry, not a verified market fill.</p>
               </div>
 
               {/* Order Summary */}

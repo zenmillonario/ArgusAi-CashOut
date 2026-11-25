@@ -7,6 +7,7 @@ import UserList from './UserList';
 import FavoritesTab from './FavoritesTab';
 import AchievementsTab from './AchievementsTab';
 import NotificationsTab from './NotificationsTab';
+import QuoteObservation from './QuoteObservation';
 import ProfileCustomization from './ProfileCustomization';
 import PublicProfile from './PublicProfile';
 import XPProgressBar from './XPProgressBar';
@@ -14,8 +15,19 @@ import AssetAllocationWheel from './AssetAllocationWheel';
 import LoadingScreen from './LoadingScreen';
 import { formatPrice, formatPnL, formatCurrency } from './utils';
 import notificationService from './firebase-config';
+import { sameSession, sessionHeaders, removeStoredSession, closeSessionTransport } from './sessionAuth.mjs';
 import capacitorManager from './capacitor-utils';
 import './App.css';
+import BotTabs from './nautilus/BotTabs';
+import BotTabContainer from './nautilus/BotTabContainer';
+import StocksWorkspace from './nautilus/StocksWorkspace';
+import useStockAlerts from './useStockAlerts';
+import { readStockAlertLink } from './stockNotifications.mjs';
+import AppNavigation, { TradingTools, CommunityNavigation, MembersDirectory } from './social/AppNavigation';
+import { appSection, unreadCount, reactionType, reactionSummary, persistReaction, winDraft } from './social/socialModel.mjs';
+import BillingPanel, { AdminBillingPanel } from './billing/BillingPanel';
+import { MEMBERSHIP_PLANS, membershipPlan, moneyFromCents, signupPlanIntent, billingReturnIntent, normalizeBillingProof,
+  readBillingProof, saveBillingProof, clearBillingProof, memberBillingCredential, responseBelongsToSession } from './billing/billingModel.mjs';
 
 // Error Boundary Component for Mobile App
 class MobileErrorBoundary extends React.Component {
@@ -73,6 +85,17 @@ const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 function App() {
   const [showLoadingScreen, setShowLoadingScreen] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const activeUserRef = useRef(null);
+  activeUserRef.current = currentUser;
+  const [billingPlanId, setBillingPlanId] = useState(() => signupPlanIntent(window.location.search));
+  const [openBillingOnLogin] = useState(() => billingReturnIntent(window.location.search));
+  const [billingProof, setBillingProof] = useState(() => readBillingProof(window.sessionStorage));
+  const billingProofRef = useRef(billingProof);
+  billingProofRef.current = billingProof;
+  const authAttemptRef = useRef(0);
+  const [membershipPaymentRequired, setMembershipPaymentRequired] = useState(false);
+  const membershipRequiredRef = useRef(false);
+  membershipRequiredRef.current = membershipPaymentRequired;
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -86,15 +109,17 @@ function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionMode, setConnectionMode] = useState('disconnected'); // 'websocket', 'polling', 'disconnected'
   const [showLogin, setShowLogin] = useState(true);
-  const [loginForm, setLoginForm] = useState({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
+  const [loginForm, setLoginForm] = useState(() => ({ username: '', email: '', password: '', real_name: '', membership_plan: membershipPlan(signupPlanIntent(window.location.search))?.registrationLabel || '' }));
   const [rememberMe, setRememberMe] = useState(false);
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(() => Boolean(signupPlanIntent(window.location.search)));
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [mobileUserListOpen, setMobileUserListOpen] = useState(false); // Track mobile user list state
   const [pendingUsers, setPendingUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [communityMembers, setCommunityMembers] = useState([]);
+  const [memberDirectoryError, setMemberDirectoryError] = useState('');
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [activeTab, setActiveTab] = useState('chat');
+  const [activeTab, setActiveTab] = useState(() => readStockAlertLink(window.location.search) ? 'stocks' : signupPlanIntent(window.location.search) || billingReturnIntent(window.location.search) ? 'profile' : 'bot-BTC');
   const [userTrades, setUserTrades] = useState([]);
   const [userPerformance, setUserPerformance] = useState(null);
   const [openPositions, setOpenPositions] = useState([]);
@@ -106,8 +131,54 @@ function App() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetPasswordForm, setResetPasswordForm] = useState({ email: '', new_password: '', confirm_password: '' });
-  const [resetTokenForm, setResetTokenForm] = useState({ token: '', new_password: '', confirm_password: '' });
+  const [resetPasswordForm, setResetPasswordForm] = useState({ email: '' });
+  const [resetTokenForm, setResetTokenForm] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return {
+      token: params.get('reset_token') || (window.location.pathname === '/reset-password' ? params.get('token') : '') || '',
+      new_password: '', confirm_password: ''
+    };
+  });
+  const [passwordRecoveryBusy, setPasswordRecoveryBusy] = useState(false);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('reset_token') || (url.pathname === '/reset-password' && url.searchParams.has('token'))) {
+      url.searchParams.delete('reset_token');
+      url.searchParams.delete('token');
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Credentials accompany only requests to this app's API, never other URLs.
+    const interceptor = axios.interceptors.request.use(config => {
+      const session = activeUserRef.current;
+      const explicitBilling = config.headers?.get?.('X-Billing-Token') || config.headers?.['X-Billing-Token'] || config.headers?.['x-billing-token'];
+      if (session?.id && session?.active_session_id && !explicitBilling) {
+        const endpoint = new URL(config.url || '', window.location.origin);
+        const expected = new URL(API, window.location.origin);
+        if (endpoint.origin === expected.origin &&
+            (endpoint.pathname === expected.pathname || endpoint.pathname.startsWith(`${expected.pathname}/`))) {
+          config.headers = {
+            ...sessionHeaders(session),
+            ...config.headers
+          };
+        }
+      }
+      return config;
+    });
+    const responseInterceptor = axios.interceptors.response.use(response => response, error => {
+      const detail = error.response?.data?.detail;
+      const session = activeUserRef.current;
+      if (error.response?.status === 403 && detail?.code === 'membership_required' &&
+          responseBelongsToSession(error.config?.headers, session)) {
+        requireMembershipForSession(session);
+      }
+      return Promise.reject(error);
+    });
+    return () => { axios.interceptors.request.eject(interceptor); axios.interceptors.response.eject(responseInterceptor); };
+  }, []);
   const [editProfileForm, setEditProfileForm] = useState({
     username: '',
     email: '',
@@ -123,10 +194,7 @@ function App() {
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [audioContext, setAudioContext] = useState(null);
-  const [serviceWorker, setServiceWorker] = useState(null);
-  const [pushSubscription, setPushSubscription] = useState(null);
   const [tradeForm, setTradeForm] = useState({
     symbol: '',
     action: 'BUY',
@@ -137,10 +205,18 @@ function App() {
     take_profit: ''
   });
   const [currentStockPrice, setCurrentStockPrice] = useState(null);
+  const [currentStockQuote, setCurrentStockQuote] = useState(null);
   const [priceLoading, setPriceLoading] = useState(false);
   const [replyToMessage, setReplyToMessage] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [messageReactions, setMessageReactions] = useState({});
+  const reactionCache = useRef({ loaded: new Set(), pending: new Set(), mine: {} });
+  const [communityError, setCommunityError] = useState('');
+  const [winComposerOpen, setWinComposerOpen] = useState(false);
+  const [composerFocus, setComposerFocus] = useState(0);
+  const lastTradingRoom = useRef('bot-BTC');
+  if (activeTab.startsWith('bot-') || activeTab === 'stocks') lastTradingRoom.current = activeTab;
+  const section = appSection(activeTab);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [showUserList, setShowUserList] = useState(true);
   const [userXP, setUserXP] = useState({ experience_points: 0, level: 1 });
@@ -148,6 +224,11 @@ function App() {
   const [viewingUserId, setViewingUserId] = useState(null);
   const wsRef = useRef(null);
   const messagesEndRef = useRef(null);
+  // Keep the member credential for billing, while alert callbacks see no
+  // eligible member during a membership gate (including focus callbacks).
+  const stockUserRef = useRef(null);
+  stockUserRef.current = membershipPaymentRequired ? null : currentUser;
+  const stocks = useStockAlerts({ currentUser: membershipPaymentRequired ? null : currentUser, activeUserRef: stockUserRef, activeTab, setActiveTab, apiBase: API });
 
   // Filter messages based on search query
   useEffect(() => {
@@ -212,15 +293,11 @@ function App() {
           console.log(`🕒 Session check: Age=${sessionAge.toFixed(1)}h, Max=${maxSessionHours}h, RememberMe=${user.rememberMe}`);
           
           if (sessionAge < maxSessionHours && user.active_session_id) {
+            clearBillingProof(window.sessionStorage);
+            billingProofRef.current = null;
+            setBillingProof(null);
             setCurrentUser(user);
             setShowLogin(false);
-            
-            // Initialize Firebase push notifications for saved user (non-blocking)
-            if (!capacitorManager.isMobile()) {
-              notificationService.initializeForUser(user.id)
-                .then(success => console.log(success ? '✅ Firebase notifications initialized' : '⚠️ Firebase notifications unavailable'))
-                .catch(err => console.log('⚠️ Firebase init skipped:', err.message));
-            }
             
             // Set up automatic session refresh for remember me sessions
             if (user.rememberMe) {
@@ -264,19 +341,22 @@ function App() {
   }, [currentUser]);
 
   const loadNotifications = async () => {
-    if (!currentUser) return;
-    
+    const session = activeUserRef.current;
+    if (!session) return;
     try {
-      const response = await axios.get(`${API}/users/${currentUser.id}/notifications`);
-      setNotifications(response.data);
+      const response = await axios.get(`${API}/users/${session.id}/notifications`, { headers: sessionHeaders(session) });
+      if (sameSession(activeUserRef.current, session)) setNotifications(response.data);
     } catch (error) {
       console.error('Error loading notifications:', error);
     }
   };
 
   const markNotificationAsRead = async (notificationId) => {
+    const session = activeUserRef.current;
+    if (!session) return;
     try {
-      await axios.put(`${API}/users/${currentUser.id}/notifications/${notificationId}/read`);
+      await axios.put(`${API}/users/${session.id}/notifications/${notificationId}/read`, null, { headers: sessionHeaders(session) });
+      if (!sameSession(activeUserRef.current, session)) return false;
       setNotifications(prev => 
         prev.map(notification => 
           notification.id === notificationId 
@@ -284,19 +364,79 @@ function App() {
             : notification
         )
       );
+      return true;
     } catch (error) {
       console.error('Error marking notification as read:', error);
+      return false;
     }
   };
 
   const deleteNotification = async (notificationId) => {
+    const session = activeUserRef.current;
+    if (!session) return;
     try {
-      await axios.delete(`${API}/users/${currentUser.id}/notifications/${notificationId}`);
+      await axios.delete(`${API}/users/${session.id}/notifications/${notificationId}`, { headers: sessionHeaders(session) });
+      if (!sameSession(activeUserRef.current, session)) return;
       setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
+      return true;
     } catch (error) {
       console.error('Error deleting notification:', error);
+      return false;
     }
   };
+
+  const markAllNotificationsAsRead = async () => {
+    const session = activeUserRef.current;
+    if (!session) return false;
+    try {
+      await axios.post(`${API}/users/${session.id}/notifications/read-all`, null, { headers: sessionHeaders(session) });
+      if (!sameSession(activeUserRef.current, session)) return false;
+      setNotifications(previous => previous.map(item => ({ ...item, read: true })));
+      return true;
+    } catch (_) { return false; }
+  };
+
+  const openNotification = notification => {
+    if (!notification.read) markNotificationAsRead(notification.id);
+    if (notification.type === 'follow' && notification.data?.follower_id) setViewingUserId(notification.data.follower_id);
+    else if (notification.type === 'achievement') setActiveTab('achievements');
+    else setActiveTab('chat');
+  };
+
+  function shareWin() {
+    setActiveTab('chat');
+    setNewMessage(previous => winDraft(previous));
+    if (!newMessage.trim()) setReplyToMessage(null);
+    setWinComposerOpen(true);
+    setComposerFocus(previous => previous + 1);
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'chat' || !composerFocus) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const input = document.querySelector('.cashout-chat-composer textarea');
+      input?.focus();
+      if (input) input.setSelectionRange(input.value.length, input.value.length);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab, composerFocus]);
+
+  useEffect(() => {
+    if (activeTab === 'notifications' && currentUser && !membershipPaymentRequired) loadNotifications();
+  }, [activeTab, currentUser?.id, currentUser?.active_session_id, membershipPaymentRequired]);
+
+  useEffect(() => {
+    const session = activeUserRef.current;
+    if (section !== 'community' || !session || membershipPaymentRequired) return undefined;
+    let cancelled = false;
+    setMemberDirectoryError('');
+    axios.get(`${API}/community/members`, { headers: sessionHeaders(session) }).then(response => {
+      if (!cancelled && sameSession(activeUserRef.current, session)) setCommunityMembers(response.data.users || []);
+    }).catch(() => {
+      if (!cancelled && sameSession(activeUserRef.current, session)) setMemberDirectoryError('The member directory could not load. Open Community again to retry.');
+    });
+    return () => { cancelled = true; };
+  }, [section, currentUser?.id, currentUser?.active_session_id, membershipPaymentRequired]);
 
   const toggleTheme = () => {
     const newTheme = !isDarkTheme;
@@ -441,105 +581,6 @@ function App() {
     }
   };
 
-  const showServiceWorkerNotification = async (title, message, adminName = null) => {
-    try {
-      if ('serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.ready;
-        
-        await registration.showNotification(title, {
-          body: adminName ? `${adminName}: ${message}` : message,
-          icon: 'https://i.imgur.com/ZPYCiyg.png',
-          badge: 'https://i.imgur.com/ZPYCiyg.png',
-          vibrate: [300, 200, 300, 200, 300],
-          tag: 'cashoutai-admin',
-          requireInteraction: true,
-          silent: false,
-          actions: [
-            {
-              action: 'view',
-              title: 'View Message'
-            },
-            {
-              action: 'close',
-              title: 'Close'
-            }
-          ],
-          data: {
-            url: '/',
-            timestamp: Date.now()
-          }
-        });
-        
-        console.log('🔔 Service Worker notification shown with actions');
-        return true;
-      }
-    } catch (error) {
-      console.error('Service Worker notification failed:', error);
-    }
-    return false;
-  };
-
-  const showBrowserNotification = async (title, message, isAdmin = false) => {
-    // Check if notifications are supported
-    if (!("Notification" in window)) {
-      console.log("This browser does not support notifications");
-      return;
-    }
-
-    // Only show notifications for admin messages
-    if (!isAdmin) {
-      return;
-    }
-
-    // Check notification permission
-    if (Notification.permission === "granted") {
-      
-      // Try to use Service Worker for rich notifications first
-      const swSuccess = await showServiceWorkerNotification(
-        title, 
-        message, 
-        currentUser?.real_name || currentUser?.username
-      );
-      
-      if (swSuccess) {
-        return; // Service Worker notification successful
-      }
-      
-      // Fallback to basic notification without actions
-      console.log('Using basic notification fallback');
-      const notification = new Notification(title, {
-        body: message,
-        icon: "https://i.imgur.com/ZPYCiyg.png",
-        badge: "https://i.imgur.com/ZPYCiyg.png",
-        tag: "cashoutai-admin",
-        requireInteraction: true,
-        silent: false,
-        vibrate: [300, 200, 300, 200, 300]
-        // NOTE: No actions here - only supported in Service Worker notifications
-      });
-
-      // Auto close after 8 seconds (longer for admin messages)
-      setTimeout(() => {
-        notification.close();
-      }, 8000);
-
-      // Handle notification clicks
-      notification.onclick = () => {
-        window.focus();
-        notification.close();
-      };
-
-      console.log('🔔 Basic browser notification shown (fallback)');
-      
-    } else if (Notification.permission !== "denied") {
-      // Request permission
-      const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        showBrowserNotification(title, message, isAdmin);
-      }
-    }
-  };
-
   // Reset document title when user focuses on the app
   useEffect(() => {
     const handleFocus = () => {
@@ -579,15 +620,6 @@ function App() {
     };
   }, []);
 
-  // Request notification permission on app load
-  useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission().then((permission) => {
-        console.log('Notification permission:', permission);
-      });
-    }
-  }, []);
-
   // Mobile app initialization
   useEffect(() => {
     const initializeMobileApp = async () => {
@@ -617,174 +649,83 @@ function App() {
     initializeMobileApp();
   }, []);
 
-  // Service Worker registration and push notification setup
-  useEffect(() => {
-    const registerServiceWorker = async () => {
-      if ('serviceWorker' in navigator) {
-        try {
-          const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-          console.log('Service Worker registered successfully:', registration);
-          
-          // Wait for service worker to be ready
-          await navigator.serviceWorker.ready;
-          
-          // Get the active service worker
-          const worker = registration.active || registration.waiting || registration.installing;
-          if (worker) {
-            setServiceWorker(worker);
-            console.log('Service Worker set:', worker.state);
-          }
-          
-          // Listen for service worker state changes
-          if (registration.installing) {
-            registration.installing.addEventListener('statechange', (e) => {
-              if (e.target.state === 'activated') {
-                setServiceWorker(e.target);
-                console.log('Service Worker activated');
-              }
-            });
-          }
-          
-          // Listen for service worker updates
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing;
-            if (newWorker) {
-              newWorker.addEventListener('statechange', (e) => {
-                if (e.target.state === 'activated') {
-                  setServiceWorker(e.target);
-                  console.log('Service Worker updated and activated');
-                }
-              });
-            }
-          });
-          
-          // Request notification permission if not already granted
-          if (Notification.permission === 'default') {
-            const permission = await Notification.requestPermission();
-            console.log('Notification permission result:', permission);
-          }
-          
-          // Set up push notifications if supported
-          if ('PushManager' in window && registration.pushManager) {
-            try {
-              const subscription = await registration.pushManager.getSubscription();
-              if (subscription) {
-                setPushSubscription(subscription);
-                console.log('Existing push subscription found');
-              } else {
-                // Create new subscription (you would need VAPID keys for production)
-                console.log('No existing push subscription found');
-              }
-            } catch (error) {
-              console.error('Push subscription error:', error);
-            }
-          }
-          
-        } catch (error) {
-          console.error('Service Worker registration failed:', error);
-        }
-      }
-    };
-
-    registerServiceWorker();
-  }, []);
-
-  // Background sync for admin message checking
-  useEffect(() => {
-    if (serviceWorker && currentUser) {
-      const handleVisibilityChange = () => {
-        if (document.hidden) {
-          // App went to background, register background sync
-          if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
-            navigator.serviceWorker.ready.then((registration) => {
-              return registration.sync.register('admin-message-check');
-            }).catch((error) => {
-              console.error('Background sync registration failed:', error);
-            });
-          }
-        }
-      };
-
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      
-      return () => {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-      };
-    }
-  }, [serviceWorker, currentUser]);
-
-  const addReaction = (messageId, reaction) => {
-    console.log(`Adding reaction ${reaction} to message ${messageId}`);
-    
-    // Find the message to get its author
-    const message = messages.find(msg => msg.id === messageId);
-    if (!message) return;
-    
-    setMessageReactions(prev => {
-      const messageReacts = prev[messageId] || {};
-      const currentCount = messageReacts[reaction] || 0;
-      
-      // Create notification if it's someone else's message
-      if (message.user_id !== currentUser?.id) {
-        const newNotification = {
-          type: 'reaction',
-          from: currentUser?.screen_name || currentUser?.username,
-          to: message.user_id,
-          originalMessage: message.content_type === 'image' ? '📷 Image' : message.content.substring(0, 50),
-          reaction: reaction,
-          timestamp: new Date().toLocaleTimeString(),
-          messageId: messageId
-        };
-        
-        setNotifications(prev => [newNotification, ...(prev || []).slice(0, 49)]); // Keep last 50 notifications
-      }
-      
-      return {
-        ...prev,
-        [messageId]: {
-          ...messageReacts,
-          [reaction]: currentCount + 1
-        }
-      };
-    });
-  };
-
-
-
-  // Fetch stock price when symbol changes
-  const fetchCurrentPrice = async (symbol) => {
-    if (!symbol || symbol.length < 1) {
-      setCurrentStockPrice(null);
-      return;
-    }
-    
+  async function loadReactionState(session, messageId) {
+    if (!messageId || !sameSession(activeUserRef.current, session)) return;
+    const cache = reactionCache.current;
     try {
-      setPriceLoading(true);
-      const response = await axios.get(`${API}/stock/${symbol}`);
-      setCurrentStockPrice(response.data.price);
-      // Auto-fill price in form
-      setTradeForm(prev => ({
-        ...prev,
-        price: response.data.price.toString()
-      }));
-    } catch (error) {
-      console.error('Error fetching stock price:', error);
-      setCurrentStockPrice(null);
-    } finally {
-      setPriceLoading(false);
-    }
+      const response = await axios.get(`${API}/messages/${encodeURIComponent(messageId)}/reactions`, { headers: sessionHeaders(session) });
+      if (!sameSession(activeUserRef.current, session) || cache !== reactionCache.current) return;
+      const summary = reactionSummary(response.data, session.id);
+      cache.mine[messageId] = summary.mine;
+      cache.loaded.add(messageId);
+      setMessageReactions(previous => ({ ...previous, [messageId]: summary.counts }));
+    } catch (_) { cache.loaded.delete(messageId); }
+  }
+
+  const addReaction = async (messageId, reaction) => {
+    const session = activeUserRef.current;
+    const type = reactionType(reaction);
+    if (!session || !type || !messages.some(message => message.id === messageId)) return;
+    const cache = reactionCache.current;
+    if (cache.pending.has(messageId)) return;
+    cache.pending.add(messageId); setCommunityError('');
+    try {
+      const summary = await persistReaction({ client: axios, api: API, session, currentSession: () => activeUserRef.current,
+        messageId, reaction: type, remove: (cache.mine[messageId] || []).includes(type) });
+      if (!summary || !sameSession(activeUserRef.current, session) || cache !== reactionCache.current) return;
+      cache.mine[messageId] = summary.mine; cache.loaded.add(messageId);
+      setMessageReactions(previous => ({ ...previous, [messageId]: summary.counts }));
+    } catch (_) {
+      if (sameSession(activeUserRef.current, session)) setCommunityError('Your reaction could not be saved. Please try again.');
+    } finally { cache.pending.delete(messageId); }
   };
 
-  // Auto-fetch price when symbol changes
   useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      if (tradeForm.symbol && tradeForm.symbol.length >= 1) {
-        fetchCurrentPrice(tradeForm.symbol);
-      }
-    }, 500); // Debounce for 500ms
+    reactionCache.current = { loaded: new Set(), pending: new Set(), mine: {} };
+    setMessageReactions({}); setCommunityError('');
+  }, [currentUser?.id, currentUser?.active_session_id]);
 
-    return () => clearTimeout(debounceTimer);
-  }, [tradeForm.symbol]);
+  useEffect(() => {
+    if (activeTab !== 'chat' || !currentUser || membershipPaymentRequired) return undefined;
+    const session = { id: currentUser.id, active_session_id: currentUser.active_session_id };
+    const cache = reactionCache.current;
+    const missing = messages.slice(-50).filter(message => message.id && !cache.loaded.has(message.id));
+    // Bounded initial reads; live reaction_updated events refresh individual rows.
+    let cancelled = false;
+    (async () => {
+      for (let start = 0; start < missing.length; start += 5) {
+        if (cancelled || !sameSession(activeUserRef.current, session)) return;
+        await Promise.allSettled(missing.slice(start, start + 5).map(message => loadReactionState(session, message.id)));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeTab, messages, currentUser?.id, currentUser?.active_session_id, membershipPaymentRequired]);
+
+  // Fetch only the visible journal's selected symbol. A provider observation is
+  // reference data, not a verified fill and never an automatic manual entry.
+  useEffect(() => {
+    let cancelled = false;
+    const session = activeUserRef.current;
+    setCurrentStockPrice(null);
+    setCurrentStockQuote(null);
+    setPriceLoading(false);
+    if (activeTab !== 'practice' || !tradeForm.symbol || !session || membershipPaymentRequired) return undefined;
+    const debounceTimer = setTimeout(() => {
+      if (cancelled) return;
+      setPriceLoading(true);
+      axios.get(`${API}/stock/${encodeURIComponent(tradeForm.symbol)}`, { headers: sessionHeaders(session) }).then(response => {
+        if (!cancelled && sameSession(activeUserRef.current, session)) {
+          setCurrentStockPrice(response.data.price);
+          setCurrentStockQuote(response.data);
+        }
+      }).catch(() => {
+        if (!cancelled && sameSession(activeUserRef.current, session)) { setCurrentStockPrice(null); setCurrentStockQuote(null); }
+      }).finally(() => {
+        if (!cancelled && sameSession(activeUserRef.current, session)) setPriceLoading(false);
+      });
+    }, 500);
+    return () => { cancelled = true; clearTimeout(debounceTimer); };
+  }, [tradeForm.symbol, activeTab, currentUser?.id, currentUser?.active_session_id, membershipPaymentRequired]);
 
   // Simple scroll-to-bottom function using container scroll instead of scrollIntoView
   const scrollToBottom = () => {
@@ -873,52 +814,81 @@ function App() {
 
 
 
-  // WebSocket connection
+  // Each connection belongs to one captured login, including its fallback polls.
   useEffect(() => {
-    if (currentUser && !wsRef.current && currentUser.active_session_id) {
-      // Build WebSocket URL correctly for different deployment environments
-      let wsUrl;
-      
-      if (BACKEND_URL.includes('onrender.com')) {
-        // For Render deployment, use the backend URL directly with /api prefix
-        const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
-        const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
-        wsUrl = `${wsProtocol}${wsHost}/api/ws/${currentUser.id}/${currentUser.active_session_id}`;
-      } else {
-        // For other deployments (Emergent, etc.) with /api prefix
-        const wsProtocol = BACKEND_URL.startsWith('https://') ? 'wss://' : 'ws://';
-        const wsHost = BACKEND_URL.replace('https://', '').replace('http://', '');
-        wsUrl = `${wsProtocol}${wsHost}/api/ws/${currentUser.id}/${currentUser.active_session_id}`;
-      }
-      
-      // MOBILE OPTIMIZATION: Use mobile-friendly WebSocket URL
-      const baseWsUrl = capacitorManager.isNative 
-        ? capacitorManager.getWebSocketUrl(BACKEND_URL)
-        : wsUrl.replace(`/${currentUser.id}/${currentUser.active_session_id}`, '');
-          
-      const finalWsUrl = `${baseWsUrl}/${currentUser.id}/${currentUser.active_session_id}`;
-      console.log('🔌 Connecting to WebSocket:', finalWsUrl);
-      
-      const ws = new WebSocket(finalWsUrl);
-      
-      ws.onopen = () => {
-        setIsConnected(true);
-        setConnectionMode('websocket');
-        console.log('WebSocket connected successfully');
-        // Send a heartbeat to establish connection
-        ws.send(JSON.stringify({ type: 'heartbeat', message: 'Hello' }));
-      };
-      
-      ws.onmessage = async (event) => {
+    if (!currentUser?.id || !currentUser?.active_session_id || membershipPaymentRequired) return;
+    const session = { id: currentUser.id, active_session_id: currentUser.active_session_id };
+    const headers = sessionHeaders(session);
+    let disposed = false;
+    let polling = null;
+    let checkingSession = false;
+    let checkingMessages = false;
+    const isCurrent = () => !disposed && !membershipRequiredRef.current && sameSession(activeUserRef.current, session);
+    const expireSession = () => {
+      if (!isCurrent()) return;
+      clearLocalSession(session);
+      alert('Your session has ended. Sign in again to continue.');
+    };
+    const startPolling = () => {
+      if (!isCurrent() || polling) return;
+      const checkSession = async () => {
+        if (!isCurrent() || checkingSession) return;
+        checkingSession = true;
         try {
-          const data = JSON.parse(event.data);
-          console.log('WebSocket message received:', data);
-          
-          if (data.type === 'session_invalidated') {
-            // Session has been invalidated by login from another location
-            alert('🔒 Your session has been terminated due to login from another location.');
-            logout();
-          } else if (data.type === 'message') {
+          const response = await axios.get(`${API}/users/${session.id}/session-status`, { headers });
+          if (!isCurrent()) return;
+          if (!response.data.valid) { expireSession(); return; }
+          setIsConnected(true);
+          setConnectionMode('polling');
+        } catch (error) {
+          if (!isCurrent()) return;
+          if (error.response?.status === 401) { expireSession(); return; }
+          setIsConnected(false);
+          setConnectionMode('disconnected');
+        } finally { checkingSession = false; }
+      };
+      const checkMessages = async () => {
+        if (!isCurrent() || checkingMessages) return;
+        checkingMessages = true;
+        try {
+          const response = await axios.get(`${API}/messages?limit=50&user_id=${session.id}`, { headers });
+          if (!isCurrent()) return;
+          setMessages(previous => {
+            if (!isCurrent()) return previous;
+            const ids = new Set(previous.map(message => message.id));
+            const incoming = response.data.filter(message => !ids.has(message.id));
+            if (incoming.some(message => message.is_admin && message.user_id !== session.id)) playSimpleAdminSound();
+            return [...previous, ...incoming];
+          });
+        } catch (error) {
+          if (isCurrent() && error.response?.status === 401) expireSession();
+        } finally { checkingMessages = false; }
+      };
+      polling = { type: 'polling', sessionInterval: setInterval(checkSession, 10000), messageInterval: setInterval(checkMessages, 8000) };
+      wsRef.current = polling;
+      checkSession();
+    };
+    const protocol = BACKEND_URL.startsWith('https://') || (!BACKEND_URL && window.location.protocol === 'https:') ? 'wss://' : 'ws://';
+    const host = BACKEND_URL ? BACKEND_URL.replace(/^https?:\/\//, '').replace(/\/$/, '') : window.location.host;
+    const baseUrl = capacitorManager.isNative ? capacitorManager.getWebSocketUrl(BACKEND_URL) : `${protocol}${host}/api/ws`;
+    const ws = new WebSocket(`${baseUrl}/${session.id}/${session.active_session_id}`);
+    wsRef.current = ws;
+    ws.onopen = () => {
+      if (!isCurrent()) return;
+      closeSessionTransport(polling);
+      polling = null;
+      wsRef.current = ws;
+      setIsConnected(true);
+      setConnectionMode('websocket');
+      ws.send(JSON.stringify({ type: 'heartbeat' }));
+    };
+    ws.onmessage = async event => {
+      if (!isCurrent()) return;
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'session_invalidated') {
+          expireSession();
+        } else if (data.type === 'message') {
             const message = data.data;
             setMessages(prev => [...prev, message]);
             
@@ -946,18 +916,20 @@ function App() {
                 }
               }, 100);
             }
-          } else if (data.type === 'admin_notification') {
+        } else if (data.type === 'reaction_updated' && data.message_id) {
+            await loadReactionState(session, data.message_id);
+        } else if (data.type === 'admin_notification') {
             // New admin notification handling
             console.log('🔔 Admin notification received:', data);
             
             playSimpleAdminSound();
             
-          } else if (data.type === 'notification') {
+        } else if (data.type === 'notification') {
             // New notification received
             console.log('🔔 Notification received:', data);
             
             // Add to notifications list
-            setNotifications(prev => [data.notification, ...prev]);
+            setNotifications(prev => [data.notification, ...prev.filter(item => item.id !== data.notification.id)]);
             
             // Play notification sound for follow notifications
             if (data.notification.type === 'follow') {
@@ -971,7 +943,7 @@ function App() {
               }
             }, 100);
             
-          } else if (data.type === 'user_joined') {
+        } else if (data.type === 'user_joined') {
             // User joined chat
             setOnlineUsers(prev => {
               if (!prev.find(user => user.id === data.user.id)) {
@@ -979,13 +951,13 @@ function App() {
               }
               return prev;
             });
-          } else if (data.type === 'user_left') {
+        } else if (data.type === 'user_left') {
             // User left chat
             setOnlineUsers(prev => prev.filter(user => user.id !== data.user_id));
-          } else if (data.type === 'online_users') {
+        } else if (data.type === 'online_users') {
             // Initial list of online users
             setOnlineUsers(data.users || []);
-          } else if (data.type === 'admin_message') {
+        } else if (data.type === 'admin_message') {
             // Legacy admin message handling
             console.log('🔔 Legacy admin message notification');
             playSimpleAdminSound();
@@ -994,179 +966,84 @@ function App() {
             if (document.hidden) {
               document.title = `🔔 ${data.admin_real_name || data.admin_username} - CashoutAI`;
             }
-          } else if (data.type === 'message_deleted') {
+        } else if (data.type === 'message_deleted') {
             // Remove deleted message from state
             setMessages(prev => prev.filter(m => m.id !== data.data.id));
           }
-        } catch (e) {
-          console.error('Error parsing WebSocket message:', e);
-        }
-      };
-      
-      ws.onclose = (event) => {
-        setIsConnected(false);
-        setConnectionMode('disconnected');
-        console.log('WebSocket disconnected', event);
-        wsRef.current = null;
-        
-        // Handle session invalidation close codes
-        if (event.code === 4002 || event.code === 4003) {
-          alert('🔒 Your session has expired or been invalidated. Please log in again.');
-          logout();
-        }
-      };
-      
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setIsConnected(false);
-        
-        // Add fallback mechanism for session validation when WebSocket fails
-        if (currentUser?.active_session_id) {
-          console.log('WebSocket failed, falling back to polling mode...');
-          
-          // Set connected status to show as "Polling" instead of "Disconnected"
-          setTimeout(() => {
-            if (!wsRef.current || wsRef.current.type === 'polling') {
-              setIsConnected(true); // Show as connected since polling works
-              setConnectionMode('polling');
-            }
-          }, 1000);
-          
-          const sessionCheckInterval = setInterval(async () => {
-            try {
-              const response = await axios.get(`${API}/users/${currentUser.id}/session-status?session_id=${currentUser.active_session_id}`);
-              if (!response.data.valid) {
-                console.log('Session invalidated via polling, logging out...');
-                alert('🔒 Your session has been terminated due to login from another location.');
-                logout();
-                clearInterval(sessionCheckInterval);
-              }
-            } catch (error) {
-              console.error('Session validation error:', error);
-              setIsConnected(false);
-              setConnectionMode('disconnected');
-            }
-          }, 10000); // Check every 10 seconds
-          
-          // Also check for new messages periodically when WebSocket is down
-          const messageCheckInterval = setInterval(async () => {
-            try {
-              const response = await axios.get(`${API}/messages?limit=50&user_id=${currentUser?.id}`);
-              const latestMessages = response.data;
-              
-              setMessages(prev => {
-                const existingIds = prev.map(m => m.id);
-                const newMessages = latestMessages.filter(m => !existingIds.includes(m.id));
-                
-                // Check for admin messages in new messages
-                newMessages.forEach(message => {
-                  if (message.is_admin && message.user_id !== currentUser.id) {
-                    console.log('🔔 Admin message detected via polling:', message.screen_name || message.username);
-                    playSimpleAdminSound();
-                  }
-                });
-                
-                return [...prev, ...newMessages];
-              });
-            } catch (error) {
-              console.error('Message polling error:', error);
-            }
-          }, 8000); // Check for new messages every 8 seconds
-          
-          // Store interval IDs to clean up later
-          wsRef.current = { 
-            type: 'polling', 
-            sessionInterval: sessionCheckInterval,
-            messageInterval: messageCheckInterval
-          };
-        }
-      };
-      
-      wsRef.current = ws;
-    }
-    
-    return () => {
-      if (wsRef.current) {
-        if (wsRef.current.type === 'polling') {
-          clearInterval(wsRef.current.sessionInterval);
-          clearInterval(wsRef.current.messageInterval);
-        } else {
-          wsRef.current.close();
-        }
-        wsRef.current = null;
-      }
+      } catch (error) { console.error('Could not read chat event'); }
     };
-  }, [currentUser]);
+    ws.onclose = event => {
+      if (!isCurrent()) return;
+      setIsConnected(false);
+      setConnectionMode('disconnected');
+      if (event.code === 4403 && event.reason === 'membership_required') { requireMembershipForSession(session); return; }
+      if ([1008, 4001, 4002, 4003].includes(event.code)) { expireSession(); return; }
+      startPolling();
+    };
+    ws.onerror = () => { if (isCurrent()) startPolling(); };
+    return () => {
+      disposed = true;
+      closeSessionTransport(polling);
+      closeSessionTransport(ws);
+      if (wsRef.current === polling || wsRef.current === ws) wsRef.current = null;
+    };
+  }, [currentUser?.id, currentUser?.active_session_id, membershipPaymentRequired]);
 
   const loadMessages = async () => {
+    const session = activeUserRef.current;
+    if (!session || membershipRequiredRef.current) return;
+    setMessagesLoading(true);
     try {
-      setMessagesLoading(true);
-      const url = currentUser ? `${API}/messages?user_id=${currentUser.id}&limit=50` : `${API}/messages?limit=50`;
-      const response = await axios.get(url);
-      setMessages(response.data || []);
+      const response = await axios.get(`${API}/messages?user_id=${session.id}&limit=50`, { headers: sessionHeaders(session) });
+      if (sameSession(activeUserRef.current, session)) setMessages(response.data || []);
     } catch (error) {
-      console.error('Error loading messages:', error);
-      setMessages([]);
-      if (error.response?.status === 403) {
-        try {
-          const response = await axios.get(`${API}/messages?limit=50`);
-          setMessages(response.data || []);
-        } catch (fallbackError) {
-          setMessages([]);
-        }
-      }
+      if (sameSession(activeUserRef.current, session)) setMessages([]);
     } finally {
-      setMessagesLoading(false);
+      if (sameSession(activeUserRef.current, session)) setMessagesLoading(false);
     }
   };
 
   const loadPendingUsers = async () => {
-    if (currentUser?.is_admin) {
-      try {
-        const response = await axios.get(`${API}/users/pending`);
-        setPendingUsers(response.data);
-      } catch (error) {
-        console.error('Error loading pending users:', error);
-      }
-    }
+    const session = activeUserRef.current;
+    if (!session?.is_admin) return;
+    try {
+      const response = await axios.get(`${API}/users/pending`, { headers: sessionHeaders(session) });
+      if (sameSession(activeUserRef.current, session)) setPendingUsers(response.data);
+    } catch (_) { console.error('Could not load pending users'); }
   };
 
   const loadAllUsers = async () => {
-    if (currentUser?.is_admin) {
-      try {
-        const response = await axios.get(`${API}/users`);
-        setAllUsers(response.data);
-      } catch (error) {
-        console.error('Error loading all users:', error);
-      }
-    }
+    const session = activeUserRef.current;
+    if (!session?.is_admin) return;
+    try {
+      const response = await axios.get(`${API}/users`, { headers: sessionHeaders(session) });
+      if (sameSession(activeUserRef.current, session)) setAllUsers(response.data);
+    } catch (_) { console.error('Could not load users'); }
   };
 
   const loadUserData = async () => {
-    if (!currentUser) return;
-    
+    const session = activeUserRef.current;
+    if (!session || membershipRequiredRef.current) return;
+    const options = { headers: sessionHeaders(session) };
     try {
-      // Load trades
-      const tradesResponse = await axios.get(`${API}/trades/${currentUser.id}`);
+      const tradesResponse = await axios.get(`${API}/trades/${session.id}`, options);
+      if (!sameSession(activeUserRef.current, session)) return;
       setUserTrades(tradesResponse.data);
-      
-      // Load performance
-      const performanceResponse = await axios.get(`${API}/users/${currentUser.id}/performance`);
+      const performanceResponse = await axios.get(`${API}/users/${session.id}/performance`, options);
+      if (!sameSession(activeUserRef.current, session)) return;
       setUserPerformance(performanceResponse.data);
-      
-      // Load positions
-      const positionsResponse = await axios.get(`${API}/positions/${currentUser.id}`);
-      setOpenPositions(positionsResponse.data);
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    }
+      const positionsResponse = await axios.get(`${API}/positions/${session.id}`, options);
+      if (sameSession(activeUserRef.current, session)) setOpenPositions(positionsResponse.data);
+    } catch (_) { console.error('Could not load account data'); }
   };
 
   const refreshUserProfile = async () => {
-    if (!currentUser) return;
+    const session = activeUserRef.current;
+    if (!session) return;
     try {
-      const response = await axios.get(`${API}/users/${currentUser.id}/profile`);
-      setCurrentUser(prev => ({
+      const response = await axios.get(`${API}/users/${session.id}/profile`, { headers: sessionHeaders(session) });
+      if (!sameSession(activeUserRef.current, session)) return;
+      setCurrentUser(prev => sameSession(prev, session) ? ({
         ...prev,
         bio: response.data.bio,
         profile_banner: response.data.profile_banner,
@@ -1177,96 +1054,101 @@ function App() {
         achievements: response.data.achievements,
         experience_points: response.data.experience_points,
         level: response.data.level,
-      }));
+      }) : prev);
     } catch (error) {
       console.error('Error refreshing user profile:', error);
     }
   };
 
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && !membershipPaymentRequired) {
       loadMessages();
       loadUserData();
       loadPendingUsers();
       loadAllUsers();
       fetchUserXPData(); // Fetch XP data when user loads
     }
-  }, [currentUser]);
+  }, [currentUser, membershipPaymentRequired]);
 
-  const handleSubmit = async (e) => {
+  function forgetBillingAccess() {
+    clearBillingProof(window.sessionStorage);
+    billingProofRef.current = null;
+    setBillingProof(null);
+  }
+
+  async function openBillingForCredentials(credentials, attempt) {
+    const response = await axios.post(`${API}/billing/auth`, credentials);
+    if (authAttemptRef.current !== attempt || activeUserRef.current) return false;
+    const proof = normalizeBillingProof(response.data, credentials.username);
+    if (!proof) throw new Error('The account payment session could not be verified.');
+    saveBillingProof(window.sessionStorage, proof);
+    billingProofRef.current = proof;
+    setBillingProof(proof);
+    setLoginForm(previous => ({ ...previous, username: credentials.username, password: '' }));
+    setIsRegistering(false);
+    setRememberMe(false);
+    return true;
+  }
+
+  const handleSubmit = async e => {
     e.preventDefault();
+    const attempt = ++authAttemptRef.current;
+    const credentials = { username: loginForm.username.trim(), password: loginForm.password };
+    const registering = isRegistering;
+    const selectedPlan = membershipPlan(loginForm.membership_plan);
+    let accountCreated = false;
     setError(null);
-    setIsLoggingIn(true); // PERFORMANCE OPTIMIZATION: Show loading state
-    
+    setIsLoggingIn(true);
     try {
-      if (isRegistering) {
-        // Registration
-        const isTrialUser = loginForm.membership_plan === "14-Day Trial";
-        
-        const response = await axios.post(`${API}/users/register`, {
-          username: loginForm.username,
-          email: loginForm.email,
-          real_name: loginForm.real_name,
-          membership_plan: loginForm.membership_plan,
-          password: loginForm.password,
-          is_trial: isTrialUser  // NEW: Trial system support
+      if (registering) {
+        if (!selectedPlan) { setError('Choose a 1 month, 6 months, or Lifetime membership.'); return; }
+        await axios.post(`${API}/users/register`, {
+          ...credentials, email: loginForm.email, real_name: loginForm.real_name,
+          membership_plan: selectedPlan.registrationLabel
         });
-        
-        if (isTrialUser) {
-          alert('🎉 Trial registration successful! You can login immediately and start your 14-day free trial. Welcome to ArgusAI CashOut!');
-        } else {
-          alert('Registration successful! Please wait for admin approval. You will be approved within 5 minutes.');
-        }
-        
+        if (authAttemptRef.current !== attempt || activeUserRef.current) return;
+        accountCreated = true;
+        setBillingPlanId(selectedPlan.id);
         setIsRegistering(false);
-        setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
-        setRememberMe(false);
+        await openBillingForCredentials(credentials, attempt);
       } else {
-        // Login
-        console.log('🔐 Attempting login with API:', API);
-        const response = await axios.post(`${API}/users/login`, {
-          username: loginForm.username,
-          password: loginForm.password
-        });
-        
-        console.log('✅ Login successful, user data:', response.data);
-        
-        // PERFORMANCE OPTIMIZATION: Show login success immediately
+        let response;
+        try { response = await axios.post(`${API}/users/login`, credentials); }
+        catch (loginError) {
+          // A pending or expired account can prove its identity for billing only.
+          // That proof never becomes a member session or opens paid rooms.
+          if (loginError.response?.status !== 403) throw loginError;
+          await openBillingForCredentials(credentials, attempt);
+          return;
+        }
+        if (authAttemptRef.current !== attempt || activeUserRef.current) return;
+        if (!response.data?.id || !response.data?.active_session_id) throw new Error('Sign-in could not be verified.');
+        forgetBillingAccess();
+        membershipRequiredRef.current = false;
+        setMembershipPaymentRequired(false);
+        activeUserRef.current = response.data;
         setCurrentUser(response.data);
         setShowLogin(false);
-        setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: '' });
-        setRememberMe(false);
-        
-        // Save user to localStorage for persistence with session info
+        setLoginForm({ username: '', email: '', password: '', real_name: '', membership_plan: selectedPlan?.registrationLabel || '' });
+        if (billingPlanId || openBillingOnLogin) setActiveTab('profile');
         const sessionData = {
-          ...response.data,
-          rememberMe: rememberMe,
-          sessionCreated: new Date().toISOString(),
-          sessionDuration: 365 // Stay logged in for 1 year
+          ...response.data, rememberMe, sessionCreated: new Date().toISOString(),
+          sessionDuration: 365
         };
         localStorage.setItem('cashoutai_user', JSON.stringify(sessionData));
-        
-        console.log('💾 User data saved to localStorage');
-        console.log('🎯 Login complete, should now show main app interface');
-        
-        // Set up automatic session refresh for remember me sessions
-        if (rememberMe) {
-          console.log('🔄 Setting up automatic session refresh for new remember me session');
-          setupSessionRefresh(sessionData);
-        }
-        
-        // PERFORMANCE OPTIMIZATION: Initialize Firebase push notifications asynchronously in background
-        // Don't await this - let it run in background so login completes immediately
-        setTimeout(() => {
-          initializeFirebaseAsync(response.data.id);
-        }, 100); // Small delay to ensure UI updates first
+        if (rememberMe) setupSessionRefresh(sessionData);
+        setRememberMe(false);
       }
-    } catch (error) {
-      console.error('Authentication error:', error);
-      const errorMessage = error.response?.data?.detail || 'An error occurred during authentication';
-      setError(errorMessage);
+    } catch (authError) {
+      if (authAttemptRef.current !== attempt || activeUserRef.current) return;
+      const detail = authError.response?.data?.detail;
+      const message = typeof detail === 'string' ? detail : detail?.message;
+      setError(accountCreated
+        ? 'Your account was created, but payment options could not be opened. Sign in with the same username and password to continue; do not create another account.'
+        : message || 'Sign-in could not be completed. Please try again.');
+      setLoginForm(previous => ({ ...previous, password: '' }));
     } finally {
-      setIsLoggingIn(false); // PERFORMANCE OPTIMIZATION: Clear loading state
+      if (authAttemptRef.current === attempt) setIsLoggingIn(false);
     }
   };
 
@@ -1400,9 +1282,11 @@ function App() {
 
   const submitTrade = async (e) => {
     e.preventDefault();
+    const session = activeUserRef.current;
+    if (!session) return;
     
     try {
-      await axios.post(`${API}/trades?user_id=${currentUser.id}`, {
+      await axios.post(`${API}/trades?user_id=${session.id}`, {
         symbol: tradeForm.symbol,
         action: tradeForm.action,
         quantity: parseInt(tradeForm.quantity),
@@ -1410,7 +1294,8 @@ function App() {
         notes: tradeForm.notes,
         stop_loss: tradeForm.stop_loss ? parseFloat(tradeForm.stop_loss) : null,
         take_profit: tradeForm.take_profit ? parseFloat(tradeForm.take_profit) : null
-      });
+      }, { headers: sessionHeaders(session) });
+      if (!sameSession(activeUserRef.current, session)) return;
       
       // Reset form
       setTradeForm({
@@ -1429,52 +1314,57 @@ function App() {
       alert('Trade recorded successfully!');
     } catch (error) {
       console.error('Error submitting trade:', error);
-      alert('Error submitting trade');
+      if (sameSession(activeUserRef.current, session)) alert('Error submitting trade');
     }
   };
 
   const closePosition = async (positionId, symbol) => {
+    const session = activeUserRef.current;
+    if (!session) return;
     if (!window.confirm(`Close position for ${symbol}?`)) return;
     
     try {
-      const response = await axios.post(`${API}/positions/${positionId}/close?user_id=${currentUser.id}`);
+      const response = await axios.post(`${API}/positions/${positionId}/close?user_id=${session.id}`, null, { headers: sessionHeaders(session) });
+      if (!sameSession(activeUserRef.current, session)) return;
       alert(`Position closed. P&L: $${response.data.realized_pnl}`);
       loadUserData();
     } catch (error) {
+      if (!sameSession(activeUserRef.current, session)) return;
       console.error('Error closing position:', error);
-      alert('Error closing position');
+      const detail = error.response?.data?.detail;
+      alert(typeof detail === 'string' ? detail : detail?.message || 'Error closing position');
     }
   };
 
   const handlePositionAction = async (positionId, action, quantity = null, price = null) => {
+    const session = activeUserRef.current;
+    if (!session) return false;
     try {
-      const response = await axios.post(`${API}/positions/${positionId}/action?user_id=${currentUser.id}`, {
+      const response = await axios.post(`${API}/positions/${positionId}/action?user_id=${session.id}`, {
         action: action,
         quantity: quantity,
         price: price
-      });
+      }, { headers: sessionHeaders(session) });
+      if (!sameSession(activeUserRef.current, session)) return false;
       
       alert(response.data.message);
       loadUserData();
+      return true;
     } catch (error) {
+      if (!sameSession(activeUserRef.current, session)) return false;
       console.error('Error with position action:', error);
-      alert('Error processing action');
-    }
-  };
-
-  const fetchAllUsers = async () => {
-    try {
-      const response = await axios.get(`${API}/all-users`);
-      setAllUsers(response.data.users || []);
-    } catch (error) {
-      console.error('Error fetching all users:', error);
+      const detail = error.response?.data?.detail;
+      alert(typeof detail === 'string' ? detail : detail?.message || 'Error processing action');
+      return false;
     }
   };
 
   const fetchUserXPData = async () => {
+    const session = activeUserRef.current;
     try {
-      if (currentUser?.id) {
-        const response = await axios.get(`${API}/users/${currentUser.id}/profile`);
+      if (session?.id) {
+        const response = await axios.get(`${API}/users/${session.id}/profile`, { headers: sessionHeaders(session) });
+        if (!sameSession(activeUserRef.current, session)) return;
         setUserXP({
           experience_points: response.data.experience_points || 0,
           level: response.data.level || 1
@@ -1530,50 +1420,50 @@ function App() {
   };
 
   const uploadAvatarFile = async (file) => {
+    const session = activeUserRef.current;
+    if (!session) return;
     try {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await axios.post(`${API}/users/${currentUser.id}/avatar-upload`, formData, {
+      const response = await axios.post(`${API}/users/${session.id}/avatar-upload`, formData, {
         headers: {
-          'Content-Type': 'multipart/form-data'
+          'Content-Type': 'multipart/form-data', ...sessionHeaders(session)
         }
       });
       
-      // Update current user with new avatar
-      setCurrentUser(prev => ({
-        ...prev,
-        avatar_url: response.data.avatar_url
-      }));
+      if (!sameSession(activeUserRef.current, session)) return;
+      setCurrentUser(prev => sameSession(prev, session) ? ({ ...prev, avatar_url: response.data.avatar_url }) : prev);
       
       setAvatarFile(null);
       setAvatarPreview(null);
       
       alert('Profile picture updated successfully!');
     } catch (error) {
-      console.error('Error uploading avatar:', error);
-      alert('Error uploading profile picture');
+      if (sameSession(activeUserRef.current, session)) alert('Error uploading profile picture');
     }
   };
 
   const updateProfile = async (e) => {
     e.preventDefault();
-    
+    const session = activeUserRef.current;
+    if (!session) return;
     try {
-      const response = await axios.put(`${API}/users/${currentUser.id}/profile`, editProfileForm);
-      
-      setCurrentUser(response.data);
+      const response = await axios.put(`${API}/users/${session.id}/profile`, editProfileForm, { headers: sessionHeaders(session) });
+      if (!sameSession(activeUserRef.current, session)) return;
+      setCurrentUser(previous => sameSession(previous, session) ? ({ ...previous, ...response.data, active_session_id: previous.active_session_id }) : previous);
       setShowEditProfile(false);
       
       alert('Profile updated successfully!');
     } catch (error) {
-      console.error('Error updating profile:', error);
-      alert(error.response?.data?.detail || 'Error updating profile');
+      if (sameSession(activeUserRef.current, session)) alert(error.response?.data?.detail || 'Error updating profile');
     }
   };
 
   const changePassword = async (e) => {
     e.preventDefault();
+    const session = activeUserRef.current;
+    if (!session) return;
     
     if (passwordForm.new_password !== passwordForm.confirm_password) {
       alert('New passwords do not match');
@@ -1581,11 +1471,11 @@ function App() {
     }
     
     try {
-      await axios.post(`${API}/users/change-password?user_id=${currentUser.id}`, {
+      await axios.post(`${API}/users/change-password?user_id=${session.id}`, {
         current_password: passwordForm.current_password,
         new_password: passwordForm.new_password
-      });
-      
+      }, { headers: sessionHeaders(session) });
+      if (!sameSession(activeUserRef.current, session)) return;
       setShowChangePassword(false);
       setPasswordForm({
         current_password: '',
@@ -1593,49 +1483,44 @@ function App() {
         confirm_password: ''
       });
       
-      alert('Password changed successfully!');
+      clearLocalSession(session);
+      alert('Password changed successfully. Please sign in again.');
     } catch (error) {
-      console.error('Error changing password:', error);
-      alert(error.response?.data?.detail || 'Error changing password');
+      if (sameSession(activeUserRef.current, session)) alert(error.response?.data?.detail || 'Error changing password');
     }
   };
 
   const requestPasswordReset = async (e) => {
     e.preventDefault();
-    
-    if (resetPasswordForm.new_password !== resetPasswordForm.confirm_password) {
-      alert('Passwords do not match');
-      return;
-    }
-    
-    if (resetPasswordForm.new_password.length < 6) {
-      alert('Password must be at least 6 characters');
-      return;
-    }
-    
+    if (passwordRecoveryBusy) return;
+    setPasswordRecoveryBusy(true);
     try {
-      const response = await axios.post(`${API}/users/reset-password-direct`, {
-        email: resetPasswordForm.email,
-        new_password: resetPasswordForm.new_password
+      const response = await axios.post(`${API}/users/reset-password-request`, {
+        email: resetPasswordForm.email.trim()
       });
-      
-      alert(response.data.message || 'Password reset successfully! You can now log in.');
+      alert(response.data.message || 'If an account with that email exists, you will receive a password recovery link.');
       setShowForgotPassword(false);
-      setResetPasswordForm({ email: '', new_password: '', confirm_password: '' });
+      setResetPasswordForm({ email: '' });
     } catch (error) {
-      console.error('Error resetting password:', error);
-      alert(error.response?.data?.detail || 'Error resetting password. Please check your email address.');
+      alert(error.response?.data?.detail || 'Unable to request a recovery email. Please try again.');
+    } finally {
+      setPasswordRecoveryBusy(false);
     }
   };
 
   const confirmPasswordReset = async (e) => {
     e.preventDefault();
-    
+    const sessionAtStart = activeUserRef.current;
+    if (passwordRecoveryBusy) return;
     if (resetTokenForm.new_password !== resetTokenForm.confirm_password) {
       alert('New passwords do not match');
       return;
     }
-    
+    if (!resetTokenForm.token || resetTokenForm.new_password.length < 8) {
+      alert('Use the recovery link from your email and a password of at least 8 characters.');
+      return;
+    }
+    setPasswordRecoveryBusy(true);
     try {
       await axios.post(`${API}/users/reset-password-confirm`, {
         token: resetTokenForm.token,
@@ -1644,89 +1529,171 @@ function App() {
       
       alert('Password reset successfully! You can now log in with your new password.');
       setResetTokenForm({ token: '', new_password: '', confirm_password: '' });
-      // Could redirect to login or close modal here
+      if (sessionAtStart) clearLocalSession(sessionAtStart);
+      if (!activeUserRef.current) setShowLogin(true);
+      setShowForgotPassword(false);
     } catch (error) {
-      console.error('Error resetting password:', error);
       alert(error.response?.data?.detail || 'Error resetting password');
+    } finally {
+      setPasswordRecoveryBusy(false);
     }
   };
 
-  // PERFORMANCE OPTIMIZATION: Async Firebase initialization
-  const initializeFirebaseAsync = async (userId) => {
-    try {
-      console.log('🔄 Initializing Firebase notifications in background for user:', userId);
-      let notificationSuccess = false;
-      if (!capacitorManager.isMobile()) {
-        notificationSuccess = await notificationService.initializeForUser(userId);
-      } else {
-        console.log('📱 Skipping Firebase in mobile WebView');  
-      }
-      if (notificationSuccess) {
-        console.log('✅ Firebase notifications initialized successfully (background)');
-      } else {
-        console.log('⚠️ Firebase notifications failed to initialize (may not be supported)');
-      }
-    } catch (error) {
-      console.error('Error initializing Firebase notifications (background):', error);
-      // Don't show error to user since this is background initialization
-    }
+  const renderPasswordRecoveryModal = () => {
+    const hasToken = Boolean(resetTokenForm.token);
+    if (!showForgotPassword && !hasToken) return null;
+    const fieldClass = `w-full px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+      isDarkTheme ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200 text-gray-900'
+    }`;
+    return (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div role="dialog" aria-modal="true" aria-labelledby="password-recovery-title"
+          className={`rounded-2xl p-6 w-full max-w-md border ${isDarkTheme ? 'bg-gray-900 border-white/20 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+          <h2 id="password-recovery-title" className="text-2xl font-bold mb-3">{hasToken ? 'Set a new password' : 'Recover your password'}</h2>
+          <p className="text-sm opacity-80 mb-6">{hasToken
+            ? 'Use at least 8 characters. This email link can be used once and expires after one hour.'
+            : 'We will email a verification link to the address on your account.'}</p>
+          <form onSubmit={hasToken ? confirmPasswordReset : requestPasswordReset} className="space-y-4">
+            {hasToken ? (
+              <>
+                <div>
+                  <label htmlFor="recovery-password" className="block mb-2">New password</label>
+                  <input id="recovery-password" type="password" autoComplete="new-password" className={fieldClass}
+                    value={resetTokenForm.new_password} minLength={8} maxLength={72} required
+                    onChange={e => setResetTokenForm({ ...resetTokenForm, new_password: e.target.value })} />
+                </div>
+                <div>
+                  <label htmlFor="recovery-confirm" className="block mb-2">Confirm new password</label>
+                  <input id="recovery-confirm" type="password" autoComplete="new-password" className={fieldClass}
+                    value={resetTokenForm.confirm_password} minLength={8} maxLength={72} required
+                    onChange={e => setResetTokenForm({ ...resetTokenForm, confirm_password: e.target.value })} />
+                </div>
+              </>
+            ) : (
+              <div>
+                <label htmlFor="recovery-email" className="block mb-2">Email address</label>
+                <input id="recovery-email" type="email" autoComplete="email" className={fieldClass}
+                  value={resetPasswordForm.email} maxLength={254} required
+                  onChange={e => setResetPasswordForm({ email: e.target.value })} />
+              </div>
+            )}
+            <div className="flex gap-3 pt-3">
+              <button type="submit" disabled={passwordRecoveryBusy || (hasToken && resetTokenForm.new_password !== resetTokenForm.confirm_password)}
+                className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50">
+                {passwordRecoveryBusy ? 'Please wait…' : hasToken ? 'Save new password' : 'Email recovery link'}
+              </button>
+              <button type="button" disabled={passwordRecoveryBusy} className="px-4 py-3 rounded-lg border border-gray-500"
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setResetPasswordForm({ email: '' });
+                  setResetTokenForm({ token: '', new_password: '', confirm_password: '' });
+                }}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
   };
 
-  // Session refresh functionality for remember me sessions
-  const setupSessionRefresh = (user) => {
-    // Refresh session every 23 hours to keep it alive
+  // Keep a remembered login only while its original server session is current.
+  const setupSessionRefresh = user => {
+    if (window.sessionRefreshInterval) clearInterval(window.sessionRefreshInterval);
     const refreshInterval = setInterval(async () => {
+      if (!sameSession(activeUserRef.current, user)) { clearInterval(refreshInterval); return; }
       try {
-        console.log('🔄 Refreshing session for remember me user');
-        const response = await axios.get(`${API}/users/${user.id}/session-status?session_id=${user.active_session_id}`);
-        
-        if (response.data.valid) {
-          // Update session timestamp in localStorage
-          const savedUser = JSON.parse(localStorage.getItem('cashoutai_user'));
-          if (savedUser) {
-            savedUser.sessionCreated = new Date().toISOString();
-            localStorage.setItem('cashoutai_user', JSON.stringify(savedUser));
-            console.log('✅ Session refreshed successfully');
-          }
-        } else {
-          console.log('❌ Session invalid, logging out');
-          clearInterval(refreshInterval);
-          logout();
+        const response = await axios.get(`${API}/users/${user.id}/session-status`, { headers: sessionHeaders(user) });
+        if (!sameSession(activeUserRef.current, user)) return;
+        if (!response.data.valid) { clearLocalSession(user); return; }
+        const saved = JSON.parse(localStorage.getItem('cashoutai_user'));
+        if (sameSession(saved, user)) {
+          saved.sessionCreated = new Date().toISOString();
+          localStorage.setItem('cashoutai_user', JSON.stringify(saved));
         }
       } catch (error) {
-        console.error('Error refreshing session:', error);
-        clearInterval(refreshInterval);
-        logout();
+        if (sameSession(activeUserRef.current, user) && error.response?.status === 401) clearLocalSession(user);
       }
-    }, 23 * 60 * 60 * 1000); // 23 hours
-
-    // Store interval ID to clear it later
+    }, 23 * 60 * 60 * 1000);
     window.sessionRefreshInterval = refreshInterval;
   };
 
-  const logout = async () => {
-    try {
-      await axios.post(`${API}/users/logout?user_id=${currentUser.id}`);
-    } catch (error) {
-      console.error('Error during logout:', error);
-    }
-    
-    // Clear session refresh interval
+  function requireMembershipForSession(session) {
+    if (!sameSession(activeUserRef.current, session)) return;
+    membershipRequiredRef.current = true;
+    stockUserRef.current = null;
+    setMembershipPaymentRequired(true);
+    const transport = wsRef.current;
+    wsRef.current = null;
+    closeSessionTransport(transport);
+    notificationService.clearSession?.(session);
+    setIsConnected(false);
+    setConnectionMode('disconnected');
+  }
+
+  function clearLocalSession(session) {
+    if (!sameSession(activeUserRef.current, session)) return;
+    authAttemptRef.current += 1;
+    forgetBillingAccess();
+    membershipRequiredRef.current = false;
+    setMembershipPaymentRequired(false);
+    activeUserRef.current = null;
+    stockUserRef.current = null;
     if (window.sessionRefreshInterval) {
       clearInterval(window.sessionRefreshInterval);
       window.sessionRefreshInterval = null;
     }
-    
-    // Clear persisted user data and reset remember me state
-    localStorage.removeItem('cashoutai_user');
+    removeStoredSession(localStorage, session);
+    const transport = wsRef.current;
+    wsRef.current = null;
+    closeSessionTransport(transport);
+    notificationService.clearSession?.(session);
     setRememberMe(false);
-    
     setCurrentUser(null);
     setShowLogin(true);
     setMessages([]);
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    setNotifications([]);
+    setMessageReactions({});
+    reactionCache.current = { loaded: new Set(), pending: new Set(), mine: {} };
+    setCommunityError(''); setWinComposerOpen(false);
+    setNewMessage(''); setImageFile(null); setImagePreview(null); setReplyToMessage(null);
+    setUserTrades([]);
+    setUserPerformance(null);
+    setUserXP({ experience_points: 0, level: 1 });
+    setViewingUserId(null);
+    setOpenPositions([]);
+    setPendingUsers([]);
+    setAllUsers([]);
+    setCommunityMembers([]);
+    setMemberDirectoryError('');
+    setOnlineUsers([]);
+    setShowEditProfile(false);
+    setShowChangePassword(false);
+    setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
+    setIsConnected(false);
+    setConnectionMode('disconnected');
+  }
+
+  function returnToMemberSignIn() {
+    if (activeUserRef.current) { logout(); return; }
+    const username = billingProofRef.current?.username || loginForm.username;
+    authAttemptRef.current += 1;
+    forgetBillingAccess();
+    setIsLoggingIn(false);
+    setIsRegistering(false);
+    setShowLogin(true);
+    setError(null);
+    setLoginForm(previous => ({ ...previous, username, password: '' }));
+  }
+
+  const logout = async () => {
+    const session = activeUserRef.current;
+    if (!session?.id || !session?.active_session_id) return;
+    // Clear locally before the request. A later login must not be affected by
+    // this request's completion, or by the old connection's close callbacks.
+    clearLocalSession(session);
+    try {
+      await axios.post(`${API}/users/logout?user_id=${encodeURIComponent(session.id)}`, null, { headers: sessionHeaders(session) });
+    } catch (error) {
+      console.error('Could not notify the server of logout');
     }
   };
 
@@ -1763,6 +1730,26 @@ function App() {
         isDarkTheme={isDarkTheme}
       />
     );
+  }
+
+  if ((currentUser && membershipPaymentRequired) || (!currentUser && billingProof)) {
+    const credential = currentUser ? memberBillingCredential(currentUser) : billingProof;
+    return <div className="billing-portal"><div className="billing-portal-shell">
+      <header className="billing-portal-top"><span className="billing-brand">CashOutAI</span><button type="button" className="billing-exit" onClick={returnToMemberSignIn}>{currentUser ? 'Sign out' : 'Back to sign in'}</button></header>
+      <div className="billing-portal-intro"><span>ACCOUNT: {currentUser?.username || billingProof?.username || 'YOUR ACCOUNT'}</span><h1>{currentUser ? 'Review your membership access.' : 'Your account is ready. Choose your membership.'}</h1><p>This page gives you access to your own membership and payment information. Trading rooms and community access open only after your membership is approved or a qualifying payment is verified.</p></div>
+      <BillingPanel apiBase={API} credential={credential} initialPlanId={billingPlanId}
+        onAuthExpired={returnToMemberSignIn}
+        onAccessReady={status => {
+          if (!status?.entitlement?.active) return;
+          if (credential?.kind === 'member' && sameSession(activeUserRef.current, credential.session) && status.user_id === credential.session.id) {
+            membershipRequiredRef.current = false;
+            setMembershipPaymentRequired(false);
+            setActiveTab('profile');
+          } else if (credential?.kind === 'billing' && billingProofRef.current?.billing_token === credential.billing_token) {
+            returnToMemberSignIn();
+          }
+        }} />
+    </div></div>;
   }
 
   if (showLogin) {
@@ -1881,6 +1868,9 @@ function App() {
                 Professional Trading Team Platform
               </p>
             </div>
+
+            {billingPlanId && <div className="billing-plan-intent"><p>Selected: {membershipPlan(billingPlanId)?.label} · {moneyFromCents(membershipPlan(billingPlanId)?.amount_cents)}</p><small>Already a member? Sign in with your existing account to review this option.</small></div>}
+            {openBillingOnLogin && !billingPlanId && <div className="billing-plan-intent"><p>Sign in to review your membership and payment status.</p><small>Returning from checkout does not confirm payment or activate access. Your account shows the server-verified status.</small></div>}
             
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Error Display */}
@@ -1957,14 +1947,11 @@ function App() {
                           : 'bg-white border border-gray-200 text-gray-900 [&>option]:bg-white [&>option]:text-gray-900'
                       }`}
                       value={loginForm.membership_plan}
-                      onChange={(e) => setLoginForm({...loginForm, membership_plan: e.target.value})}
+                      onChange={e => { setLoginForm({ ...loginForm, membership_plan: e.target.value }); setBillingPlanId(membershipPlan(e.target.value)?.id || ''); }}
                       required
                     >
                       <option value="">Select Membership Plan</option>
-                      <option value="14-Day Trial">14-Day FREE Trial</option>
-                      <option value="Monthly">Monthly - $199/month</option>
-                      <option value="Yearly">Yearly - $1,296/year</option>
-                      <option value="Lifetime">Lifetime - $3,969</option>
+                      {MEMBERSHIP_PLANS.map(plan => <option value={plan.registrationLabel} key={plan.id}>{plan.label} — {moneyFromCents(plan.amount_cents)}</option>)}
                     </select>
                   </div>
                 </>
@@ -1983,6 +1970,9 @@ function App() {
                   }`}
                   value={loginForm.password}
                   onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                  minLength={isRegistering ? 8 : undefined}
+                  maxLength={isRegistering ? 72 : undefined}
+                  autoComplete={isRegistering ? 'new-password' : 'current-password'}
                   required
                 />
               </div>
@@ -2001,7 +1991,7 @@ function App() {
                       onChange={(e) => setRememberMe(e.target.checked)}
                     />
                     <span className="text-sm">
-                      Remember me for 30 days
+                      Keep me signed in on this device
                       <span className={`block text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
                         Keep me logged in on this device
                       </span>
@@ -2012,19 +2002,12 @@ function App() {
               
               {isRegistering && (
                 <div className={`p-3 rounded-lg border ${
-                  loginForm.membership_plan === "14-Day Trial"
-                    ? isDarkTheme 
-                      ? 'bg-green-500/10 border-green-500/30 text-green-400' 
-                      : 'bg-green-50 border-green-200 text-green-600'
-                    : isDarkTheme 
-                      ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
-                      : 'bg-blue-50 border-blue-200 text-blue-600'
+                  isDarkTheme
+                    ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                    : 'bg-blue-50 border-blue-200 text-blue-600'
                 }`}>
                   <p className="text-sm">
-                    {loginForm.membership_plan === "14-Day Trial" 
-                      ? '📝 Your trial account will be reviewed and approved by an admin.' 
-                      : '📝 Your account will be reviewed and approved by an admin.'
-                    }
+                    Create your account first, then review your payment options. Access begins after server-verified payment or explicit admin approval. No trial is included.
                   </p>
                 </div>
               )}
@@ -2041,10 +2024,10 @@ function App() {
                 {isLoggingIn ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Signing In...</span>
+                    <span>{isRegistering ? 'Creating account…' : 'Signing in…'}</span>
                   </div>
                 ) : (
-                  isRegistering ? 'Register' : 'Login'
+                  isRegistering ? 'Create account & review payment' : 'Sign in'
                 )}
               </button>
 
@@ -2063,125 +2046,19 @@ function App() {
               <div className="text-center">
                 <button
                   type="button"
+                  disabled={isLoggingIn}
                   onClick={() => setIsRegistering(!isRegistering)}
                   className={`${isDarkTheme ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} transition-colors`}
                 >
-                  {isRegistering ? 'Already have an account? Login' : "Don't have an account? Register"}
+                  {isRegistering ? 'Already have an account? Sign in' : "Don't have an account? Create one"}
                 </button>
               </div>
             </form>
           </div>
         </div>
         
-        {/* Forgot Password Modal - inside login view */}
-        {showForgotPassword && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className={`backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border ${
-              isDarkTheme 
-                ? 'bg-white/10 border-white/20' 
-                : 'bg-white/90 border-gray-200'
-            }`}>
-              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                Reset Password
-              </h2>
-              
-              <form onSubmit={requestPasswordReset} className="space-y-4">
-                <div>
-                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      isDarkTheme 
-                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                    }`}
-                    placeholder="Enter your email address"
-                    value={resetPasswordForm.email}
-                    onChange={(e) => setResetPasswordForm({...resetPasswordForm, email: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                    New Password
-                  </label>
-                  <input
-                    type="password"
-                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      isDarkTheme 
-                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                    }`}
-                    placeholder="Enter new password (min 6 characters)"
-                    value={resetPasswordForm.new_password}
-                    onChange={(e) => setResetPasswordForm({...resetPasswordForm, new_password: e.target.value})}
-                    required
-                    minLength="6"
-                  />
-                </div>
-                
-                <div>
-                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Confirm New Password
-                  </label>
-                  <input
-                    type="password"
-                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      isDarkTheme 
-                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                    }`}
-                    placeholder="Confirm new password"
-                    value={resetPasswordForm.confirm_password}
-                    onChange={(e) => setResetPasswordForm({...resetPasswordForm, confirm_password: e.target.value})}
-                    required
-                    minLength="6"
-                  />
-                </div>
-                
-                <div className={`p-3 rounded-lg border ${
-                  isDarkTheme 
-                    ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
-                    : 'bg-blue-50 border-blue-200 text-blue-600'
-                }`}>
-                  <p className="text-sm">
-                    Enter the email linked to your account to set a new password.
-                  </p>
-                </div>
-                
-                {resetPasswordForm.new_password && resetPasswordForm.confirm_password && 
-                  resetPasswordForm.new_password !== resetPasswordForm.confirm_password && (
-                  <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/30">
-                    <p className="text-sm text-red-400">Passwords do not match</p>
-                  </div>
-                )}
-                
-                <div className="flex space-x-4 pt-4">
-                  <button
-                    type="submit"
-                    disabled={!resetPasswordForm.email || !resetPasswordForm.new_password || resetPasswordForm.new_password !== resetPasswordForm.confirm_password}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Reset Password
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowForgotPassword(false);
-                      setResetPasswordForm({ email: '', new_password: '', confirm_password: '' });
-                    }}
-                    className="flex-1 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {renderPasswordRecoveryModal()}
+
       </div>
     );
   }
@@ -2193,453 +2070,35 @@ function App() {
   
   const isMobile = capacitorManager.isMobile();
   
-  // Mobile-specific simplified rendering to fix WebView issues
-  if (isMobile) {
-    console.log('📱 Using mobile-optimized layout');
-    return (
-      <MobileErrorBoundary>
-        <div className={`min-h-screen ${isDarkTheme ? 'bg-gray-900' : 'bg-white'}`} style={{ height: '100vh', overflow: 'hidden' }}>
-          {/* Simplified Mobile Header */}
-          <div className={`${isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b`} style={{ height: '60px' }}>
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <h1 className={`text-lg font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                  CashOutAi
-                </h1>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={logout}
-                  className={`px-3 py-1 rounded text-sm ${
-                    isDarkTheme 
-                      ? 'bg-red-600 hover:bg-red-700 text-white' 
-                      : 'bg-red-500 hover:bg-red-600 text-white'
-                  }`}
-                >
-                  Logout
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Simplified Mobile Content */}
-          <div className={`${isDarkTheme ? 'bg-gray-900' : 'bg-white'}`} style={{ height: 'calc(100vh - 60px)', overflow: 'auto' }}>
-            <div className="p-4">
-              {activeTab === 'chat' && (
-                <div>
-                  <h2 className={`text-xl font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                    Welcome {currentUser?.real_name || currentUser?.username}!
-                  </h2>
-                  <ChatTab
-                    messages={messages || []}
-                    currentUser={currentUser}
-                    isDarkTheme={isDarkTheme}
-                    onUserClick={() => {}}
-                    messagesLoading={messagesLoading}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </MobileErrorBoundary>
-    );
-  }
-
+  // Use the responsive web navigation on native devices as well, including all five bot rooms.
   // Desktop/Web rendering with complex CSS
   try {
     return (
       <MobileErrorBoundary>
-        <div className={`min-h-screen overflow-auto ${isDarkTheme ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>{/* Ensure body can scroll */}
-      {/* Header - Fixed/Sticky */}
-      <div className={`sticky top-0 z-50 border-b ${isDarkTheme ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white/80'} backdrop-blur-lg`}>
-        <div className="max-w-6xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-3">
-                {/* Mobile Menu Button */}
-                <button
-                  onClick={() => setShowMobileMenu(!showMobileMenu)}
-                  className={`md:hidden p-2 rounded-lg transition-colors ${
-                    isDarkTheme 
-                      ? 'bg-white/10 text-gray-300 hover:bg-white/20' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </button>
-
-                {/* Team Logo in Header */}
-                <div className="w-12 h-12 rounded-lg overflow-hidden border-2 border-blue-500/30 bg-gradient-to-br from-blue-900 to-purple-900 shadow-lg">
-                  <img 
-                    src="https://i.imgur.com/ZPYCiyg.png" 
-                    alt="CashoutAI Logo" 
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'flex';
-                    }}
-                  />
-                  <div className="w-full h-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm hidden">
-                    💰
-                  </div>
-                </div>
-                
-                <div>
-                  <h1 className={`text-2xl font-bold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                    CashoutAI
-                  </h1>
-                  <span className={`text-xs italic ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}`}>
-                    Trade Together, Win Together
-                  </span>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  isConnected ? 
-                    (connectionMode === 'websocket' ? 'bg-green-400' : 'bg-yellow-400') 
-                    : 'bg-red-400'
-                }`}></div>
-                <span className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
-                  {isConnected ? 
-                    (connectionMode === 'websocket' ? 'Connected' : 'Polling') 
-                    : 'Disconnected'
-                  }
-                </span>
-              </div>
-            </div>
-            
-            {/* Desktop Navigation Tabs - Hidden on Mobile */}
-            <div className="hidden md:flex space-x-1">
-              {[
-                { key: 'chat', emoji: '💬', label: 'Chat' },
-                { key: 'notifications', emoji: '🔔', label: 'Notifications' },
-                { key: 'achievements', emoji: '🏆', label: 'Achievements' },
-                { key: 'portfolio', emoji: '📊', label: 'Portfolio' },
-                { key: 'practice', emoji: '🎯', label: 'Practice' },
-                { key: 'favorites', emoji: '⭐', label: 'Favorites' },
-                { key: 'profile', emoji: '👤', label: 'Profile' }
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`px-2 py-1 rounded-lg font-medium transition-colors ${
-                    activeTab === tab.key
-                      ? isDarkTheme 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-blue-600 text-white'
-                      : isDarkTheme 
-                        ? 'text-gray-300 hover:bg-white/10' 
-                        : 'text-gray-700 hover:bg-gray-100 border border-gray-200'
-                  }`}
-                  title={tab.label}
-                >
-                  <span className="text-base">{tab.emoji}</span>
-                </button>
-              ))}
-              {currentUser?.is_admin && (
-                <button
-                  onClick={() => setActiveTab('admin')}
-                  className={`px-2 py-1 rounded-lg font-medium transition-colors ${
-                    activeTab === 'admin'
-                      ? isDarkTheme 
-                        ? 'bg-yellow-600 text-white' 
-                        : 'bg-yellow-600 text-white'
-                      : isDarkTheme 
-                        ? 'text-yellow-400 hover:bg-white/10' 
-                        : 'text-yellow-600 hover:bg-yellow-50 border border-yellow-200'
-                  }`}
-                  title="Admin"
-                >
-                  <span className="text-base">👑</span>
-                </button>
-              )}
-            </div>
-            
-            {/* Action Buttons - Hide logout on mobile */}
-            <div className="flex items-center space-x-4">
-              {activeTab === 'chat' && (
-                <>
-                  <button
-                    onClick={() => setShowSearch(!showSearch)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      isDarkTheme 
-                        ? 'bg-white/10 text-gray-300 hover:bg-white/20' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                    title="Search messages"
-                  >
-                    🔍
-                  </button>
-                </>
-              )}
-              
-              <button
-                onClick={toggleTheme}
-                className={`p-2 rounded-lg transition-colors ${
-                  isDarkTheme 
-                    ? 'bg-white/10 text-gray-300 hover:bg-white/20' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                title="Toggle theme"
-              >
-                {isDarkTheme ? '☀️' : '🌙'}
-              </button>
-              
-              {/* User info - Hide on small screens */}
-              <div className="text-right hidden sm:block">
-                <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                  {currentUser?.real_name || currentUser?.username}
-                </div>
-                <div className="text-xs text-gray-400">
-                  {currentUser?.screen_name && `@${currentUser.screen_name} • `}
-                  {currentUser?.is_admin ? 'Admin' : currentUser?.role || 'Member'}
-                </div>
-              </div>
-
-              {/* XP Progress Bar - Desktop */}
-              <div className="hidden lg:block w-40">
-                <XPProgressBar 
-                  currentXP={userXP.experience_points} 
-                  level={userXP.level} 
-                  isDarkTheme={isDarkTheme} 
-                />
-              </div>
-              
-              {/* Logout - Only on desktop */}
-              <button
-                onClick={logout}
-                className="hidden md:block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+        <div className={`cashout-app-shell ${isDarkTheme ? '' : 'cashout-light'} min-h-screen overflow-auto ${isDarkTheme ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>{/* Ensure body can scroll */}
+      <AppNavigation activeTab={activeTab} onSelect={setActiveTab} lastRoom={lastTradingRoom.current}
+        unread={unreadCount(notifications)} currentUser={currentUser} level={userXP.level} isDarkTheme={isDarkTheme}
+        onToggleTheme={toggleTheme} onLogout={logout}
+        connectionLabel={isConnected ? (connectionMode === 'websocket' ? 'Connected' : 'Polling') : 'Disconnected'} />
 
       {/* Main Content - Fixed height with proper scrolling accounting for header */}
-      <div className="max-w-6xl mx-auto flex flex-col min-h-0 pb-6">{/* Allow natural height with bottom padding */}
+      <div className="cashout-content-width mx-auto flex flex-col min-h-0 pb-6">{/* Allow natural height with bottom padding */}
         {/* Content area that takes remaining height */}
-        <div className="flex-1 p-4 pb-20 overflow-hidden">{/* This constrains the content */}
+        <div className={`flex-1 ${activeTab.startsWith('bot-') || activeTab === 'stocks' ? 'cashout-bot-content' : 'p-4 pb-20 overflow-hidden'}`}>{/* This constrains the content */}
 
-        {/* Mobile Navigation Dropdown */}
-        {showMobileMenu && (
-          <div className={`md:hidden fixed top-16 left-4 right-4 border rounded-lg shadow-lg z-50 ${
-            isDarkTheme ? 'border-white/10 bg-black/90' : 'border-gray-200 bg-white/90'
-          } backdrop-blur-lg`}>
-            <div className="p-4">
-              {/* User Info at top of mobile menu */}
-              <div className={`mb-4 p-3 rounded-lg border-b ${
-                isDarkTheme ? 'border-white/10' : 'border-gray-200'
-              }`}>
-                <div className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                  {currentUser?.real_name || currentUser?.username}
-                </div>
-                <div className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {currentUser?.screen_name && `@${currentUser.screen_name} • `}
-                  {currentUser?.is_admin ? 'Admin' : currentUser?.role || 'Member'}
-                </div>
-              </div>
+        {section === 'trading' && <><BotTabs activeTab={activeTab} onSelect={setActiveTab} /><TradingTools activeTab={activeTab} onSelect={setActiveTab} /></>}
+        {section === 'community' && <CommunityNavigation activeTab={activeTab} onSelect={setActiveTab} onShareWin={shareWin} />}
+        {section === 'community' && memberDirectoryError && <p className="cashout-community-error" role="alert">{memberDirectoryError}</p>}
+        {activeTab === 'members' && <MembersDirectory key={`${currentUser.id}:${currentUser.active_session_id}`} members={communityMembers} onlineUsers={onlineUsers} currentUser={currentUser} onViewProfile={id => id === currentUser.id ? setActiveTab('profile') : handleViewProfile(id)} />}
 
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                {/* Chat Tab */}
-                <button
-                  onClick={() => {
-                    setActiveTab('chat');
-                    setShowMobileMenu(false);
-                  }}
-                  className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
-                    activeTab === 'chat'
-                      ? isDarkTheme 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-blue-600 text-white'
-                      : isDarkTheme 
-                        ? 'text-gray-300 hover:bg-white/10' 
-                        : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="text-xl mb-1">💬</span>
-                  <span className="text-xs font-medium">Chat</span>
-                </button>
+        {activeTab.startsWith('bot-') && <BotTabContainer asset={activeTab.slice(4)} currentUser={currentUser} apiBase={API} />}
+        {activeTab === 'stocks' && <StocksWorkspace key={`${currentUser.id}:${currentUser.active_session_id}`} currentUser={currentUser} onOpenCommunity={() => setActiveTab('chat')} {...stocks} />}
 
-                {/* Notifications Tab */}
-                <button
-                  onClick={() => {
-                    setActiveTab('notifications');
-                    setShowMobileMenu(false);
-                  }}
-                  className={`flex flex-col items-center p-2 rounded-lg transition-colors relative ${
-                    activeTab === 'notifications'
-                      ? isDarkTheme 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-blue-600 text-white'
-                      : isDarkTheme 
-                        ? 'text-gray-300 hover:bg-white/10' 
-                        : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="text-xl mb-1">🔔</span>
-                  <span className="text-xs font-medium">Alerts</span>
-                  {notifications.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">
-                      {notifications.length}
-                    </span>
-                  )}
-                </button>
-
-                {/* Achievements Tab */}
-                <button
-                  onClick={() => {
-                    setActiveTab('achievements');
-                    setShowMobileMenu(false);
-                  }}
-                  className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
-                    activeTab === 'achievements'
-                      ? isDarkTheme 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-blue-600 text-white'
-                      : isDarkTheme 
-                        ? 'text-gray-300 hover:bg-white/10' 
-                        : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="text-xl mb-1">🏆</span>
-                  <span className="text-xs font-medium">Wins</span>
-                </button>
-
-                {/* Portfolio Tab */}
-                <button
-                  onClick={() => {
-                    setActiveTab('portfolio');
-                    setShowMobileMenu(false);
-                  }}
-                  className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
-                    activeTab === 'portfolio'
-                      ? isDarkTheme 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-blue-600 text-white'
-                      : isDarkTheme 
-                        ? 'text-gray-300 hover:bg-white/10' 
-                        : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="text-2xl mb-1">📊</span>
-                  <span className="text-sm font-medium">Portfolio</span>
-                </button>
-
-                {/* Practice Tab */}
-                <button
-                  onClick={() => {
-                    setActiveTab('practice');
-                    setShowMobileMenu(false);
-                  }}
-                  className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
-                    activeTab === 'practice'
-                      ? isDarkTheme 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-blue-600 text-white'
-                      : isDarkTheme 
-                        ? 'text-gray-300 hover:bg-white/10' 
-                        : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="text-2xl mb-1">📈</span>
-                  <span className="text-sm font-medium">Practice</span>
-                </button>
-
-                {/* Favorites Tab */}
-                <button
-                  onClick={() => {
-                    setActiveTab('favorites');
-                    setShowMobileMenu(false);
-                  }}
-                  className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
-                    activeTab === 'favorites'
-                      ? isDarkTheme 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-blue-600 text-white'
-                      : isDarkTheme 
-                        ? 'text-gray-300 hover:bg-white/10' 
-                        : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="text-2xl mb-1">⭐</span>
-                  <span className="text-sm font-medium">Favorites</span>
-                </button>
-
-                {/* Profile Tab */}
-                <button
-                  onClick={() => {
-                    setActiveTab('profile');
-                    setShowMobileMenu(false);
-                  }}
-                  className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
-                    activeTab === 'profile'
-                      ? isDarkTheme 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-blue-600 text-white'
-                      : isDarkTheme 
-                        ? 'text-gray-300 hover:bg-white/10' 
-                        : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="text-2xl mb-1">👤</span>
-                  <span className="text-sm font-medium">Profile</span>
-                </button>
-
-                {/* Admin Tab (if admin) */}
-                {currentUser?.is_admin && (
-                  <button
-                    onClick={() => {
-                      setActiveTab('admin');
-                      setShowMobileMenu(false);
-                    }}
-                    className={`flex flex-col items-center p-3 rounded-lg transition-colors ${
-                      activeTab === 'admin'
-                        ? isDarkTheme 
-                          ? 'bg-yellow-600 text-white' 
-                          : 'bg-yellow-600 text-white'
-                        : isDarkTheme 
-                          ? 'text-yellow-400 hover:bg-white/10' 
-                          : 'text-yellow-600 hover:bg-yellow-50'
-                    }`}
-                  >
-                    <span className="text-2xl mb-1">⚙️</span>
-                    <span className="text-sm font-medium">Admin</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Logout Button in Mobile Menu */}
-              <button
-                onClick={() => {
-                  logout();
-                  setShowMobileMenu(false);
-                }}
-                className="w-full flex items-center justify-center p-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-              >
-                <span className="text-xl mr-2">🚪</span>
-                Logout
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Close mobile menu when clicking outside */}
-        {showMobileMenu && (
-          <div 
-            className="md:hidden fixed inset-0 z-40" 
-            onClick={() => setShowMobileMenu(false)}
-          />
-        )}
-        
         {/* Chat Tab */}
         {activeTab === 'chat' && (
-          <div className="flex flex-col h-full" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+          <div className="cashout-community-screen flex flex-col">
+            {winComposerOpen && <div className="cashout-community-status" role="status">Share a win or a lesson with a screenshot and your own explanation. Review the draft, then press Send when you're ready.</div>}
+            {communityError && <div className="cashout-community-error" role="alert">{communityError}</div>}
             {/* Mobile Chat Header with User List Toggle */}
             <div className="md:hidden flex items-center justify-between p-3 border-b border-white/20 flex-shrink-0 bg-opacity-90 backdrop-blur-sm" style={{
               background: isDarkTheme ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'
@@ -2692,7 +2151,7 @@ function App() {
                   replyToMessage={replyToMessage}
                   setReplyToMessage={setReplyToMessage}
                   onlineUsers={onlineUsers}
-                  allUsers={allUsers}
+                  allUsers={communityMembers}
                   currentUser={currentUser}
                   onViewProfile={handleViewProfile}
                   hideMessageInput={true}
@@ -2709,7 +2168,7 @@ function App() {
               <div className="hidden md:block flex-shrink-0 overflow-hidden">
                 <UserList 
                   onlineUsers={onlineUsers}
-                  allUsers={allUsers}
+                  allUsers={communityMembers}
                   currentUser={currentUser}
                   isDarkTheme={isDarkTheme}
                   showUserList={showUserList}
@@ -2720,7 +2179,7 @@ function App() {
             </div>
             
             {/* Message Input Area - Always at bottom */}
-            <div className={`flex-shrink-0 border-t ${
+            <div className={`cashout-chat-composer flex-shrink-0 border-t ${
               isDarkTheme ? 'border-white/10 bg-gray-900/50' : 'border-gray-200 bg-white/50'
             } backdrop-blur-lg`}>
               <div className="p-2">
@@ -2844,15 +2303,15 @@ function App() {
                     })}
 
                     {/* Offline Users Section */}
-                    {allUsers && allUsers.filter(user => !onlineUsers?.some(onlineUser => onlineUser.id === user.id)).length > 0 && (
+                    {communityMembers.filter(user => !onlineUsers?.some(onlineUser => onlineUser.id === user.id)).length > 0 && (
                       <>
                         <div className={`px-2 py-1 mt-4 mb-2 text-xs font-semibold uppercase tracking-wide ${
                           isDarkTheme ? 'text-gray-400' : 'text-gray-500'
                         }`}>
-                          Offline ({allUsers.filter(user => !onlineUsers?.some(onlineUser => onlineUser.id === user.id)).length})
+                          Offline ({communityMembers.filter(user => !onlineUsers?.some(onlineUser => onlineUser.id === user.id)).length})
                         </div>
                         
-                        {allUsers.filter(user => !onlineUsers?.some(onlineUser => onlineUser.id === user.id)).map((user) => (
+                        {communityMembers.filter(user => !onlineUsers?.some(onlineUser => onlineUser.id === user.id)).map((user) => (
                           <div
                             key={`offline-${user.id}`}
                             onClick={() => {
@@ -2914,11 +2373,15 @@ function App() {
         {activeTab === 'notifications' && (
           <div className="flex-1 overflow-y-auto max-h-screen">
             <NotificationsTab 
+              key={`${currentUser.id}:${currentUser.active_session_id}`}
               notifications={notifications}
               isDarkTheme={isDarkTheme}
               currentUser={currentUser}
               onMarkAsRead={markNotificationAsRead}
               onDeleteNotification={deleteNotification}
+              onMarkAllAsRead={markAllNotificationsAsRead}
+              onOpenNotification={openNotification}
+              onOpenStocks={() => setActiveTab('stocks')}
             />
           </div>
         )}
@@ -2926,7 +2389,7 @@ function App() {
         {/* Achievements Tab */}
         {activeTab === 'achievements' && (
           <div className="flex-1 overflow-y-auto max-h-screen">
-            <AchievementsTab 
+            <AchievementsTab key={`${currentUser.id}:${currentUser.active_session_id}`}
               currentUser={currentUser}
               isDarkTheme={isDarkTheme}
             />
@@ -2958,6 +2421,8 @@ function App() {
         {activeTab === 'favorites' && (
           <div className="flex-1 overflow-y-auto max-h-screen">
             <FavoritesTab 
+              key={`${currentUser.id}:${currentUser.active_session_id}`}
+              currentUser={currentUser}
               favorites={favorites}
               addToFavorites={addToFavorites}
               removeFromFavorites={removeFromFavorites}
@@ -2979,6 +2444,7 @@ function App() {
                 <h2 className={`text-lg font-bold mb-4 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
                   📈 Paper Trading
                 </h2>
+                <p className="text-xs mb-3 opacity-75">Stock practice journal · Enter your own practice fill price. Stop and target levels are saved for your plan; automatic closes are paused until a current execution quote is verified.</p>
                 <form onSubmit={submitTrade} className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -2994,7 +2460,7 @@ function App() {
                             : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
                         }`}
                         value={tradeForm.symbol}
-                        onChange={(e) => setTradeForm({...tradeForm, symbol: e.target.value.toUpperCase()})}
+                        onChange={(e) => setTradeForm({...tradeForm, symbol: e.target.value.toUpperCase(), price: ''})}
                         required
                       />
                       {/* Current Price Display */}
@@ -3003,9 +2469,7 @@ function App() {
                           {priceLoading ? (
                             '🔄 Loading price...'
                           ) : currentStockPrice ? (
-                            <span className="text-green-500 font-medium">
-                              Current: ${currentStockPrice.toFixed(2)}
-                            </span>
+                            <><span className="font-medium">Last observed: ${formatPrice(currentStockPrice)}</span><QuoteObservation quote={currentStockQuote} /></>
                           ) : (
                             <span className="text-red-500">
                               Price unavailable
@@ -3055,7 +2519,7 @@ function App() {
                     
                     <div>
                       <label className={`block mb-1 text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Price
+                        Manual journal price
                       </label>
                       <input
                         type="number"
@@ -3081,7 +2545,7 @@ function App() {
                       <input
                         type="number"
                         step="0.00000001"
-                        placeholder="Auto-sell if price drops"
+                        placeholder="Planned stop level"
                         className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 ${
                           isDarkTheme 
                             ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
@@ -3099,7 +2563,7 @@ function App() {
                       <input
                         type="number"
                         step="0.00000001"
-                        placeholder="Auto-sell when profit reached"
+                        placeholder="Planned target level"
                         className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
                           isDarkTheme 
                             ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
@@ -3215,7 +2679,8 @@ function App() {
                       </div>
 
                       {/* Action Buttons */}
-                      <div className="flex gap-2 pb-2">
+                      <div className="flex flex-col sm:flex-row gap-2 pb-2">
+                        <button type="button" onClick={shareWin} className="px-4 py-2 rounded-full font-semibold text-sm bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Share a win</button>
                         <button
                           onClick={() => setShowProfileCustomization(true)}
                           className={`px-5 py-2 rounded-full font-semibold text-sm transition-colors border ${
@@ -3423,6 +2888,12 @@ function App() {
                   </div>
                 </div>
 
+                <div className="billing-profile-wrap">
+                  <BillingPanel key={`${currentUser.id}:${currentUser.active_session_id}`} apiBase={API}
+                    credential={memberBillingCredential(currentUser)} initialPlanId={billingPlanId}
+                    compact onAuthExpired={logout} />
+                </div>
+
                 {/* Action Buttons */}
                 <div className="px-4 pb-6">
                   <div className="flex gap-3">
@@ -3454,6 +2925,8 @@ function App() {
         {/* Admin Tab */}
         {activeTab === 'admin' && currentUser?.is_admin && (
           <div className="space-y-6">
+            <AdminBillingPanel key={`${currentUser.id}:${currentUser.active_session_id}`} apiBase={API}
+              credential={memberBillingCredential(currentUser)} />
             <div className={`backdrop-blur-lg rounded-xl border p-6 ${
               isDarkTheme 
                 ? 'bg-white/5 border-white/10' 
@@ -3790,7 +3263,8 @@ function App() {
                     value={passwordForm.new_password}
                     onChange={(e) => setPasswordForm({...passwordForm, new_password: e.target.value})}
                     required
-                    minLength="6"
+                    minLength="8"
+                    maxLength="72"
                   />
                 </div>
                 
@@ -3808,7 +3282,8 @@ function App() {
                     value={passwordForm.confirm_password}
                     onChange={(e) => setPasswordForm({...passwordForm, confirm_password: e.target.value})}
                     required
-                    minLength="6"
+                    minLength="8"
+                    maxLength="72"
                   />
                 </div>
                 
@@ -3840,206 +3315,7 @@ function App() {
           </div>
         )}
 
-        {/* Forgot Password Modal */}
-        {showForgotPassword && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className={`backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border ${
-              isDarkTheme 
-                ? 'bg-white/10 border-white/20' 
-                : 'bg-white/90 border-gray-200'
-            }`}>
-              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                Reset Password
-              </h2>
-              
-              <form onSubmit={requestPasswordReset} className="space-y-4">
-                <div>
-                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      isDarkTheme 
-                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                    }`}
-                    placeholder="Enter your email address"
-                    value={resetPasswordForm.email}
-                    onChange={(e) => setResetPasswordForm({...resetPasswordForm, email: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                    New Password
-                  </label>
-                  <input
-                    type="password"
-                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      isDarkTheme 
-                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                    }`}
-                    placeholder="Enter new password (min 6 characters)"
-                    value={resetPasswordForm.new_password}
-                    onChange={(e) => setResetPasswordForm({...resetPasswordForm, new_password: e.target.value})}
-                    required
-                    minLength="6"
-                  />
-                </div>
-                
-                <div>
-                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Confirm New Password
-                  </label>
-                  <input
-                    type="password"
-                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      isDarkTheme 
-                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                    }`}
-                    placeholder="Confirm new password"
-                    value={resetPasswordForm.confirm_password}
-                    onChange={(e) => setResetPasswordForm({...resetPasswordForm, confirm_password: e.target.value})}
-                    required
-                    minLength="6"
-                  />
-                </div>
-                
-                <div className={`p-3 rounded-lg border ${
-                  isDarkTheme 
-                    ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
-                    : 'bg-blue-50 border-blue-200 text-blue-600'
-                }`}>
-                  <p className="text-sm">
-                    Enter the email linked to your account to set a new password.
-                  </p>
-                </div>
-                
-                {resetPasswordForm.new_password && resetPasswordForm.confirm_password && 
-                  resetPasswordForm.new_password !== resetPasswordForm.confirm_password && (
-                  <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/30">
-                    <p className="text-sm text-red-400">Passwords do not match</p>
-                  </div>
-                )}
-                
-                <div className="flex space-x-4 pt-4">
-                  <button
-                    type="submit"
-                    disabled={!resetPasswordForm.email || !resetPasswordForm.new_password || resetPasswordForm.new_password !== resetPasswordForm.confirm_password}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Reset Password
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowForgotPassword(false);
-                      setResetPasswordForm({ email: '', new_password: '', confirm_password: '' });
-                    }}
-                    className="flex-1 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Password Reset with Token Modal */}
-        {window.location.search.includes('token=') && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className={`backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border ${
-              isDarkTheme 
-                ? 'bg-white/10 border-white/20' 
-                : 'bg-white/90 border-gray-200'
-            }`}>
-              <h2 className={`text-2xl font-bold mb-6 ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
-                Set New Password
-              </h2>
-              
-              <form onSubmit={confirmPasswordReset} className="space-y-4">
-                <div>
-                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Reset Token
-                  </label>
-                  <input
-                    type="text"
-                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      isDarkTheme 
-                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                    }`}
-                    placeholder="Enter reset token from email"
-                    value={resetTokenForm.token || new URLSearchParams(window.location.search).get('token') || ''}
-                    onChange={(e) => setResetTokenForm({...resetTokenForm, token: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                    New Password
-                  </label>
-                  <input
-                    type="password"
-                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      isDarkTheme 
-                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                    }`}
-                    value={resetTokenForm.new_password}
-                    onChange={(e) => setResetTokenForm({...resetTokenForm, new_password: e.target.value})}
-                    required
-                    minLength="6"
-                  />
-                </div>
-                
-                <div>
-                  <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Confirm New Password
-                  </label>
-                  <input
-                    type="password"
-                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      isDarkTheme 
-                        ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400' 
-                        : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-500'
-                    }`}
-                    value={resetTokenForm.confirm_password}
-                    onChange={(e) => setResetTokenForm({...resetTokenForm, confirm_password: e.target.value})}
-                    required
-                    minLength="6"
-                  />
-                </div>
-                
-                <div className="flex space-x-4 pt-4">
-                  <button
-                    type="submit"
-                    disabled={resetTokenForm.new_password !== resetTokenForm.confirm_password}
-                    className="flex-1 bg-gradient-to-r from-green-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-green-700 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Reset Password
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetTokenForm({ token: '', new_password: '', confirm_password: '' });
-                      window.location.href = window.location.pathname; // Remove token from URL
-                    }}
-                    className="flex-1 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {renderPasswordRecoveryModal()}
 
         </div> {/* End of content area */}
       </div> {/* End of main container */}
