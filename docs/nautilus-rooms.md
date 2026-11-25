@@ -109,6 +109,8 @@ The current browser review served the actual compiled app inside a clearly label
 
 These checks cover the compiled UI and fixture response contracts. They do not establish production authentication, calendar-month entitlement calculations, live feed freshness, fresh-quote executions, actual settlement retrieval, recovery-email delivery, device push, or licensed streaming. The feature release remains a draft and has not changed the current live app; the deployed frontend/backend/service-worker combination still needs coordinated verification.
 
+Separately from the isolated fixture, Resend accepted one owner-approved plain test email with HTTP 200 using the existing configured sender and key. No password-reset token was included, and no member or credential data was changed. Inbox receipt awaits user confirmation; provider acceptance does not establish inbox delivery or completed account recovery.
+
 Earlier standalone design-preview checks covered a 390px phone frame, native fullscreen, entry at ask, close at bid, a shared balance between rooms, and reset. Those older checks used recorded data and browser-local state; they are separate from the current compiled-app review.
 
 ## November 24 revision: chart space, study guide, chat, and Stocks
@@ -135,4 +137,4 @@ Cash rewards are excluded. Earned XP and badges remain, the referral badge no lo
 
 The owner confirmed thinkorswim email → Zapier → app, with Zapier → Assistro → WhatsApp continuing during adoption. The draft now includes a saved Stocks feed, exact alert/ticker links through login, explicit mobile-capable opt-in, verified webhook intake with stable email IDs, and a durable dispatcher that checks the current login/device and expires old pushes. Chat, social activity, admin posts and bot-room events do not send device notifications. Firebase outcomes are reported honestly; generic test sends and false-success fallbacks are suppressed.
 
-Deploy the app and the Zapier header/identity mapping together. The private preview shows the feed placement and inactive controls without receiving real alerts. See [stock-alert-rollout.md](stock-alert-rollout.md) for the exact contract and remaining live verification. No WhatsApp action or real notification has been changed/sent.
+Deploy the app and the Zapier header/identity mapping together. The private preview shows the feed placement and inactive controls without receiving real alerts. See [stock-alert-rollout.md](stock-alert-rollout.md) for the exact contract and remaining live verification. No WhatsApp action was changed and no real Stocks push was sent.

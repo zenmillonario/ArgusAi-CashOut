@@ -1,7 +1,7 @@
 import os
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from html import escape
 from typing import Optional
 from dotenv import load_dotenv
@@ -46,6 +46,7 @@ class EmailService:
                 "from": self.sender_email,
                 "to": [recipient],
                 "subject": subject,
+                "text": body,
                 "html": html_body or body,
             }
             
@@ -67,634 +68,225 @@ class EmailService:
             logger.warning("Email send was rejected." if rejected else "Email send outcome is unknown.")
         return outcome if return_outcome else outcome["status"] == "sent"
     
+    APP_URL = "https://cashoutai.app/"
+    MEMBERSHIP_URL = "https://cashoutai.app/?billing=1"
+
+    @staticmethod
+    def _existing_trial_end_label(value) -> str:
+        """Render a supplied legacy expiry without inventing a new trial term."""
+        if isinstance(value, str):
+            try:
+                value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return "Not available; check Membership in the app"
+        if not isinstance(value, datetime):
+            return "Not available; check Membership in the app"
+        if value.tzinfo is not None:
+            value = value.astimezone(timezone.utc)
+        return value.strftime("%B %d, %Y at %I:%M %p UTC")
+
     async def send_registration_notification(
-        self, 
-        admin_email: str, 
+        self,
+        admin_email: str,
         user_data: dict
     ) -> bool:
-        """Send registration notification to admin"""
-        subject = f"🔔 New REGULAR User Registration - {user_data.get('real_name', user_data.get('username'))} (Requires Approval)"
-        
-        plain_body = f"""
-New REGULAR User Registration - ArgusAI CashOut
+        """Ask an administrator to match the signup to a reviewed payment."""
+        subject = "New CashOutAI signup — review required"
+        fields = {
+            "Name": user_data.get("real_name") or "Not provided",
+            "Username": user_data.get("username") or "Not provided",
+            "Email": user_data.get("email") or "Not provided",
+            "Screen name": user_data.get("screen_name") or "Not provided",
+            "Selected plan": user_data.get("membership_plan") or "Not specified",
+        }
+        plain_details = "\n".join(f"{label}: {value}" for label, value in fields.items())
+        html_details = "".join(
+            f"<li><strong>{label}:</strong> {escape(str(value), quote=True)}</li>"
+            for label, value in fields.items()
+        )
+        plain_body = f"""A new CashOutAI account is pending administrator approval.
 
-👤 PENDING APPROVAL REQUIRED
+{plain_details}
 
-User Details:
-• Name: {user_data.get('real_name', 'Not provided')}
-• Username: {user_data.get('username')}
-• Email: {user_data.get('email')}
-• Screen Name: {user_data.get('screen_name', 'Not provided')}
-• Membership Plan: {user_data.get('membership_plan', 'Not specified')}
-• Registration Date: {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}
+Selecting a plan does not confirm payment. Check the Square payment and match it to this existing account before approving a paid purchase in the app. Record the actual purchased plan and receipt/reference when you approve access.
 
-⚠️ This user is PENDING and cannot access the platform until you approve them.
+Current membership purchases are one-time payments with no automatic renewal. Access is activated after manual review.
 
-Please review and approve this registration in the ArgusAI CashOut admin panel.
-Login at: https://www.CashOutAi.App
+Open the administrator panel: {self.APP_URL}
 
---
-ArgusAI CashOut System
+The CashOutAI Team
 """
-        
-        html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }}
-        .content {{ padding: 20px; background: #f9f9f9; }}
-        .user-details {{ background: white; padding: 15px; border-radius: 8px; margin: 15px 0; }}
-        .detail-row {{ margin: 8px 0; }}
-        .label {{ font-weight: bold; color: #555; }}
-        .action-btn {{ background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 15px 0; }}
-        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>🔔 New User Registration</h1>
-        <p>ArgusAI CashOut</p>
-    </div>
-    
-    <div class="content">
-        <p>A new user has registered and is awaiting admin approval:</p>
-        
-        <div class="user-details">
-            <div class="detail-row">
-                <span class="label">Name:</span> {user_data.get('real_name', 'Not provided')}
-            </div>
-            <div class="detail-row">
-                <span class="label">Username:</span> {user_data.get('username')}
-            </div>
-            <div class="detail-row">
-                <span class="label">Email:</span> {user_data.get('email')}
-            </div>
-            <div class="detail-row">
-                <span class="label">Screen Name:</span> {user_data.get('screen_name', 'Not provided')}
-            </div>
-            <div class="detail-row">
-                <span class="label">Membership Plan:</span> {user_data.get('membership_plan', 'Not specified')}
-            </div>
-            <div class="detail-row">
-                <span class="label">Registration Date:</span> {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}
-            </div>
-        </div>
-        
-        <p><strong>Action Required:</strong> Please review and approve this registration in the ArgusAI CashOut admin panel.</p>
-    </div>
-    
-    <div class="footer">
-        <p>This notification was sent automatically by ArgusAI CashOut System</p>
-    </div>
+        html_body = f"""<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>CashOutAI signup review</title></head>
+<body style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;">
+  <h1>New signup awaiting review</h1>
+  <ul>{html_details}</ul>
+  <p>Selecting a plan does not confirm payment. Check the Square payment and match it to this existing account before approving a paid purchase in the app. Record the actual purchased plan and receipt/reference when you approve access.</p>
+  <p>Current membership purchases are one-time payments with no automatic renewal. Access is activated after manual review.</p>
+  <p><a href="{self.APP_URL}">Open the administrator panel</a></p>
+  <p>The CashOutAI Team</p>
 </body>
-</html>
-"""
-        
+</html>"""
         return await self.send_email(admin_email, subject, plain_body, html_body)
-    
+
     async def send_trial_registration_notification(
-        self, 
-        admin_email: str, 
+        self,
+        admin_email: str,
         user_data: dict
     ) -> bool:
-        """Send trial registration notification to admin"""
-        trial_end_date = user_data.get('trial_end_date')
-        trial_end_str = trial_end_date.strftime('%B %d, %Y at %I:%M %p UTC') if trial_end_date else 'Not set'
-        
-        subject = f"🎯 New TRIAL User Registration - {user_data.get('real_name', user_data.get('username'))}"
-        
-        plain_body = f"""
-New TRIAL User Registration - ArgusAI CashOut
+        """Retain legacy compatibility without announcing a new or approved trial."""
+        subject = "CashOutAI — existing trial account details"
+        trial_end = self._existing_trial_end_label(user_data.get("trial_end_date"))
+        fields = {
+            "Name": user_data.get("real_name") or "Not provided",
+            "Username": user_data.get("username") or "Not provided",
+            "Email": user_data.get("email") or "Not provided",
+            "Recorded status": user_data.get("status") or "Not provided",
+            "Original trial expiry": trial_end,
+        }
+        plain_details = "\n".join(f"{label}: {value}" for label, value in fields.items())
+        html_details = "".join(
+            f"<li><strong>{label}:</strong> {escape(str(value), quote=True)}</li>"
+            for label, value in fields.items()
+        )
+        plain_body = f"""Existing CashOutAI trial account details
 
-🎯 TRIAL USER DETAILS:
-• Name: {user_data.get('real_name', 'Not provided')}
-• Username: {user_data.get('username')}
-• Email: {user_data.get('email')}
-• Membership Plan: {user_data.get('membership_plan', '14-Day Trial')}
-• Trial Start: {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}
-• Trial Ends: {trial_end_str}
-• Registration Date: {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}
+{plain_details}
 
-✅ This user was automatically approved and can start using the platform immediately.
-🎯 They have 14 days of full access before requiring upgrade.
+New trials are currently unavailable. This message reports the existing trial record; approval and access depend on the account's current status and original expiry.
 
-Login at: https://www.CashOutAi.App
+Review the existing account in the administrator panel: {self.APP_URL}
 
---
-ArgusAI CashOut System
+The CashOutAI Team
 """
-        
-        html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trial Registration Notification</title>
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f8fafc; }}
-        .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 20px; text-align: center; }}
-        .header h1 {{ color: white; margin: 0; font-size: 24px; font-weight: 600; }}
-        .content {{ padding: 30px 20px; }}
-        .trial-badge {{ background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; display: inline-block; font-weight: 600; margin-bottom: 20px; }}
-        .user-info {{ background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-        .user-info h3 {{ margin-top: 0; color: #374151; }}
-        .info-row {{ display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }}
-        .info-label {{ font-weight: 600; color: #6b7280; }}
-        .info-value {{ color: #374151; }}
-        .trial-info {{ background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 20px; margin: 20px 0; }}
-        .trial-info h4 {{ margin-top: 0; color: #047857; }}
-        .footer {{ background: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb; }}
-        .button {{ background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🎯 New Trial Registration</h1>
-        </div>
-        <div class="content">
-            <div class="trial-badge">TRIAL USER</div>
-            
-            <div class="user-info">
-                <h3>User Information</h3>
-                <div class="info-row">
-                    <span class="info-label">Name:</span>
-                    <span class="info-value">{user_data.get('real_name', 'Not provided')}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Username:</span>
-                    <span class="info-value">{user_data.get('username')}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Email:</span>
-                    <span class="info-value">{user_data.get('email')}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Membership:</span>
-                    <span class="info-value">{user_data.get('membership_plan', '14-Day Trial')}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Registration:</span>
-                    <span class="info-value">{datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}</span>
-                </div>
-            </div>
-            
-            <div class="trial-info">
-                <h4>📅 Trial Information</h4>
-                <p><strong>Trial Period:</strong> 14 days of full access</p>
-                <p><strong>Status:</strong> ✅ Automatically approved - active now</p>
-                <p><strong>Trial Ends:</strong> {trial_end_str}</p>
-                <p>This user can immediately access chat, trading tools, and all platform features.</p>
-            </div>
-        </div>
-        <div class="footer">
-            <a href="https://www.CashOutAi.App" class="button">View Platform</a>
-            <p style="margin-top: 15px; color: #6b7280; font-size: 14px;">ArgusAI CashOut Admin System</p>
-        </div>
-    </div>
+        html_body = f"""<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Existing CashOutAI trial account</title></head>
+<body style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;">
+  <h1>Existing trial account details</h1>
+  <ul>{html_details}</ul>
+  <p>New trials are currently unavailable. This message reports the existing trial record; approval and access depend on the account's current status and original expiry.</p>
+  <p><a href="{self.APP_URL}">Review the existing account</a></p>
+  <p>The CashOutAI Team</p>
 </body>
-</html>
-"""
-        
+</html>"""
         return await self.send_email(admin_email, subject, plain_body, html_body)
-    
+
     async def send_approval_confirmation(
-        self, 
-        user_email: str, 
+        self,
+        user_email: str,
         user_name: str,
         approved: bool = True
     ) -> bool:
-        """Send confirmation email to user after approval/rejection"""
+        """Send an account decision without creating another identity or offer."""
         if approved:
-            subject = "✅ Account Approved - Welcome to ArgusAI CashOut!"
-            
-            plain_body = f"""
-Hi {user_name},
-
-Great news! Your ArgusAI CashOut account has been approved.
-
-You can now log in and start trading with our community:
-• Access real-time chat with other traders
-• Practice paper trading
-• Manage your portfolio
-• Get real-time stock quotes
-
-Welcome to the ArgusAI CashOut family!
-
---
-ArgusAI CashOut Team
-"""
-            
-            html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .header {{ background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; text-align: center; }}
-        .content {{ padding: 20px; background: #f9f9f9; }}
-        .welcome-box {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #10b981; }}
-        .features {{ background: white; padding: 15px; border-radius: 8px; margin: 15px 0; }}
-        .feature-item {{ margin: 8px 0; }}
-        .action-btn {{ background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 15px 0; }}
-        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>✅ Account Approved!</h1>
-        <p>Welcome to ArgusAI CashOut</p>
-    </div>
-    
-    <div class="content">
-        <div class="welcome-box">
-            <h2>Hi {user_name},</h2>
-            <p>Great news! Your ArgusAI CashOut account has been approved.</p>
-        </div>
-        
-        <div class="features">
-            <h3>You now have access to:</h3>
-            <div class="feature-item">💬 Real-time chat with other traders</div>
-            <div class="feature-item">📈 Practice paper trading</div>
-            <div class="feature-item">💼 Portfolio management tools</div>
-            <div class="feature-item">📊 Real-time stock quotes and data</div>
-            <div class="feature-item">⭐ Favorites and watchlists</div>
-        </div>
-        
-        <p><strong>Ready to start trading?</strong> Log in to your account and join our community!</p>
-        
-        <p>Welcome to the ArgusAI CashOut family! 🚀</p>
-    </div>
-    
-    <div class="footer">
-        <p>ArgusAI CashOut Team</p>
-    </div>
-</body>
-</html>
-"""
+            subject = "CashOutAI — your access is approved"
+            heading = "Your access is approved"
+            message = "Your CashOutAI account has been approved. Open Membership in the app to see your current access and any paid-through date."
         else:
-            subject = "❌ Account Application Update - ArgusAI CashOut"
-            
-            plain_body = f"""
-Hi {user_name},
+            subject = "CashOutAI — account application update"
+            heading = "Account application update"
+            message = "We were unable to approve your CashOutAI account at this time. Contact an administrator for the reason or to request another review of this existing account. If you have already paid, include your receipt/reference and account email so the team can match the payment."
+        plain_body = f"""Hi {user_name},
 
-Thank you for your interest in ArgusAI CashOut.
+{message}
 
-Unfortunately, we're unable to approve your account at this time. This could be due to:
-• Incomplete registration information
-• Current membership limitations
-• Other requirements not met
+Keep using your existing account; you do not need to register again. If you cannot sign in, choose Recover existing account on the sign-in screen and use your registered email address.
 
-If you believe this is an error or would like to reapply, please contact our support team.
+Open CashOutAI: {self.APP_URL}
 
-Thank you for your understanding.
-
---
-ArgusAI CashOut Team
+The CashOutAI Team
 """
-            
-            html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .header {{ background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 20px; text-align: center; }}
-        .content {{ padding: 20px; background: #f9f9f9; }}
-        .message-box {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ef4444; }}
-        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>Account Application Update</h1>
-        <p>ArgusAI CashOut</p>
-    </div>
-    
-    <div class="content">
-        <div class="message-box">
-            <h2>Hi {user_name},</h2>
-            <p>Thank you for your interest in ArgusAI CashOut.</p>
-            <p>Unfortunately, we're unable to approve your account at this time.</p>
-        </div>
-        
-        <p>If you have questions or would like to reapply, please contact our support team.</p>
-        
-        <p>Thank you for your understanding.</p>
-    </div>
-    
-    <div class="footer">
-        <p>ArgusAI CashOut Team</p>
-    </div>
+        html_body = f"""<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>{heading}</title></head>
+<body style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;">
+  <h1>{heading}</h1>
+  <p>Hi {escape(str(user_name), quote=True)},</p>
+  <p>{message}</p>
+  <p>Keep using your existing account; you do not need to register again. If you cannot sign in, choose <strong>Recover existing account</strong> on the sign-in screen and use your registered email address.</p>
+  <p><a href="{self.APP_URL}">Open CashOutAI</a></p>
+  <p>The CashOutAI Team</p>
 </body>
-</html>
-"""
-        
+</html>"""
         return await self.send_email(user_email, subject, plain_body, html_body)
-    
-    
+
     async def send_trial_upgrade_email(
-        self, 
-        user_email: str, 
+        self,
+        user_email: str,
         user_name: str
     ) -> bool:
-        """Send trial upgrade email with Square payment links"""
-        subject = "🎯 Your CashOutAi Trial Has Expired - Upgrade Now!"
-        
-        plain_body = f"""
-Hi {user_name},
+        """Notify an existing expired trial using the app's current catalog."""
+        subject = "CashOutAI — your trial has ended"
+        plain_body = f"""Hi {user_name},
 
-Your 14-day trial with CashOutAi has ended. Upgrade now to keep full access!
+Your existing CashOutAI trial has ended. Your account and community history remain in place.
 
-💰 CHOOSE YOUR PLAN - ONE CLICK PAYMENT:
+Open Membership to see the current plans and payment options:
+{self.MEMBERSHIP_URL}
 
-💳 MONTHLY PLAN: $199/month
-   ► PAYMENT LINK: https://square.link/u/dhjuwn84
+Membership purchases are one-time payments with no automatic renewal. The team reviews the Square payment and matches it to your existing account before approving paid access. Use your CashOutAI account email at checkout; if the payment email differs, provide your account email and receipt/reference to the team.
 
-🏆 YEARLY PLAN: $1,296/year [BEST VALUE]
-   ► PAYMENT LINK: https://square.link/u/kKmNauCe
+Use the same account; you do not need to register again. If you cannot sign in, choose Recover existing account on the sign-in screen and use your registered email address. You can then open Membership to review or purchase access.
 
-💎 LIFETIME PLAN: $3,969 one-time [NEVER PAY AGAIN]
-   ► PAYMENT LINK: https://square.link/u/dRSryNkx
-
-🚀 UPGRADE BENEFITS:
-• Unlimited real-time chat with successful traders
-• Advanced portfolio analytics and insights
-• Priority customer support
-• Exclusive trading signals and alerts
-• Access to premium educational content
-
-Your account is now in LIMITED ACCESS mode:
-✅ Portfolio management available
-✅ Paper trading accessible
-✅ Market data viewing
-❌ Chat access restricted (upgrade to unlock)
-
-Ready to rejoin our trading community? Choose your plan above!
-
---
-CashOutAi Team
+The CashOutAI Team
 """
-        
-        html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .header {{ background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 20px; text-align: center; }}
-        .content {{ padding: 20px; background: #f9f9f9; }}
-        .plans-section {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; }}
-        .plan-card {{ border: 2px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 10px 0; text-align: center; }}
-        .plan-price {{ font-size: 24px; font-weight: bold; color: #1f2937; margin: 10px 0; }}
-        .plan-button {{ background: #8b5cf6; color: white; padding: 12px 25px; border-radius: 6px; text-decoration: none; display: inline-block; margin: 10px 0; font-weight: bold; transition: background 0.3s; }}
-        .plan-button:hover {{ background: #7c3aed; }}
-        .restrictions {{ background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ef4444; }}
-        .benefits {{ background: white; padding: 15px; border-radius: 8px; margin: 15px 0; }}
-        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>🎯 Time to Upgrade!</h1>
-        <p>Your trial has expired - choose a plan to continue</p>
-    </div>
-    
-    <div class="content">
-        <h2>Hi {user_name},</h2>
-        <p>Your 14-day free trial has ended. Upgrade now to keep full access to CashOutAi!</p>
-        
-        <div class="plans-section">
-            <h3 style="text-align: center; margin-bottom: 20px;">💰 Choose Your Plan - One Click Payment:</h3>
-            
-            <div class="plan-card" style="border: 2px solid #3b82f6;">
-                <h4>📅 Monthly Plan</h4>
-                <div class="plan-price">$199/month</div>
-                <p>Perfect for getting started</p>
-                <a href="https://square.link/u/dhjuwn84" class="plan-button" style="background: #3b82f6;">💳 Pay Now - $199/month</a>
-            </div>
-            
-            <div class="plan-card" style="border: 3px solid #f59e0b; position: relative;">
-                <div style="position: absolute; top: -15px; left: 50%; transform: translateX(-50%); background: #ef4444; color: white; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: bold;">🏆 BEST VALUE</div>
-                <h4>🌟 Yearly Plan (Most Popular)</h4>
-                <div class="plan-price">$1,296/year</div>
-                <p>Save over $1,000 compared to monthly!</p>
-                <a href="https://square.link/u/kKmNauCe" class="plan-button" style="background: #f59e0b;">🏆 Pay Now - $1,296/year</a>
-            </div>
-            
-            <div class="plan-card" style="border: 2px solid #8b5cf6;">
-                <h4>♾️ Lifetime Plan</h4>
-                <div class="plan-price">$3,969 one-time</div>
-                <p>Never pay again - lifetime access</p>
-                <a href="https://square.link/u/dRSryNkx" class="plan-button" style="background: #8b5cf6;">💎 Pay Now - $3,969</a>
-            </div>
-        </div>
-        
-        <div class="restrictions">
-            <h3>⚠️ Your Account is Now in LIMITED ACCESS Mode</h3>
-            <p>❌ <strong>Chat access is restricted</strong> - You can't view or participate in trader discussions</p>
-            <p>✅ Portfolio management still available</p>
-            <p>✅ Paper trading still accessible</p>
-            <p>✅ Market data viewing allowed</p>
-        </div>
-        
-        <div class="benefits">
-            <h3>🚀 Upgrade to unlock:</h3>
-            <p>💬 <strong>Unlimited real-time chat</strong> with successful traders</p>
-            <p>📊 <strong>Advanced portfolio analytics</strong> and insights</p>
-            <p>🔔 <strong>Exclusive trading signals</strong> and alerts</p>
-            <p>⭐ <strong>Priority customer support</strong></p>
-            <p>🎓 <strong>Access to premium educational content</strong></p>
-        </div>
-        
-        <p style="text-align: center;"><strong>Ready to rejoin our trading community?</strong><br>Choose your plan above!</p>
-    </div>
-    
-    <div class="footer">
-        <p>CashOutAi Team</p>
-        <p>After payment, your account will be upgraded to full member status within 24 hours.</p>
-    </div>
+        html_body = f"""<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>CashOutAI trial ended</title></head>
+<body style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;">
+  <h1>Your trial has ended</h1>
+  <p>Hi {escape(str(user_name), quote=True)},</p>
+  <p>Your existing CashOutAI trial has ended. Your account and community history remain in place.</p>
+  <p><a href="{self.MEMBERSHIP_URL}">View current membership options</a></p>
+  <p>Membership purchases are one-time payments with no automatic renewal. The team reviews the Square payment and matches it to your existing account before approving paid access. Use your CashOutAI account email at checkout; if the payment email differs, provide your account email and receipt/reference to the team.</p>
+  <p>Use the same account; you do not need to register again. If you cannot sign in, choose <strong>Recover existing account</strong> on the sign-in screen and use your registered email address. You can then open Membership to review or purchase access.</p>
+  <p>The CashOutAI Team</p>
 </body>
-</html>
-"""
-        
+</html>"""
         return await self.send_email(user_email, subject, plain_body, html_body)
-    
+
     async def send_trial_welcome_email(
-        self, 
-        user_email: str, 
+        self,
+        user_email: str,
         user_name: str,
-        trial_end_date
+        trial_end_date: datetime
     ) -> bool:
-        """Send comprehensive trial welcome email with login info"""
-        subject = "🎉 Welcome to CashOutAi - Your 14-Day FREE Trial Starts Now!"
-        
-        trial_end_formatted = trial_end_date.strftime('%B %d, %Y at %I:%M %p UTC')
-        
-        plain_body = f"""
-🎉 Welcome to CashOutAi, {user_name}!
+        """Describe a legacy trial's supplied expiry without starting a new one."""
+        subject = "CashOutAI — your existing trial account"
+        trial_end = self._existing_trial_end_label(trial_end_date)
+        plain_body = f"""Hi {user_name},
 
-Congratulations! Your 14-day FREE trial has started and you now have FULL ACCESS to our premium trading platform.
+Here are the details for your existing CashOutAI trial account.
+Original trial expiry: {trial_end}
 
-🔑 YOUR LOGIN CREDENTIALS:
-• Website: www.CashOutAi.App
-• Email: {user_email}
-• Password: [The password you created during registration]
+Your existing trial keeps its original expiry and access rules. New trials are currently unavailable. Open Membership in the app for your current account status and the available paid plans.
 
-✨ WHAT YOU GET DURING YOUR TRIAL:
-• Unlimited real-time chat with successful traders
-• Complete message history and trading discussions
-• Advanced portfolio management tools  
-• Paper trading practice mode
-• Real-time market data and alerts
-• Achievement system and XP rewards
-• Priority support
+Open Membership: {self.MEMBERSHIP_URL}
 
-⏰ TRIAL DETAILS:
-• Trial Started: Now
-• Trial Ends: {trial_end_formatted}
-• Full Access: 14 days of unlimited features
+Membership purchases are one-time payments with no automatic renewal. Paid access is approved after the team manually reviews the payment and matches it to your existing account.
 
-💰 MEMBERSHIP PLANS (upgrade anytime):
+Use the same account; you do not need to register again. If you cannot sign in, choose Recover existing account on the sign-in screen and use your registered email address.
 
-💳 MONTHLY PLAN: $199/month
-   Payment Link: https://square.link/u/dhjuwn84
-
-🏆 YEARLY PLAN: $1,296/year [MOST POPULAR]
-   Payment Link: https://square.link/u/kKmNauCe
-
-💎 LIFETIME PLAN: $3,969 one-time
-   Payment Link: https://square.link/u/dRSryNkx
-
-🚀 GET STARTED:
-1. Login at: www.CashOutAi.App
-2. Join the live trading chat
-3. Connect with our community of traders
-4. Start building your portfolio
-
-Questions? Reply to this email for instant support!
-
-Welcome to the CashOutAi trading family! 🎯
-
---
-The CashOutAi Team
+The CashOutAI Team
 """
-        
-        html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f4f4f4; margin: 0; padding: 20px; }}
-        .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.1); }}
-        .header {{ background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; }}
-        .header h1 {{ margin: 0; font-size: 28px; }}
-        .content {{ padding: 30px; }}
-        .login-box {{ background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #8b5cf6; }}
-        .features-box {{ background: #e0f2fe; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-        .pricing-box {{ background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800; }}
-        .cta-button {{ background: #8b5cf6; color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; display: inline-block; margin: 20px 0; font-weight: bold; }}
-        .trial-timer {{ background: #fee; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444; margin: 20px 0; }}
-        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 14px; background: #f8f9fa; }}
-        .feature-list {{ margin: 15px 0; }}
-        .feature-list li {{ margin: 5px 0; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🎉 Welcome to CashOutAi!</h1>
-            <p>Your 14-Day FREE Trial Starts Now</p>
-        </div>
-        
-        <div class="content">
-            <h2>Congratulations, {user_name}! 🚀</h2>
-            <p>You now have <strong>FULL ACCESS</strong> to our premium trading platform for the next 14 days!</p>
-            
-            <div class="login-box">
-                <h3>🔑 Your Login Credentials</h3>
-                <p><strong>Website:</strong> <a href="https://www.CashOutAi.App">www.CashOutAi.App</a></p>
-                <p><strong>Email:</strong> {user_email}</p>
-                <p><strong>Password:</strong> [The password you created during registration]</p>
-                <div style="text-align: center; margin: 20px 0;">
-                    <a href="https://www.CashOutAi.App" class="cta-button">🚀 Start Trading Now</a>
-                </div>
-            </div>
-            
-            <div class="trial-timer">
-                <h3>⏰ Trial Information</h3>
-                <p><strong>Trial Started:</strong> Right Now!</p>
-                <p><strong>Trial Ends:</strong> {trial_end_formatted}</p>
-                <p><strong>Access Level:</strong> FULL Premium Access</p>
-            </div>
-            
-            <div class="features-box">
-                <h3>✨ What You Get During Your Trial</h3>
-                <ul class="feature-list">
-                    <li>💬 <strong>Unlimited real-time chat</strong> with successful traders</li>
-                    <li>📚 <strong>Complete message history</strong> and trading discussions</li>
-                    <li>📊 <strong>Advanced portfolio management</strong> tools</li>
-                    <li>📈 <strong>Paper trading practice</strong> mode</li>
-                    <li>🔔 <strong>Real-time market data</strong> and alerts</li>
-                    <li>🏆 <strong>Achievement system</strong> and XP rewards</li>
-                    <li>⭐ <strong>Priority customer support</strong></li>
-                </ul>
-            </div>
-            
-            <div class="pricing-box">
-                <h3>💰 Membership Plans</h3>
-                <p>Upgrade anytime to keep full access after your trial:</p>
-                
-                <div style="background: white; padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #e5e7eb; text-align: center;">
-                    <h4 style="margin: 0; color: #1f2937;">🗓️ Monthly Plan</h4>
-                    <p style="margin: 5px 0; font-size: 20px; font-weight: bold; color: #1f2937;">$199/month</p>
-                    <a href="https://square.link/u/dhjuwn84" style="background: #3b82f6; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">💳 Choose Monthly</a>
-                </div>
-                
-                <div style="background: linear-gradient(135deg, #fef3c7 0%, #fbbf24 100%); padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #f59e0b; text-align: center; position: relative;">
-                    <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #ef4444; color: white; padding: 4px 12px; border-radius: 15px; font-size: 12px; font-weight: bold;">MOST POPULAR</div>
-                    <h4 style="margin: 0; color: #1f2937;">📅 Yearly Plan</h4>
-                    <p style="margin: 5px 0; font-size: 20px; font-weight: bold; color: #1f2937;">$1,296/year</p>
-                    <a href="https://square.link/u/kKmNauCe" style="background: #f59e0b; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">🏆 Choose Yearly</a>
-                </div>
-                
-                <div style="background: white; padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #e5e7eb; text-align: center;">
-                    <h4 style="margin: 0; color: #1f2937;">♾️ Lifetime Plan</h4>
-                    <p style="margin: 5px 0; font-size: 20px; font-weight: bold; color: #1f2937;">$3,969 one-time</p>
-                    <a href="https://square.link/u/dRSryNkx" style="background: #8b5cf6; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 10px;">💎 Choose Lifetime</a>
-                </div>
-            </div>
-            
-            <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
-                <h3>🚀 Ready to Get Started?</h3>
-                <p>Join our community of successful traders and start building your portfolio today!</p>
-                <a href="https://www.CashOutAi.App" class="cta-button">Login & Start Trading</a>
-            </div>
-            
-            <p>Questions? Simply reply to this email for instant support from our team!</p>
-            <p><strong>Welcome to the CashOutAi trading family!</strong> 🎯</p>
-        </div>
-        
-        <div class="footer">
-            <p>The CashOutAi Team</p>
-            <p>This trial gives you full access to our premium features for 14 days.</p>
-        </div>
-    </div>
+        html_body = f"""<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Your existing CashOutAI trial account</title></head>
+<body style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;">
+  <h1>Your existing trial account</h1>
+  <p>Hi {escape(str(user_name), quote=True)},</p>
+  <p><strong>Original trial expiry:</strong> {escape(trial_end, quote=True)}</p>
+  <p>Your existing trial keeps its original expiry and access rules. New trials are currently unavailable. Open Membership in the app for your current account status and the available paid plans.</p>
+  <p><a href="{self.MEMBERSHIP_URL}">Open Membership</a></p>
+  <p>Membership purchases are one-time payments with no automatic renewal. Paid access is approved after the team manually reviews the payment and matches it to your existing account.</p>
+  <p>Use the same account; you do not need to register again. If you cannot sign in, choose <strong>Recover existing account</strong> on the sign-in screen and use your registered email address.</p>
+  <p>The CashOutAI Team</p>
 </body>
-</html>
-"""
-        
+</html>"""
         return await self.send_email(user_email, subject, plain_body, html_body)
-    
+
     async def send_general_welcome_email(
         self,
         user_email: str,
@@ -706,7 +298,7 @@ The CashOutAi Team
     ):
         """Send one approval welcome using the member's existing account."""
         subject = "Welcome to CashOutAI — your access is approved"
-        login_url = "https://cashoutai.app/"
+        login_url = self.APP_URL
         plain_body = f"""Welcome to CashOutAI, {user_name}!
 
 Your access has been approved.
@@ -715,7 +307,7 @@ Membership: {membership_plan}
 Sign in at {login_url} with your existing account:
 Username: {username}
 Email: {user_email}
-Use the password you chose when registering. You do not need to register again.
+Use your current password. If you cannot sign in, choose Recover existing account on the sign-in screen and use your registered email address. You do not need to register again.
 
 Open Membership in the app to see your access status and any paid-through date.
 
@@ -752,7 +344,7 @@ The CashOutAI Team
       <div style="padding:18px;background:#f0f8f5;border-radius:8px;">
         <p style="margin:0;"><strong>Username:</strong> {safe_username}<br>
         <strong>Email:</strong> {safe_email}</p>
-        <p>Use the password you chose when registering.</p>
+        <p>Use your current password. If you cannot sign in, choose <strong>Recover existing account</strong> on the sign-in screen and use your registered email address.</p>
         <a href="{login_url}" style="display:inline-block;background:#08765c;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;">Open CashOutAI</a>
       </div>
       <p>Open <strong>Membership</strong> in the app to see your access status and any paid-through date.</p>

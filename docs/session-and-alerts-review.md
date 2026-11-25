@@ -1,6 +1,6 @@
 # Sessions, quotes, and stock alerts
 
-Updated: November 25, 2026. This document describes source findings and draft repairs. Read-only aggregate database and provider checks have been completed; provider subscriptions and display rights, external automation state, and end-to-end delivery still require verification. No real messages, push notifications, or test emails were sent, and no member data or credentials were changed.
+Updated: November 25, 2026. This document describes source findings and draft repairs. Read-only aggregate database and provider checks have been completed; provider subscriptions and display rights, external automation state, and end-to-end delivery still require verification. The isolated tests sent no real emails or push notifications. A separate owner-approved plain email test is recorded below; no member data or credentials were changed.
 
 ## Accepted product direction
 
@@ -75,5 +75,7 @@ The app and Assistro branches can run together during adoption. Keep the existin
 The November 25 release candidate passed the complete CRA production build, **181 consolidated backend tests**, and **61 JavaScript tests**. The isolated tests cover ingestion, deduplication, dispatch, opt-in, session context, expiry, worker behavior, and the other account, practice, billing, and social contracts in this draft.
 
 Browser QA used the actual compiled app with synthetic accounts and an isolated same-origin API fixture. Phone and TV frames had no horizontal overflow; fullscreen fallback, TV mode, room-chat open/Escape, entry inspection, practice reset and result presentation, manual-approval status, and community/profile/achievement screens were checked. Stocks displayed a labeled synthetic alert, accepted an NVDA ticker selection, and showed the honest unavailable state when the fixture blocked the external chart. Real email, payment, push, service-worker registration, and external provider connections were disabled. See [nautilus-rooms.md](nautilus-rooms.md) for the detailed checks and limits.
+
+Separately, Resend accepted one owner-approved plain test email with HTTP 200 using the existing configured sender and key. The message contained no password-reset token and made no member or credential changes. Inbox receipt is awaiting user confirmation. Provider acceptance does not establish inbox delivery or a completed account recovery, and this test did not exercise Stocks push or the Zapier/Assistro workflow.
 
 The feature changes remain on the draft review branch `codex/cashoutai-square-launch-2026-11-25`; the current live app has not been updated with this release. Read-only readiness checks are separate from the isolated UI tests. A coordinated deployment, recovery-email delivery, the actual Zapier action, live publishers, official settlement retrieval, real-device push, and licensed streaming remain unverified.
