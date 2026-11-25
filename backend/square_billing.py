@@ -898,6 +898,10 @@ class SquareBillingService:
         return result
 
     async def status(self, user):
+        try:
+            from .practice_event import practice_event_summary
+        except ImportError:
+            from practice_event import practice_event_summary
         # Re-read after authentication: grants can complete during the request.
         user = await self.db.users.find_one({"id": user["id"]})
         if not user or user.get("status") not in BILLABLE_STATUSES or user.get("disabled") is True:
@@ -911,6 +915,7 @@ class SquareBillingService:
                 "membership_plan": user.get("membership_plan"), "selected_plan_id": selected_plan,
                 "approval_mode": self.settings.mode, "account_status": user["status"],
                 "entitlement": membership_snapshot(user, self.now()),
+                "practice_event": practice_event_summary(user, self.now()),
                 "payments": [self.payment_view(row) for row in payments],
                 "checkouts": [{"checkout_id": row["checkout_id"], "plan_id": row["plan_id"], "status": row["status"],
                                "environment": row["environment"],

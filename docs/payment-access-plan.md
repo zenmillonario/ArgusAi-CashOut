@@ -10,12 +10,12 @@
 | 6 months | `six_months` | $499 once | Six calendar months |
 | Lifetime | `lifetime` | $899 once | Lifetime, without an expiry date |
 
-All three are **one-time purchases with no automatic renewal**. The internal ID `monthly` means one month of access, not a recurring charge. A member who wants another term makes a new purchase. No new trial, discount, sale deadline, tax assumption, or refund policy is added. The owner confirmed the purchase terms; the live Square Dashboard settings have not been independently inspected.
+All three are **one-time purchases with no automatic renewal**. The internal ID `monthly` means one month of access, not a recurring charge. A member who wants another term makes a new purchase. The paid offers add no recurring trial, discount, tax assumption, or refund policy. The separately approved free practice event has a fixed cutoff described in the member launch plan. The owner confirmed the purchase terms; the live Square Dashboard settings have not been independently inspected.
 
 ## The selected member journey
 
 1. **Use one account.** Existing members keep their stable member ID, profile, history, and established access. Valid saved credentials remain supported; historical accounts without a saved hash establish a password through verified recovery on the same account. The website's `?join=monthly`, `?join=six_months`, and `?join=lifetime` routes select a plan within the app. Do not register a second account or repurchase access to recover login.
-2. **Keep a new request pending.** Registration does not unlock paid rooms. The separate billing sign-in verifies the account password and gives limited access to its membership screen. New-signup email verification remains separate work; password recovery and billing authentication do not establish it.
+2. **Keep a new request pending.** Registration does not unlock paid rooms. The separate billing sign-in verifies the account password and gives limited access to its membership screen. Event access uses a separate explicit email confirmation flow. Password recovery and billing authentication do not establish event enrollment.
 3. **Pay the selected one-time price at Square.** The membership screen opens the corresponding owner-supplied reusable link and shows the member's account email and identity. Ask members to use that email at Square. If their payment email differs, they give the team their CashOutAI account email and Square receipt/payment reference for matching.
 4. **The owner reviews the purchase.** The owner uses their existing Square alert and payment record to check the buyer, purchased plan, amount, and completed payment. A selected plan, screenshot, browser return, or email match alone does not activate access. The app does not automatically consume the Square alert in manual mode.
 5. **Approve the paid purchase in CashOutAI.** A current administrator selects the member and actual purchased plan, records the Square payment or receipt reference, confirms the match, and chooses **Approve access & send welcome email**. The app records an administrator-reviewed purchase and its term once.
@@ -53,7 +53,7 @@ The approval response includes the authoritative entitlement/payment and `welcom
 
 The release must reuse the production database and stable `users.id`; existing members do not register again. Preserve existing approved, lifetime, and independently administrator-granted access. If such a member later buys a dated term, that independent access is retained; expiry of the new purchase does not silently remove it.
 
-Existing trial accounts keep their established dates and normal active/expired rules. New trials stay disabled in both registration UI and server. A new paid-plan selection still creates a pending request until the owner approves it.
+Existing trial accounts keep their established dates and normal active/expired rules. Ordinary rolling trials stay disabled in both registration UI and server. The explicitly enabled, email-verified practice event is the sole new free-access exception and has one fixed deadline. A new paid-plan selection still creates a pending request until the owner approves it.
 
 Paid expiry is enforced alongside the active session on protected APIs and room/stream access. Keeping a device signed in does not make a one-month membership permanent. Renewal does not require a new identity or an artificial login reset. The single-active-session rule remains.
 

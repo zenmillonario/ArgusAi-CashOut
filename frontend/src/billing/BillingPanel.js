@@ -4,6 +4,7 @@ import { MEMBERSHIP_PLANS, membershipPlan, moneyFromCents, sameBillingCredential
   loadBillingState, createMemberCheckout, safeSquareCheckoutUrl, checkoutAttemptKey, retireFulfilledAttempts,
   manualApprovalRequest, approveManualPurchase, manualApprovalError, welcomeEmailLabel } from './billingModel.mjs';
 import './billing.css';
+import { eventDeadlineLabel, eventMembershipPresentation } from '../practiceEvent/eventModel.mjs';
 
 const dateLabel = value => { const date = value ? new Date(value) : null; return date && !Number.isNaN(date.valueOf()) ? date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Not set'; };
 const credentialId = value => value?.kind === 'member' ? `member:${value.session.id}:${value.session.active_session_id}` : `billing:${value?.user_id || ''}:${value?.billing_token || ''}`;
@@ -14,7 +15,7 @@ const paymentKey = payment => `${payment.evidence_source || payment.environment 
 const paymentDate = payment => manuallyReviewed(payment) ? payment.reviewed_at : payment.verified_at || payment.received_at;
 const paymentReference = payment => payment.payment_reference || payment.payment_id;
 
-export default function BillingPanel({ apiBase, credential, initialPlanId = '', onAccessReady, onAuthExpired, compact = false }) {
+export default function BillingPanel({ apiBase, credential, initialPlanId = '', onAccessReady, onAuthExpired, compact = false, practiceEvent, onRequestEvent }) {
   const current = useRef(credential); current.current = credential;
   const key = credentialId(credential);
   const [view, setView] = useState({ owner: null, data: null, error: '', authExpired: false, loading: true });
@@ -105,10 +106,19 @@ export default function BillingPanel({ apiBase, credential, initialPlanId = '', 
     }
   };
   const payments = Array.isArray(data?.status?.payments) ? data.status.payments : [];
+  const eventMembership = eventMembershipPresentation(data?.status);
+  const membershipTag = eventMembership?.label || (membership?.active ? 'MEMBERSHIP ACTIVE' : manualMode ? 'AWAITING ADMIN APPROVAL' : 'ACCESS PENDING');
+  const membershipTitle = eventMembership?.title || (membership?.lifetime ? 'Lifetime access' : membershipPlan(membership?.plan_id)?.label || (membership?.source === 'legacy' ? 'Existing membership' : 'Your account is saved'));
+  const membershipDescription = eventMembership ? eventMembership.kind === 'active'
+    ? `Your free practice access runs through ${eventDeadlineLabel(eventMembership.endsAt)}. It does not renew or charge you. Choose a membership below to continue after the event.`
+    : 'Your account, profile, and practice history are saved. Choose a one-time membership to continue. If you already paid on Square, wait for the team to review your payment before buying again.'
+    : membership?.active ? membership.lifetime ? 'Your account has lifetime membership access.' : membership.paid_through ? `Access through ${dateLabel(membership.paid_through)}. This purchase does not renew automatically.` : 'Your existing access remains active.'
+      : manualMode ? 'If you have already paid, wait for the CashOutAI team to match your Square payment and approve access. Keep this account; you do not need to register again.' : 'Access is pending. Refresh to check this account’s current membership status.';
   return <section className={`cashout-billing ${compact ? 'is-compact' : ''}`} aria-labelledby="membership-heading">
     <div className="billing-heading"><div><span className="billing-kicker">YOUR MEMBERSHIP</span><h2 id="membership-heading">Membership &amp; payments</h2></div><button type="button" className="billing-refresh" onClick={() => refresh(value => value + 1)} disabled={loading}>Refresh status</button></div>
     {loading ? <p className="billing-loading" role="status">Loading this account's membership…</p> : view.error ? <div className="billing-error" role="alert"><p>{view.error}</p>{view.authExpired && onAuthExpired && <button type="button" onClick={onAuthExpired}>Sign in again</button>}</div> : <>
-      <div className={`billing-membership-status ${membership?.active ? 'is-active' : 'is-pending'}`}><div><span>{membership?.active ? 'MEMBERSHIP ACTIVE' : manualMode ? 'AWAITING ADMIN APPROVAL' : 'ACCESS PENDING'}</span><h3>{membership?.lifetime ? 'Lifetime access' : membershipPlan(membership?.plan_id)?.label || (membership?.source === 'legacy' ? 'Existing membership' : 'Your account is saved')}</h3><p>{membership?.active ? membership.lifetime ? 'Your account has lifetime membership access.' : membership.paid_through ? `Access through ${dateLabel(membership.paid_through)}. This purchase does not renew automatically.` : 'Your existing access remains active.' : manualMode ? 'If you have already paid, wait for the CashOutAI team to match your Square payment and approve access. Keep this account; you do not need to register again.' : 'Access is pending. Refresh to check this account’s current membership status.'}</p></div>{membership?.active && onAccessReady && <button type="button" onClick={() => { if (sameBillingCredential(current.current, credential)) onAccessReady(data.status); }}>{credential?.kind === 'billing' ? 'Sign in to the app' : 'Continue to the app'} ↗</button>}</div>
+      <div className={`billing-membership-status ${membership?.active ? 'is-active' : 'is-pending'}`}><div><span>{membershipTag}</span><h3>{membershipTitle}</h3><p>{membershipDescription}</p></div>{membership?.active && onAccessReady && <button type="button" onClick={() => { if (sameBillingCredential(current.current, credential)) onAccessReady(data.status); }}>{credential?.kind === 'billing' ? 'Sign in to the app' : 'Continue to the app'} ↗</button>}</div>
+      {!membership?.active && practiceEvent?.phase === 'open' && onRequestEvent && <div className="practice-event-portal"><h3>Try the open practice event</h3><p>Verify this account’s email for eligible free practice access through {eventDeadlineLabel(practiceEvent.config.ends_at)}. The event uses virtual funds and has one shared deadline.</p><button type="button" className="practice-event-secondary" onClick={() => onRequestEvent(data.status.email || '')}>Verify email for practice access</button></div>}
       {manualMode && <div className="billing-account-summary" aria-label="Payment matching details"><div><span>ACCOUNT EMAIL</span><strong>{data.status.email || 'Contact the CashOutAI team to confirm your account email'}</strong></div><div><span>USERNAME</span><strong>{data.status.username || credential.username || 'Your account'}</strong></div><div className="billing-account-id"><span>ACCOUNT ID</span><code>{data.status.user_id}</code></div><p>Use this account email at Square. If you paid with a different email, tell the CashOutAI team your account email and Square receipt or payment reference so they can match your purchase.</p></div>}
       {membership?.active && membership?.lifetime ? <p className="billing-terms">You already have lifetime access. No renewal is needed.</p> : <>
         <div className="billing-plans" role="radiogroup" aria-label="Membership access term">

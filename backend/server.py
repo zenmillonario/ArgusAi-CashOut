@@ -18,6 +18,10 @@ AUTH_PRIVATE_FIELDS = frozenset({
     "session_created_at", "new_session_id", "reset_token", "reset_token_hash", "reset_expires",
     "billing_entitlement", "billing_token", "credential_fingerprint",
     "manual_access_granted", "manual_access_granted_at", "manual_access_granted_by",
+    "practice_event_token_hash", "practice_event_token_expires", "practice_event_token_campaign",
+    "practice_event_token_email", "practice_event_token_credential", "practice_event_grant",
+    "practice_event_trial", "practice_event_verified_email", "practice_event_verified_at",
+    "practice_event_email_status", "registration_email_key", "registration_username_key",
 })
 
 def redact_auth_fields(value):
@@ -324,6 +328,12 @@ async def lifespan(app: FastAPI):
         logger.info("Ensured messages timestamp index exists")
     except Exception as e:
         logger.warning(f"Could not create index: {e}")
+
+    try:
+        await practice_event_service.initialize()
+    except Exception:
+        # Registration also checks its uniqueness indexes before inserting.
+        logger.warning("Practice-event indexes unavailable; verify database readiness before opening enrollment.")
     
     # Administrator provisioning is an operator action. Never seed a public
     # account with a predictable password or elevate the first registration.
@@ -857,6 +867,7 @@ class UserCreate(BaseModel):
     is_trial: Optional[bool] = False  # Legacy input retained so trial attempts can be rejected explicitly.
     password: str
     referral_code: Optional[str] = None  # Optional referral code of referring user
+    practice_event_id: Optional[str] = Field(default=None, min_length=1, max_length=80)
 
 class CashPrizeReview(BaseModel):
     user_id: str
@@ -1989,6 +2000,11 @@ async def test_email_service():
 @limiter.limit("5/minute")
 async def register_user(request: Request, user_data: UserCreate, background_tasks: BackgroundTasks):
     validate_new_password(user_data.password)
+    event_enrollment = user_data.practice_event_id is not None
+    if event_enrollment:
+        # The explicit server-owned campaign decides eligibility. A plan label
+        # alone never creates access, and registration still starts pending.
+        practice_event_service.require_open(user_data.practice_event_id)
     # New trial enrollment is paused. This gate applies only to creation; it
     # never rewrites existing members, trials, expiration dates or paid plans.
     # Normalize casing, separators and compatibility characters so an old or
@@ -2020,10 +2036,19 @@ async def register_user(request: Request, user_data: UserCreate, background_task
             status_code=409,
             detail="An account already uses this username or email. Sign in or use password recovery. Contact an administrator if the account needs review.",
         )
+    try:
+        from .practice_event import ensure_registration_indexes
+    except ImportError:
+        from practice_event import ensure_registration_indexes
+    try:
+        await ensure_registration_indexes(db)
+    except Exception:
+        raise HTTPException(503, detail="Account creation is temporarily unavailable. Please try again later.") from None
     user_data = user_data.model_copy(update={"username": username, "email": email})
 
     # Keep the password hash in the database record, outside public User output.
     user_dict = user_data.dict()
+    user_dict.pop("practice_event_id", None)
     
     # Store referral code for processing after user creation
     referral_code = user_dict.pop('referral_code', None)
@@ -2040,7 +2065,7 @@ async def register_user(request: Request, user_data: UserCreate, background_task
     logger.info(f"📋 NEW USER REGISTERED (pending approval): {user.username} - Plan: {user_data.membership_plan}")
     
     # Send email notification to admin for new registration
-    if email_service:
+    if email_service and not event_enrollment:
         admin_email = os.getenv("ADMIN_EMAIL")
         background_tasks.add_task(
             email_service.send_registration_notification,
@@ -2056,26 +2081,34 @@ async def register_user(request: Request, user_data: UserCreate, background_task
             user_dict.get('real_name', user_data.username)
         )
         logger.info(f"📧 Scheduled user confirmation email to: {user_data.email}")
-    else:
+    elif not event_enrollment:
         logger.warning(f"Email service unavailable. Would send registration notification for user: {user_data.username}")
         
     # Send push notification to admins
-    background_tasks.add_task(
-        send_notification_to_admins,
-        "🔔 New User Registration",
-        f"{user_dict.get('real_name', user_data.username)} has registered and needs approval",
-        {"type": "new_registration", "username": user_data.username}
-    )
+    if not event_enrollment:
+        background_tasks.add_task(
+            send_notification_to_admins,
+            "🔔 New User Registration",
+            f"{user_dict.get('real_name', user_data.username)} has registered and needs approval",
+            {"type": "new_registration", "username": user_data.username}
+        )
 
     # Insert user into database
-    await db.users.insert_one({**user.dict(), "password_hash": hashed_password})
+    try:
+        await db.users.insert_one({**user.dict(), "password_hash": hashed_password,
+                                   "registration_email_key": email,
+                                   "registration_username_key": username.casefold()})
+    except Exception as error:
+        if getattr(error, "code", None) == 11000:
+            raise HTTPException(409, detail="An account already uses this username or email. Sign in or recover your existing account.") from None
+        raise
     
     # Handle referral if provided
     if referral_code:
         background_tasks.add_task(handle_referral_signup, user.id, referral_code)
     
     # Notify admins about new registration via WebSocket (only for regular users, not trials)
-    if user.status == UserStatus.PENDING:
+    if user.status == UserStatus.PENDING and not event_enrollment:
         await manager.send_admin_notification(json.dumps({
             "type": "new_registration",
             "user": user.dict()
@@ -2111,20 +2144,27 @@ async def login_user(login_data: UserLogin):
     elif user_obj.status == UserStatus.TRIAL:
         # Check if trial has expired
         trial_end = utc_datetime(user_obj.trial_end_date)
-        if not trial_end or datetime.utcnow() > trial_end:
+        if not trial_end or datetime.utcnow() >= trial_end:
             # Convert to trial_expired status
-            await db.users.update_one(
-                {"id": user_obj.id},
+            expected = {"id": user_obj.id, "status": UserStatus.TRIAL,
+                        **{field: user[field] if field in user else {"$exists": False}
+                           for field in ("trial_end_date", "billing_entitlement", "manual_access_granted", "disabled", "practice_event_grant")}}
+            expired = await db.users.update_one(
+                expected,
                 {"$set": {"status": UserStatus.TRIAL_EXPIRED.value}}
             )
+            if expired.modified_count != 1:
+                # A concurrent approval/extension wins. Re-login with its fresh
+                # state instead of returning a stale trial response/session.
+                raise HTTPException(409, detail="Account access changed. Please sign in again.")
             user_obj.status = UserStatus.TRIAL_EXPIRED
+            user["status"] = UserStatus.TRIAL_EXPIRED.value
             logger.info(f"⏰ TRIAL EXPIRED: {user_obj.username} - Converting to limited access")
-            
-            # Schedule upgrade email if not sent
+
             if not user_obj.trial_upgrade_email_sent:
                 asyncio.create_task(send_trial_upgrade_email(user_obj.email, user_obj.real_name))
                 await db.users.update_one(
-                    {"id": user_obj.id},
+                    {**expected, "status": UserStatus.TRIAL_EXPIRED},
                     {"$set": {"trial_upgrade_email_sent": True}}
                 )
     elif user_obj.status not in [UserStatus.APPROVED, UserStatus.TRIAL_EXPIRED]:
@@ -2178,7 +2218,8 @@ async def login_user(login_data: UserLogin):
     
     # SINGLE database update for all login data
     previous_user = await db.users.find_one_and_update(
-        {"id": user_obj.id, "password_hash": verified_hash},
+        {"id": user_obj.id, "password_hash": verified_hash, "status": user["status"],
+         "disabled": user["disabled"] if "disabled" in user else {"$exists": False}},
         {"$set": update_data}
     )
     if previous_user is None:
@@ -4508,8 +4549,8 @@ async def create_paper_trade(trade_data: PaperTradeCreate, user_id: str):
     """Create a new paper trade"""
     # Verify user exists and is approved
     user = await db.users.find_one({"id": user_id})
-    if not user or user.get("status") != UserStatus.APPROVED:
-        raise HTTPException(status_code=403, detail="User not found or not approved")
+    if not active_membership(user, datetime.utcnow()):
+        raise HTTPException(status_code=403, detail=MEMBERSHIP_REQUIRED)
     
     if quote_number(trade_data.price, positive=True) is None or trade_data.quantity <= 0 or trade_data.action not in {"BUY", "SELL"}:
         raise HTTPException(status_code=422, detail="Use a positive quantity and finite, positive manual journal price.")
@@ -4850,26 +4891,40 @@ async def update_user_profile(request: Request, user_id: str, profile_data: Exis
     if profile_data.screen_name is not None:
         update_data["screen_name"] = profile_data.screen_name
     if profile_data.username is not None:
-        # Check if username already exists
-        if profile_data.username != user["username"]:
-            existing = await db.users.find_one({"username": profile_data.username})
-            if existing:
-                raise HTTPException(status_code=400, detail="Username already exists")
-        update_data["username"] = profile_data.username
+        username = profile_data.username.strip()
+        if not username:
+            raise HTTPException(status_code=422, detail="Username is required.")
+        existing = await db.users.find_one({"username": {"$regex": rf"^\s*{re.escape(username)}\s*$", "$options": "i"}})
+        if existing and existing["id"] != user_id:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        update_data.update(username=username, registration_username_key=username.casefold())
     if profile_data.email is not None:
-        # Check if email already exists
-        if profile_data.email != user["email"]:
-            existing = await db.users.find_one({"email": profile_data.email})
-            if existing:
-                raise HTTPException(status_code=400, detail="Email already exists")
-        update_data["email"] = profile_data.email
+        email = profile_data.email.strip().lower()
+        if not email:
+            raise HTTPException(status_code=422, detail="Email is required.")
+        existing = await db.users.find_one({"email": {"$regex": rf"^\s*{re.escape(email)}\s*$", "$options": "i"}})
+        if existing and existing["id"] != user_id:
+            raise HTTPException(status_code=400, detail="Email already exists")
+        update_data.update(email=email, registration_email_key=email)
+
+    if "registration_email_key" in update_data or "registration_username_key" in update_data:
+        try:
+            from .practice_event import ensure_registration_indexes
+        except ImportError:
+            from practice_event import ensure_registration_indexes
+        try:
+            await ensure_registration_indexes(db)
+        except Exception:
+            raise HTTPException(503, detail="Account updates are temporarily unavailable. Please try again later.") from None
     
     # Update user
     if update_data:
-        await db.users.update_one(
-            {"id": user_id},
-            {"$set": update_data}
-        )
+        try:
+            await db.users.update_one({"id": user_id}, {"$set": update_data})
+        except Exception as error:
+            if getattr(error, "code", None) == 11000:
+                raise HTTPException(409, detail="Another account already uses that username or email.") from None
+            raise
     
     # Get updated user
     updated_user = await db.users.find_one({"id": user_id})
@@ -4934,11 +4989,16 @@ try:
     from .membership import MEMBERSHIP_REQUIRED, utc_datetime, iso_date
     from .account_credentials import password_record
     from .square_billing import SquareBillingService
+    from .practice_event import PracticeEventService
 except ImportError:
     from stock_alerts import StockAlertService, active_membership
     from membership import MEMBERSHIP_REQUIRED, utc_datetime, iso_date
     from account_credentials import password_record
     from square_billing import SquareBillingService
+    from practice_event import PracticeEventService
+practice_event_service = PracticeEventService(
+    db, email_sender=email_service.send_email if email_service else None)
+app.include_router(practice_event_service.router())
 stock_alert_service = StockAlertService(db, require_profile_owner, get_active_fcm_tokens)
 app.include_router(stock_alert_service.router())
 square_billing_service = SquareBillingService(

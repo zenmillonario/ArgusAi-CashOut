@@ -10,7 +10,7 @@
 | 6 months — $499 once | `six_months` | 49900 | [6-month checkout](https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/FEYSOTOHEO6HE6N4ONWO4F7C) |
 | Lifetime — $899 once | `lifetime` | 89900 | [Lifetime checkout](https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/7YFX27AOC4IUYZ5DXP4W3VBL) |
 
-Every purchase is one-time, as confirmed by the owner. No subscription, automatic renewal, new trial, or discount is included. Another fixed term needs a new purchase. The public checkout pages could not be rendered by the research tool, so their live settings and tax treatment have not been independently verified. No transaction was submitted.
+Every purchase is one-time, as confirmed by the owner. No subscription, automatic renewal, rolling trial, or discount is included in a purchase. The separately approved fixed practice event does not change these payment terms. Another fixed term needs a new purchase. The public checkout pages could not be rendered by the research tool, so their live settings and tax treatment have not been independently verified. No transaction was submitted.
 
 These supplied links are the **primary payment path for this manual launch**. Do not invent an account parameter as payment proof. Square distinguishes reusable Dashboard links from transaction-specific API links. [Dashboard/API differences](https://developer.squareup.com/docs/checkout-api/common-pitfalls)
 
@@ -54,7 +54,7 @@ This is an **administrator-reviewed purchase**, not a Square-API-verified paymen
 
 A new dated term starts at approval. Another purchased term extends from the later of the current paid-through date and approval time. One- and six-calendar-month calculations clamp shorter month ends. Lifetime has no expiry and is not downgraded by a shorter purchase.
 
-Existing approved, lifetime, and independent complimentary access is retained. A dated purchase does not silently replace it. Existing trial dates stay unchanged; new trials are disabled.
+Existing approved, lifetime, and independent complimentary access is retained. A dated purchase does not silently replace it. Existing trial dates stay unchanged; ordinary rolling trials are disabled. The separately enabled, email-verified practice event uses its own fixed cutoff.
 
 Refunds, wrong-account assignments, and corrections require owner review. This release does not automatically revoke refunded access or add an arbitrary entitlement/receipt editor. A repeated approval is not an email resend. Welcome status can be `pending`, `sending`, `sent`, `failed`, `unavailable`, or `unknown`; resolve failed/uncertain email separately from the membership already recorded.
 
@@ -62,7 +62,7 @@ Refunds, wrong-account assignments, and corrections require owner review. This r
 
 Use an isolated app database and stubbed/non-production email service to verify the proposed release:
 
-1. Existing accounts retain IDs, access, profile/history, and recovery options. New registration stays pending with no trial.
+1. Existing accounts retain IDs, access, profile/history, and recovery options. New registration stays pending. Event access is granted only after the enabled campaign's explicit email confirmation; paid access still requires owner approval.
 2. Each plan-entry route reaches the correct one-time Square link after account entry. Billing proof cannot open paid rooms or another account's records.
 3. Only a current administrator can approve each plan with confirmed review, receipt evidence, correct dates, and separate email status.
 4. Duplicate references do not add time or send twice; reassignment conflicts; a new-receipt renewal extends correctly. Lifetime and independent legacy access remain.

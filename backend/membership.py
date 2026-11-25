@@ -31,13 +31,17 @@ def iso_date(value):
     return value.isoformat(timespec="milliseconds") + "Z" if value else None
 
 
-def membership_snapshot(user, now=None):
+def _base_membership_snapshot(user, now=None):
     now = utc_datetime(now) or datetime.utcnow()
     result = {"active": False, "source": "none", "paid_through": None,
               "lifetime": False, "plan_id": None}
     if not isinstance(user, dict) or user.get("disabled") is True:
         return result
     if user.get("status") == "trial":
+        # Event-created trial rows are governed by the campaign below. Their
+        # legacy date must not bypass a disabled campaign or a removed proof.
+        if user.get("practice_event_trial") is True:
+            return result
         end = utc_datetime(user.get("trial_end_date"))
         return {**result, "source": "trial", "active": bool(end and end > now),
                 "trial_ends_at": iso_date(end)}
@@ -59,6 +63,23 @@ def membership_snapshot(user, now=None):
     if user.get("manual_access_granted") is True:
         result.update(source="manual", active=True)
     return result
+
+
+def membership_snapshot(user, now=None):
+    now = utc_datetime(now) or datetime.utcnow()
+    base = _base_membership_snapshot(user, now)
+    if base["active"] or not isinstance(user, dict) or user.get("disabled") is True:
+        return base
+    if user.get("status") not in ("pending", "approved", "trial", "trial_expired"):
+        return base
+    try:
+        from .practice_event import event_membership
+    except ImportError:
+        from practice_event import event_membership
+    event = event_membership(user, now)
+    if event and (event["active"] or base["source"] in ("none", "trial")):
+        return event
+    return base
 
 
 def active_membership(user, now=None):

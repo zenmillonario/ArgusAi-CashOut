@@ -28,6 +28,9 @@ import { appSection, unreadCount, reactionType, reactionSummary, persistReaction
 import BillingPanel, { AdminBillingPanel } from './billing/BillingPanel';
 import { MEMBERSHIP_PLANS, membershipPlan, moneyFromCents, signupPlanIntent, billingReturnIntent, normalizeBillingProof,
   readBillingProof, saveBillingProof, clearBillingProof, memberBillingCredential, responseBelongsToSession } from './billing/billingModel.mjs';
+import usePracticeEvent from './practiceEvent/usePracticeEvent';
+import { PracticeEventInvitation, PracticeEventRequestDialog, PracticeEventVerification, PracticeEventMemberBanner } from './practiceEvent/PracticeEvent';
+import { EVENT_REGISTRATION_PLAN, eventTokenFromLocation, withoutEventToken, eventDeadlineLabel, practiceEventError, requestPracticeEventLink } from './practiceEvent/eventModel.mjs';
 
 // Error Boundary Component for Mobile App
 class MobileErrorBoundary extends React.Component {
@@ -141,6 +144,19 @@ function App() {
     };
   });
   const [passwordRecoveryBusy, setPasswordRecoveryBusy] = useState(false);
+  const [eventToken, setEventToken] = useState(() => eventTokenFromLocation(window.location));
+  const [eventRequest, setEventRequest] = useState({ open: false, email: '', message: '', error: '', version: 0 });
+  const practiceEvent = usePracticeEvent(API, currentUser, requireMembershipForSession);
+  const isEventRegistration = isRegistering && loginForm.membership_plan === EVENT_REGISTRATION_PLAN;
+
+  useEffect(() => {
+    if (eventTokenFromLocation(window.location)) window.history.replaceState({}, '', withoutEventToken(window.location.href));
+  }, []);
+  useEffect(() => {
+    if (isRegistering && practiceEvent.phase === 'open') {
+      setLoginForm(previous => previous.membership_plan ? previous : { ...previous, membership_plan: EVENT_REGISTRATION_PLAN });
+    }
+  }, [isRegistering, practiceEvent.phase]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -1097,18 +1113,32 @@ function App() {
     const credentials = { username: loginForm.username.trim(), password: loginForm.password };
     const registering = isRegistering;
     const selectedPlan = membershipPlan(loginForm.membership_plan);
+    const joiningEvent = registering && loginForm.membership_plan === EVENT_REGISTRATION_PLAN;
     let accountCreated = false;
     setError(null);
     setIsLoggingIn(true);
     try {
       if (registering) {
-        if (!selectedPlan) { setError('Choose a 1 month, 6 months, or Lifetime membership.'); return; }
+        if (joiningEvent && practiceEvent.phase !== 'open') { setError('The practice event is not accepting new access. Choose a membership or sign in to your existing account.'); return; }
+        if (!joiningEvent && !selectedPlan) { setError('Choose the practice event or a membership option.'); return; }
         await axios.post(`${API}/users/register`, {
           ...credentials, email: loginForm.email, real_name: loginForm.real_name,
-          membership_plan: selectedPlan.registrationLabel
+          membership_plan: joiningEvent ? EVENT_REGISTRATION_PLAN : selectedPlan.registrationLabel,
+          ...(joiningEvent ? { practice_event_id: practiceEvent.config.campaign_id } : {})
         });
         if (authAttemptRef.current !== attempt || activeUserRef.current) return;
         accountCreated = true;
+        if (joiningEvent) {
+          setIsRegistering(false);
+          setLoginForm(previous => ({ ...previous, username: credentials.username, email: loginForm.email, password: '' }));
+          try {
+            const requested = await requestPracticeEventLink(axios, API, loginForm.email, practiceEvent.config);
+            if (authAttemptRef.current === attempt && !activeUserRef.current) openEventRequest(loginForm.email, requested.message || 'If this account is eligible, a verification link has been sent to its registered email.');
+          } catch (verificationError) {
+            if (authAttemptRef.current === attempt && !activeUserRef.current) openEventRequest(loginForm.email, '', `Your account is saved. ${practiceEventError(verificationError)}`);
+          }
+          return;
+        }
         setBillingPlanId(selectedPlan.id);
         setIsRegistering(false);
         await openBillingForCredentials(credentials, attempt);
@@ -1676,6 +1706,7 @@ function App() {
     setShowEditProfile(false);
     setShowProfileCustomization(false);
     setShowChangePassword(false);
+    setEventRequest(previous => ({ ...previous, open: false, email: '', message: '', error: '' }));
     setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
     setIsConnected(false);
     setConnectionMode('disconnected');
@@ -1705,6 +1736,28 @@ function App() {
       console.error('Could not notify the server of logout');
     }
   };
+
+  function openEventRequest(email = '', message = '', requestError = '') {
+    setEventRequest(previous => ({ open: true, email, message, error: requestError, version: previous.version + 1 }));
+  }
+  function renderPracticeEventDialog() {
+    return eventRequest.open ? <PracticeEventRequestDialog key={eventRequest.version} apiBase={API} event={practiceEvent}
+      email={eventRequest.email} message={eventRequest.message} error={eventRequest.error}
+      onClose={() => setEventRequest(previous => ({ ...previous, open: false }))}
+      onRecover={() => { setEventRequest(previous => ({ ...previous, open: false })); setShowForgotPassword(true); }} /> : null;
+  }
+  function finishEventVerification(username) {
+    setEventToken('');
+    setShowLoadingScreen(false);
+    // logout clears the local session synchronously; its delayed server response
+    // must not be followed by a form write that could replace a newer attempt.
+    if (activeUserRef.current) logout();
+    else returnToMemberSignIn();
+    if (username) setLoginForm(previous => ({ ...previous, username, password: '' }));
+  }
+
+  if (eventToken) return <><PracticeEventVerification apiBase={API} token={eventToken} onSignIn={finishEventVerification}
+    onRequest={() => openEventRequest()} />{renderPracticeEventDialog()}{renderPasswordRecoveryModal()}</>;
 
   // Show loading screen while checking authentication
   if (isLoading) {
@@ -1745,8 +1798,9 @@ function App() {
     const credential = currentUser ? memberBillingCredential(currentUser) : billingProof;
     return <div className="billing-portal"><div className="billing-portal-shell">
       <header className="billing-portal-top"><span className="billing-brand">CashOutAI</span><button type="button" className="billing-exit" onClick={returnToMemberSignIn}>{currentUser ? 'Sign out' : 'Back to sign in'}</button></header>
-      <div className="billing-portal-intro"><span>ACCOUNT: {currentUser?.username || billingProof?.username || 'YOUR ACCOUNT'}</span><h1>{currentUser ? 'Review your membership access.' : 'Your account is ready. Choose your membership.'}</h1><p>Choose a one-time purchase, pay on Square, and wait for the CashOutAI team to approve access. You will use this same account for the trading rooms and community. If you have already paid, check your status here.</p></div>
+      <div className="billing-portal-intro"><span>ACCOUNT: {currentUser?.username || billingProof?.username || 'YOUR ACCOUNT'}</span><h1>{currentUser ? 'Review your membership access.' : 'Your account is saved. Choose how to continue.'}</h1><p>Choose a one-time purchase, pay on Square, and wait for the CashOutAI team to approve access. You will use this same account for the trading rooms and community. If you have already paid, check your status here.{practiceEvent.phase === 'open' ? ' Eligible accounts can also verify their email for the current free practice event below.' : ''}</p></div>
       <BillingPanel apiBase={API} credential={credential} initialPlanId={billingPlanId}
+        practiceEvent={practiceEvent} onRequestEvent={email => openEventRequest(email)}
         onAuthExpired={returnToMemberSignIn}
         onAccessReady={status => {
           if (!status?.entitlement?.active) return;
@@ -1758,6 +1812,7 @@ function App() {
             returnToMemberSignIn();
           }
         }} />
+      {renderPracticeEventDialog()}{renderPasswordRecoveryModal()}
     </div></div>;
   }
 
@@ -1880,6 +1935,9 @@ function App() {
 
             {billingPlanId && <div className="billing-plan-intent"><p>Selected: {membershipPlan(billingPlanId)?.label} · {moneyFromCents(membershipPlan(billingPlanId)?.amount_cents)}</p><small>Already a member? Sign in with your existing account to review this option. If your old password does not work, recover that account below.</small></div>}
             {openBillingOnLogin && !billingPlanId && <div className="billing-plan-intent"><p>Sign in to review your membership and payment status.</p><small>Returning from checkout does not confirm payment or activate access. Your account shows the server-verified status.</small></div>}
+            <PracticeEventInvitation event={practiceEvent} registering={isRegistering}
+              onJoin={() => { setError(null); setIsRegistering(true); setBillingPlanId(''); setLoginForm(previous => ({ ...previous, membership_plan: EVENT_REGISTRATION_PLAN, password: '' })); }}
+              onExisting={() => openEventRequest(loginForm.email)} />
             
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Error Display */}
@@ -1947,7 +2005,7 @@ function App() {
                   </div>
                   <div>
                     <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Membership Plan *
+                      Access option *
                     </label>
                     <select
                       className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
@@ -1959,10 +2017,13 @@ function App() {
                       onChange={e => { setLoginForm({ ...loginForm, membership_plan: e.target.value }); setBillingPlanId(membershipPlan(e.target.value)?.id || ''); }}
                       required
                     >
-                      <option value="">Select Membership Plan</option>
+                      <option value="">Select an access option</option>
+                      {practiceEvent.phase === 'open' && <option value={EVENT_REGISTRATION_PLAN}>Free practice event — verify your email</option>}
+                      {isEventRegistration && practiceEvent.phase !== 'open' && <option value={EVENT_REGISTRATION_PLAN} disabled>Practice event — currently unavailable</option>}
                       {MEMBERSHIP_PLANS.map(plan => <option value={plan.registrationLabel} key={plan.id}>{plan.label} — {moneyFromCents(plan.amount_cents)} one time</option>)}
                     </select>
-                    <p className={`text-xs mt-2 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>Pay once on Square after creating your account. Access begins after the team approves your purchase. No automatic renewal or trial.</p>
+                    {isEventRegistration ? <p className="practice-event-choice-note">{practiceEvent.phase === 'open' ? `Verify your email for free event access through ${eventDeadlineLabel(practiceEvent.config.ends_at)}. No card or automatic charge. Everyone shares this deadline.` : 'The practice event is currently unavailable. Select a membership option or return to sign in.'}</p>
+                      : <p className={`text-xs mt-2 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>Pay once on Square after creating your account. Paid access begins after the team approves your purchase. No automatic renewal or rolling trial.</p>}
                   </div>
                 </>
               )}
@@ -2017,7 +2078,7 @@ function App() {
                     : 'bg-blue-50 border-blue-200 text-blue-600'
                 }`}>
                   <p className="text-sm">
-                    Create your account first, then review your payment options. The team checks your purchase and approves access. No trial is included.
+                    {isEventRegistration ? 'Create your account, then open the verification link in your email. Your virtual practice starts after email verification. Your profile and progress stay saved when the event ends.' : 'Create your account first, then review your payment options. The team checks your purchase and approves access. This purchase has no automatic renewal.'}
                   </p>
                 </div>
               )}
@@ -2037,7 +2098,7 @@ function App() {
                     <span>{isRegistering ? 'Creating account…' : 'Signing in…'}</span>
                   </div>
                 ) : (
-                  isRegistering ? 'Create account & review payment' : 'Sign in'
+                  isRegistering ? isEventRegistration ? 'Create account & verify email' : 'Create account & review payment' : 'Sign in'
                 )}
               </button>
 
@@ -2067,6 +2128,7 @@ function App() {
         </div>
         
         {renderPasswordRecoveryModal()}
+        {renderPracticeEventDialog()}
 
       </div>
     );
@@ -2089,6 +2151,7 @@ function App() {
         unread={unreadCount(notifications)} currentUser={currentUser} level={userXP.level} isDarkTheme={isDarkTheme}
         onToggleTheme={toggleTheme} onLogout={logout}
         connectionLabel={isConnected ? (connectionMode === 'websocket' ? 'Connected' : 'Polling') : 'Disconnected'} />
+      <PracticeEventMemberBanner status={practiceEvent.status} onMembership={() => setActiveTab('profile')} />
 
       {/* Main Content - Fixed height with proper scrolling accounting for header */}
       <div className="cashout-content-width mx-auto flex flex-col min-h-0 pb-6">{/* Allow natural height with bottom padding */}
@@ -2901,6 +2964,7 @@ function App() {
                 <div className="billing-profile-wrap">
                   <BillingPanel key={`${currentUser.id}:${currentUser.active_session_id}`} apiBase={API}
                     credential={memberBillingCredential(currentUser)} initialPlanId={billingPlanId}
+                    practiceEvent={practiceEvent} onRequestEvent={email => openEventRequest(email)}
                     compact onAuthExpired={logout} />
                 </div>
 
@@ -3336,6 +3400,7 @@ function App() {
 
         {renderPasswordRecoveryModal()}
 
+        {renderPracticeEventDialog()}
         </div> {/* End of content area */}
       </div> {/* End of main container */}
 

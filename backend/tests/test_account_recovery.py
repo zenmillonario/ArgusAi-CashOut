@@ -76,6 +76,9 @@ class MemoryUsers:
         self.documents = deepcopy(documents)
         self.writes = 0
 
+    async def create_index(self, *args, **kwargs):
+        return "synthetic-registration-index"
+
     async def find_one(self, filters, projection=None):
         return next((deepcopy(doc) for doc in self.documents if matches(doc, filters)), None)
 

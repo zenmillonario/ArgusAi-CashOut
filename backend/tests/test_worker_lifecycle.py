@@ -52,12 +52,14 @@ class WorkerLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.stocks = Worker()
         self.settlements = Worker()
         self.billing = Worker(mode, fail_index=True)
+        self.event = Worker()
         namespace = {
             "asynccontextmanager": asynccontextmanager, "FastAPI": FastAPI,
             "asyncio": asyncio, "logger": logging.getLogger("cashout.lifespan.test"),
             "db": SimpleNamespace(messages=Collection(), users=Collection()),
             "periodic_cleanup": self.cleanup.run, "stock_alert_service": self.stocks,
             "square_billing_service": self.billing, "nautilus_settlement_service": self.settlements,
+            "practice_event_service": self.event,
         }
         exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), namespace)
         return namespace["lifespan"]

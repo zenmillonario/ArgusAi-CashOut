@@ -132,3 +132,21 @@ The Flex option was prepared for owner review with the following observed terms:
 MongoDB documents the first Flex snapshot as occurring 24 hours after cluster creation. An upgrade must therefore not be treated as an immediately completed backup: wait for an actual snapshot to finish, verify its timestamp and restore eligibility, and then perform the separate restore checks. See [Flex costs](https://www.mongodb.com/docs/atlas/billing/atlas-flex-costs/) and [Flex backup behavior](https://www.mongodb.com/docs/atlas/backup/cloud-backup/flex-cluster-backup/).
 
 **The upgrade was prepared only; it was not applied. No production backup or isolated restore has been performed.** The alternative consistent BSON backup route in section 1 remains subject to its writer-pause, durable-storage, and restore requirements.
+
+### Approved upgrade attempt and payment prerequisite
+
+The owner subsequently approved Flex at the reviewed price and maintenance interruption. The backend was briefly suspended to stop application writes, but Atlas rejected the upgrade with **402 Payment Required** because the organization has no payment method. No cluster upgrade was applied. The existing backend was resumed on its unchanged production commit; Render reported the resumed deployment live, and its health endpoint again returned `healthy` with the database `connected`. Atlas still reported Free/M0 and `IDLE`.
+
+The authenticated Atlas payment-method page is prepared for the owner to complete directly. Approval for the reviewed Flex cost already exists; do not ask for that same approval again. Payment setup must finish before retrying the upgrade. Recheck state before retrying, coordinate the brief maintenance pause, resume the application afterward, and verify connectivity. A successful upgrade alone will not satisfy the backup/restore requirement above.
+
+## 8. Isolated real-Mongo launcher prepared
+
+`backend/tests/rehearse_restored_app_recovery.py` prepares the missing real-database rehearsal without substituting the application's Motor client. It accepts only a loopback, standalone MongoDB 8 target and an explicitly rehearsal-prefixed database. It provides `inspect`, `exercise`, and same-origin compiled-frontend `serve` modes. It does not download, restore, drop, or export a database; source backup integrity and restoration must be established separately.
+
+The launcher records private raw document/index/collection digests before app startup, uses the actual app and lifespan, captures final email delivery, replaces FCM, and idles the three processing workers. It compares identity and saved history before and after recovery while accounting for legitimate login XP, achievement, notification, and chat additions. Captures and operator details stay in private files. Its process audit guard permits only the selected local endpoints; a real operating-system sandbox remains a separate protection.
+
+Preparation checks passed: Python compilation, **13 target/network refusal checks**, and **11 preview request-boundary checks**. A separate mocked-storage regression exercised the launcher with the real app for a synthetic member and administrator, including recovery, replacement login, administrator read authorization, and expected reward additions. It captured four emails and made zero external network attempts. This is explicitly mocked-storage evidence.
+
+An official MongoDB 8.0.38 Debian binary was downloaded and its official SHA-256 verified for a synthetic-only local run. It aborts before startup because this execution environment lacks the CPU topology files the binary requires. No system mounts or executor restrictions were changed to work around that. **No real MongoDB process was started, and no real database backup/restore or recovery rehearsal was completed.** Use a compatible isolated runtime for the prepared launcher after the actual backup is available.
+
+The event release also passed the original eight-scenario synthetic ASGI recovery rehearsal again. The current full release tests are 222 backend tests and 70 JavaScript model tests; those counts and captured exercises do not establish deployed recovery. See [practice-event-rollout.md](practice-event-rollout.md) for event-specific evidence and the remaining frontend verification boundary.
