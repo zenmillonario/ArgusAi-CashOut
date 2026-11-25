@@ -6,6 +6,9 @@ name: CashOutAI synthetic recovery on MongoDB 8
   push:
     branches:
       - codex/cashoutai-square-launch-2026-11-25
+    paths:
+      - .github/workflows/cashout-recovery-rehearsal.yml
+      - backend/**
 
 permissions:
   contents: read
@@ -20,13 +23,18 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      REHEARSAL_DIR: ${{ runner.temp }}/cashout-recovery
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
       PIP_CONFIG_FILE: /dev/null
     defaults:
       run:
         shell: bash
     steps:
+      - name: Prepare the private rehearsal directory
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/cashout-recovery"
+          printf 'REHEARSAL_DIR=%s\n' "$RUNNER_TEMP/cashout-recovery" >> "$GITHUB_ENV"
+
       - name: Check out the triggering commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -111,7 +119,7 @@ jobs:
       - name: Stop the temporary MongoDB process
         if: always()
         run: |
-          if [[ -x "$REHEARSAL_DIR/mongodb/bin/mongod" && -f "$REHEARSAL_DIR/mongod.pid" ]]; then
+          if [[ -n "${REHEARSAL_DIR:-}" && -x "$REHEARSAL_DIR/mongodb/bin/mongod" && -f "$REHEARSAL_DIR/mongod.pid" ]]; then
             "$REHEARSAL_DIR/mongodb/bin/mongod" --shutdown \
               --dbpath "$REHEARSAL_DIR/db" >/dev/null 2>&1 || true
           fi
