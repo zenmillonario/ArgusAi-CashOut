@@ -159,6 +159,23 @@ The launcher records private raw document/index/collection digests before app st
 
 Preparation checks passed: Python compilation, **13 target/network refusal checks**, and **11 preview request-boundary checks**. A separate mocked-storage regression exercised the launcher with the real app for a synthetic member and administrator, including recovery, replacement login, administrator read authorization, and expected reward additions. It captured four emails and made zero external network attempts. This is explicitly mocked-storage evidence.
 
-An official MongoDB 8.0.38 Debian binary was downloaded and its official SHA-256 verified for a synthetic-only local run. It aborts before startup because this execution environment lacks the CPU topology files the binary requires. No system mounts or executor restrictions were changed to work around that. **No real MongoDB process was started, and no real database backup/restore or recovery rehearsal was completed.** Use a compatible isolated runtime for the prepared launcher after the actual backup is available.
+An official MongoDB 8.0.38 Debian binary was downloaded and its official SHA-256 verified for a synthetic-only local run. It aborts before startup because this execution environment lacks the CPU topology files the binary requires. No system mounts or executor restrictions were changed to work around that. **This local attempt started no real MongoDB process and completed no backup/restore or recovery rehearsal.** A separate compatible GitHub runner is used for the synthetic real-Mongo check; actual backup restoration remains separate.
 
 The event release also passed the original eight-scenario synthetic ASGI recovery rehearsal again. After the publisher acknowledgement correction, the current full release tests are **226 backend tests** and **70 JavaScript model tests**, and the complete CRA production build passes. Those counts and captured exercises do not establish deployed recovery. See [practice-event-rollout.md](practice-event-rollout.md) for event-specific evidence and the remaining frontend verification boundary.
+
+## 9. Completed recovery rehearsal on real MongoDB with synthetic accounts
+
+[GitHub Actions run 45714470226](https://github.com/zenmillonario/ArgusAi-CashOut/actions/runs/45714470226) completed successfully on November 25, 2026 at **5:35 p.m. Eastern**, using commit `0fc675e32dc190284842fb1a2d72bb28454de279`. The actual application and its real Motor client ran against **MongoDB 8.0.38** on an isolated Ubuntu runner with wholly synthetic accounts. This resolves the incompatible local-runtime limitation for this synthetic exercise.
+
+The workflow installs the required application dependency subset using the repository's version constraints, verifies the official Mongo binary's SHA-256, binds a standalone database only to loopback, and stops it afterward. It has read-only repository permissions, no production secrets, no Atlas connection, a ten-minute limit, and no artifact upload. Only the release branch's backend or workflow changes trigger it.
+
+The passing run verifies:
+
+- Recovery for a synthetic member and administrator through the actual app routes, followed by successful login and one-active-session enforcement.
+- Preservation of their saved identities, access, profiles, and existing history, allowing the expected login streak, XP, date, and level changes.
+- **Four captured messages, zero real emails, and zero forbidden external network attempts**. Continuous workers remain deliberately idle.
+- **17 refusal checks and 11 preview request-boundary checks**. These are separate from the 226 backend unit tests.
+
+The real run exposed a harness compatibility error: pinned PyMongo creates stream sockets with the close-on-exec flag, which the original guard rejected before connecting. The guard now accounts for that flag while retaining its destination, port, family, and protocol restrictions. UDP, raw, IPv6, external destinations, and unapproved ports remain rejected. The earlier workflow expression error was also corrected before this passing run. No production application behavior changed for these fixes.
+
+**This is not a production-backup restore.** No member data was copied into the runner. The run does not prove Atlas backup integrity, restoration of the actual member database, browser reset-link completion, or live email/feed/push integration. The first completed Flex snapshot and the real-data comparisons in sections 1–5 remain required before the member-facing authentication release.
