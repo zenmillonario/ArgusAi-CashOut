@@ -12,6 +12,8 @@ The draft repairs a specific legacy signup defect: registration could delete a r
 
 ### Deployment sequence
 
+Follow the [backup and existing-account recovery runbook](backup-and-recovery-runbook.md) for the minimum backup, isolated restore, and recovery rehearsal before deployment.
+
 1. Verify the current production database and uploaded-image storage configuration. Take a restorable backup and verify a restoration in an isolated environment. Do not point the new release at an empty replacement database.
 2. Compare member counts, stable IDs, membership fields and representative related-record counts in the isolated copy. Audit existing duplicate usernames/emails before adding uniqueness constraints or proposing any merge.
 3. Verify existing-member sign-in and email recovery against the isolated copy. Check an approved account, an active trial, an expired trial and an administrator. Use non-production email delivery for the rehearsal.
@@ -21,7 +23,7 @@ The draft repairs a specific legacy signup defect: registration could delete a r
 
 Read-only aggregate database and provider checks have been completed. They do not replace the backup/restore rehearsal, isolated member-continuity checks, recovery-email delivery verification, or coordinated deployment above. Those checks changed no member records, credentials, memberships, or payment records and sent no emails or notifications.
 
-After those checks, one owner-approved delivery test was sent using the existing email configuration. The provider accepted the message; the owner has not yet confirmed inbox receipt. The test contained no recovery token and changed no member records, credentials, memberships, or payments. Provider acceptance alone does not complete an account recovery or verify the reset link and subsequent sign-in.
+After those checks, one owner-approved plain delivery test was sent using the existing email configuration. The provider accepted the message, and the owner confirmed it arrived directly in the Inbox. The test contained no recovery token and changed no member records, credentials, memberships, or payments. This confirms inbox receipt for that test; it does not complete an account recovery or verify the reset link and subsequent sign-in.
 
 ### Password compatibility
 

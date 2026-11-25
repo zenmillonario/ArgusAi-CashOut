@@ -109,7 +109,7 @@ The current browser review served the actual compiled app inside a clearly label
 
 These checks cover the compiled UI and fixture response contracts. They do not establish production authentication, calendar-month entitlement calculations, live feed freshness, fresh-quote executions, actual settlement retrieval, recovery-email delivery, device push, or licensed streaming. The feature release remains a draft and has not changed the current live app; the deployed frontend/backend/service-worker combination still needs coordinated verification.
 
-Separately from the isolated fixture, Resend accepted one owner-approved plain test email with HTTP 200 using the existing configured sender and key. No password-reset token was included, and no member or credential data was changed. Inbox receipt awaits user confirmation; provider acceptance does not establish inbox delivery or completed account recovery.
+Separately from the isolated fixture, Resend accepted one owner-approved plain test email with HTTP 200 using the existing configured sender and key, and the owner confirmed it arrived directly in the Inbox. No password-reset token was included, and no member or credential data was changed. This confirms inbox receipt for that test; completed account recovery and the other live integrations remain separate verification steps.
 
 Earlier standalone design-preview checks covered a 390px phone frame, native fullscreen, entry at ask, close at bid, a shared balance between rooms, and reset. Those older checks used recorded data and browser-local state; they are separate from the current compiled-app review.
 
