@@ -14,6 +14,8 @@ The draft repairs a specific legacy signup defect: registration could delete a r
 
 Follow the [backup and existing-account recovery runbook](backup-and-recovery-runbook.md) for the minimum backup, isolated restore, and recovery rehearsal before deployment.
 
+**November 25 update:** The owner completed the Atlas Flex upgrade. Backups are enabled and the restarted existing backend is healthy, but the first completed snapshot and isolated restore are still pending. Follow [administrator operations](admin-operations.md) for the paid-purchase review controls and the isolated generic test login, and [bot operations](bot-operations.md) for the verified five-asset Windows launcher and publisher. Those controls belong to the release draft until frontend and backend are deployed together.
+
 1. Verify the current production database and uploaded-image storage configuration. Take a restorable backup and verify a restoration in an isolated environment. Do not point the new release at an empty replacement database.
 2. Compare member counts, stable IDs, membership fields and representative related-record counts in the isolated copy. Audit existing duplicate usernames/emails before adding uniqueness constraints or proposing any merge.
 3. Verify existing-member sign-in and email recovery against the isolated copy. Check an approved account, an active trial, an expired trial and an administrator. Use non-production email delivery for the rehearsal.

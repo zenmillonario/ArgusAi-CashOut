@@ -3,6 +3,7 @@ import asyncio
 from copy import deepcopy
 from datetime import datetime, timezone
 import importlib.util
+import json
 from pathlib import Path
 from types import SimpleNamespace
 import sys
@@ -307,6 +308,56 @@ class PublisherTests(unittest.TestCase):
         self.assertEqual(self.publisher.ASSET_PORTS, {"BTC": 8787, "ETH": 8788, "SOL": 8789, "XRP": 8790, "DOGE": 8791})
         with self.assertRaises(self.publisher.HTTPError):
             self.publisher.NoRedirect().redirect_request(SimpleNamespace(full_url="https://example.test"), None, 302, "redirect", {}, "https://other.test")
+
+    def publish_with_acknowledgement(self, acknowledgement, status=200):
+        class Response:
+            def __init__(self, body, status=200):
+                self.body = body if isinstance(body, bytes) else json.dumps(body).encode()
+                self.status = status
+            def read(self, limit):
+                return self.body[:limit]
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+        local_requests, remote_requests = [], []
+        def local_open(request, timeout):
+            local_requests.append(request)
+            return Response(packet())
+        def remote_open(request, timeout):
+            remote_requests.append(request)
+            return Response(acknowledgement, status)
+        with patch.object(self.publisher, "build_opener", side_effect=[
+                SimpleNamespace(open=local_open), SimpleNamespace(open=remote_open)]):
+            result = self.publisher.publish_one("BTC", "https://example.test", SECRET)
+        self.assertEqual(len(local_requests), 1)
+        self.assertEqual(len(remote_requests), 1)
+        self.assertNotIn(SECRET, str(local_requests[0].headers))
+        self.assertEqual(remote_requests[0].get_header("X-nautilus-publisher-key"), SECRET)
+        return result
+
+    def test_publisher_requires_an_explicit_matching_acceptance(self):
+        result = self.publish_with_acknowledgement({"accepted": True, "asset": "BTC", "receivedAt": "2026-11-25T20:00:00Z"})
+        self.assertEqual(result, (True, "snapshot accepted"))
+
+    def test_unchanged_source_is_not_reported_as_newly_published(self):
+        result = self.publish_with_acknowledgement({"accepted": False, "asset": "BTC", "receivedAt": "2026-11-25T20:00:00Z"})
+        self.assertEqual(result, (False, "source unchanged; no new snapshot accepted"))
+
+    def test_malformed_wrong_asset_and_missing_receipt_acknowledgements_fail(self):
+        for response in (b"not json", [], {},
+                         {"accepted": True, "asset": "ETH", "receivedAt": "2026-11-25T20:00:00Z"},
+                         {"accepted": 1, "asset": "BTC", "receivedAt": "2026-11-25T20:00:00Z"},
+                         {"accepted": True, "asset": "BTC"},
+                         {"accepted": True, "asset": "BTC", "receivedAt": "not a date"},
+                         {"accepted": True, "asset": "BTC", "receivedAt": "2026-11-25T20:00:00"}):
+            with self.subTest(response=response):
+                self.assertEqual(self.publish_with_acknowledgement(response),
+                                 (False, "invalid or oversized backend acknowledgement"))
+
+    def test_unsuccessful_http_status_cannot_report_acceptance(self):
+        result = self.publish_with_acknowledgement({"accepted": True, "asset": "BTC", "receivedAt": "2026-11-25T20:00:00Z"}, status=503)
+        self.assertEqual(result, (False, "backend did not accept the packet"))
 
 
 if __name__ == "__main__":

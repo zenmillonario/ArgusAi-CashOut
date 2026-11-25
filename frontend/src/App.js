@@ -3013,13 +3013,22 @@ function App() {
               </h2>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Pending Users */}
+                {/* Accounts awaiting review or using temporary access */}
                 <div>
                   <h3 className={`text-xl font-semibold mb-4 ${isDarkTheme ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                    Pending Approvals ({pendingUsers.length})
+                    Member access &amp; reviews ({pendingUsers.length})
                   </h3>
+                  <p className={`text-sm leading-relaxed mb-4 ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Practice event access starts automatically after email verification. You do not need to approve each free participant. For paid access, check the Square receipt and choose Review paid purchase.
+                  </p>
                   <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {pendingUsers.map((user) => (
+                    {pendingUsers.map((user) => {
+                      const accessLabel = ({ pending: 'Pending account', trial: 'Temporary access', trial_expired: 'Temporary access ended', approved: 'Approved account', rejected: 'Rejected account' })[user.status] || 'Account review';
+                      const accessEnd = ['trial', 'trial_expired'].includes(user.status) && user.trial_end_date ? new Date(user.trial_end_date) : null;
+                      const accessEndLabel = accessEnd && Number.isFinite(accessEnd.valueOf())
+                        ? accessEnd.toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' Eastern'
+                        : '';
+                      return (
                       <div key={user.id} className={`p-4 rounded-lg border ${
                         isDarkTheme 
                           ? 'bg-white/5 border-white/10' 
@@ -3036,6 +3045,12 @@ function App() {
                             <p className={`text-xs ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
                               Membership: {user.membership_plan || 'Not specified'}
                             </p>
+                            <p className={`text-xs mt-2 ${isDarkTheme ? 'text-gray-200' : 'text-gray-700'}`}>
+                              <span className={`inline-block rounded border px-2 py-1 ${isDarkTheme ? 'border-white/20 bg-white/5' : 'border-gray-300 bg-gray-100'}`}>{accessLabel}</span>
+                            </p>
+                            {accessEndLabel && <p className={`text-xs mt-2 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
+                              Temporary access end: {accessEndLabel}
+                            </p>}
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <button
@@ -3060,10 +3075,10 @@ function App() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    ); })}
                     {pendingUsers.length === 0 && (
                       <p className={`text-center ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>
-                        No pending users
+                        No pending or temporary-access accounts to review
                       </p>
                     )}
                   </div>

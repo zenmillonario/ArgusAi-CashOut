@@ -1,0 +1,117 @@
+name: CashOutAI synthetic recovery on MongoDB 8
+
+# This checks the reviewed release branch using wholly synthetic accounts.
+# It never connects to Atlas, deploys the app, or verifies a production backup.
+'on':
+  push:
+    branches:
+      - codex/cashoutai-square-launch-2026-11-25
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cashout-recovery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-recovery:
+    name: Real MongoDB, synthetic accounts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      REHEARSAL_DIR: ${{ runner.temp }}/cashout-recovery
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      PIP_CONFIG_FILE: /dev/null
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the triggering commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the required application dependencies at repository pins
+        run: |
+          umask 077
+          mkdir -p "$REHEARSAL_DIR"
+          python -m venv "$REHEARSAL_DIR/venv"
+          "$REHEARSAL_DIR/venv/bin/python" -m pip install \
+            --no-input --only-binary=:all: --index-url https://pypi.org/simple \
+            --constraint backend/requirements.txt \
+            aiohttp bcrypt fastapi httpx limits motor pydantic pymongo \
+            python-dotenv python-multipart requests resend slowapi starlette
+          "$REHEARSAL_DIR/venv/bin/python" -m pip check
+
+      - name: Download and verify the official MongoDB 8.0.38 binary
+        run: |
+          umask 077
+          curl --fail --silent --show-error --location --proto '=https' \
+            --connect-timeout 15 --max-time 120 --retry 2 \
+            --output "$REHEARSAL_DIR/mongodb.tgz" \
+            https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2404-8.0.38.tgz
+          printf '%s  %s\n' \
+            '2885d4382bd47b96bfaf3edc7dec0ef44463e3e2a79479f584d20deb6182cda9' \
+            "$REHEARSAL_DIR/mongodb.tgz" | sha256sum --check --status
+          mkdir -p "$REHEARSAL_DIR/mongodb" "$REHEARSAL_DIR/db"
+          tar --extract --gzip --file "$REHEARSAL_DIR/mongodb.tgz" \
+            --directory "$REHEARSAL_DIR/mongodb" --strip-components=1 \
+            --no-same-owner --no-same-permissions
+          "$REHEARSAL_DIR/mongodb/bin/mongod" --version
+
+      - name: Start an isolated standalone MongoDB
+        run: |
+          # This small fixture needs only the minimum WiredTiger cache.
+          # There is no replica set, published service, Atlas URI, or cloud key.
+          "$REHEARSAL_DIR/mongodb/bin/mongod" \
+            --dbpath "$REHEARSAL_DIR/db" \
+            --bind_ip 127.0.0.1 --port 27217 --nounixsocket \
+            --wiredTigerCacheSizeGB 0.25 \
+            --setParameter diagnosticDataCollectionEnabled=false \
+            --logpath "$REHEARSAL_DIR/mongod.log" \
+            --pidfilepath "$REHEARSAL_DIR/mongod.pid" --fork
+          "$REHEARSAL_DIR/venv/bin/python" - <<'PY'
+          from pymongo import MongoClient
+          with MongoClient("mongodb://127.0.0.1:27217/?directConnection=true",
+                           serverSelectionTimeoutMS=5000) as client:
+              hello = client.admin.command("hello")
+              version = client.admin.command("buildInfo")["version"]
+              assert version == "8.0.38"
+              assert "setName" not in hello and hello.get("msg") != "isdbgrid"
+              print({"mongo_version": version, "standalone": True, "synthetic_only": True})
+          PY
+
+      - name: Check refusal and browser boundaries
+        run: |
+          "$REHEARSAL_DIR/venv/bin/python" \
+            backend/tests/rehearse_restored_app_recovery.py --self-test
+
+      - name: Exercise the actual app against real MongoDB with synthetic accounts
+        run: |
+          "$REHEARSAL_DIR/venv/bin/python" \
+            backend/tests/rehearse_restored_app_recovery.py \
+            --mode exercise --mongo-port 27217 \
+            --database cashout_rehearsal_github_actions --seed-synthetic
+
+      - name: Record the evidence boundary
+        run: |
+          printf '%s\n' \
+            'The actual application recovery rehearsal passed on MongoDB 8.0.38 using wholly synthetic accounts.' \
+            'This does not verify a production backup, restored member data, browser reset-link completion, or live providers.' \
+            'No database files, captured reset links, operator details, or runtime logs are uploaded as artifacts.' \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop the temporary MongoDB process
+        if: always()
+        run: |
+          if [[ -x "$REHEARSAL_DIR/mongodb/bin/mongod" && -f "$REHEARSAL_DIR/mongod.pid" ]]; then
+            "$REHEARSAL_DIR/mongodb/bin/mongod" --shutdown \
+              --dbpath "$REHEARSAL_DIR/db" >/dev/null 2>&1 || true
+          fi

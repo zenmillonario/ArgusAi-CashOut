@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 import json
 import os
 import sys
@@ -79,8 +80,23 @@ def publish_one(asset, backend, secret):
         )
         with remote_opener.open(request, timeout=5) as response:
             status = response.status
-            _read_bounded(response)
-        return True, "published" if status < 300 else "backend did not accept the packet"
+            if not 200 <= status < 300:
+                return False, "backend did not accept the packet"
+            try:
+                acknowledgement = json.loads(_read_bounded(response))
+                if (not isinstance(acknowledgement, dict)
+                        or acknowledgement.get("asset") != asset
+                        or type(acknowledgement.get("accepted")) is not bool
+                        or not isinstance(acknowledgement.get("receivedAt"), str)):
+                    raise ValueError("invalid acknowledgement")
+                received_at = datetime.fromisoformat(acknowledgement["receivedAt"].replace("Z", "+00:00"))
+                if received_at.tzinfo is None:
+                    raise ValueError("missing receipt timezone")
+            except (ValueError, TypeError, UnicodeError, RecursionError):
+                return False, "invalid or oversized backend acknowledgement"
+        if acknowledgement["accepted"] is not True:
+            return False, "source unchanged; no new snapshot accepted"
+        return True, "snapshot accepted"
     except HTTPError as error:
         return False, f"HTTP {error.code}; check the source, backend URL, and publisher configuration"
     except (URLError, TimeoutError, OSError):

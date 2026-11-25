@@ -1,6 +1,6 @@
 # Database backup and existing-account recovery runbook
 
-**Status:** No production backup has been created or isolated restore completed by this review. One owner-approved plain email reached the Inbox; account recovery through a reset link remains a separate verification step. This runbook describes the minimum work before deploying the feature release.
+**Status, November 25, 2026:** The owner completed payment setup and upgraded the existing cluster to **Flex**. Atlas reports `IDLE`, backups are enabled, and the restarted production backend reports `healthy` / `connected`. The backup page currently lists **zero completed snapshots** and estimates its first snapshot for November 26; a usable backup and isolated restore remain unverified. One owner-approved plain email reached the Inbox; account recovery through a reset link remains a separate verification step. This runbook describes the minimum work before deploying the feature release.
 
 ## 1. Retain one consistent, restorable backup
 
@@ -15,6 +15,8 @@ Keep the completed backup in a durable, private, access-controlled destination o
 ## 2. Restore before running the application
 
 Restore into an **empty, isolated MongoDB target**. Use a MongoDB 8 target compatible with the source major version and feature compatibility version (FCV); check the provider's destination restrictions before a native restore. Never restore over production or use `--drop` against production. Use [Atlas snapshot restore guidance](https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-snapshot/) or [mongorestore](https://www.mongodb.com/docs/database-tools/mongorestore/) for the selected backup format. Commands must be prepared for the actual environment; this runbook does not claim any backup command has been tested.
+
+A downloaded Atlas snapshot contains **raw database data files**, not a BSON dump. `mongorestore` cannot read that archive directly. Preserve the archive and its checksum, start a working copy with a compatible isolated `mongod --dbpath`, then make a local-only logical copy into a `cashout_rehearsal_*` database for the guarded launcher below. Compare that copy with the raw restored baseline before exercising it. Retain the launcher's refusal of the original production database name. See [restoring a locally downloaded snapshot](https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-local-file/). For a managed restore, use the actual Flex restore selector/API to verify an eligible separate target; no additional target or charge has been approved or provisioned by this runbook.
 
 Before starting the app, compare the captured backup state with the restored copy:
 
@@ -112,7 +114,17 @@ The core application versions above match their production pins. These supportin
 
 This rehearsal does **not** complete the backup, restore, and restored-data comparisons in sections 1–5. Synthetic Mongo storage does not establish Atlas durability, deployed index behavior, or real database concurrency. Captured delivery verifies email generation and invocation, not provider or Inbox delivery. Actual backend ASGI requests do not verify browser rendering, opening a reset link in the frontend, public routing, or the deployed frontend/backend combination. Empty worker queues do not exercise live Windows feeds, official settlement retrieval, stock quotes, Square, or FCM. No production member was reset or changed.
 
-## 7. Atlas inspection — November 25, 2026
+## 7. Atlas inspection and completed upgrade — November 25, 2026
+
+### Current verified state
+
+After the owner completed payment setup and the upgrade, the Atlas integration reports **Flex**, `IDLE`, unpaused, AWS `US_EAST_1`, and MongoDB `8.0.39-patch-a3d00565977`. The existing cluster's connection hostname is unchanged. The dashboard shows **Backups ON** and **zero completed snapshots**. Its estimated next snapshot label is **`11/26/26 - 05:01 PM`**; that label did not explicitly state a timezone, so do not convert it to a promised Eastern deadline. Verify completion from the actual snapshot list.
+
+The existing Render backend was restarted after the upgrade. Render's event history confirms the restart at **5:16 p.m. Eastern on November 25**, its application startup completed at `2026-11-25T22:16:32Z`, and a subsequent HTTPS health request returned `200` with `healthy` / `connected`. It still runs the unchanged production commit `5702460a275cda067dba510dc4ba4432f1051359`; the feature release remains a draft.
+
+The upgrade is complete. **Do not retry it or request the same cost approval again.** A successful tier change and enabled backup schedule do not prove that the first backup is complete or restorable. The next database step is a completed snapshot and an isolated restore/recovery rehearsal.
+
+### Historical inspection before the upgrade
 
 Atlas integration reads now succeed. The inspected CashOutAI database is on the **Free / M0 tier**, reports **IDLE**, and has no open project alerts. Its dashboard shows **Backups OFF**, and no usable snapshot was available. These observations establish the current backup gap; they do not establish a completed backup or restore.
 
@@ -131,13 +143,13 @@ The Flex option was prepared for owner review with the following observed terms:
 
 MongoDB documents the first Flex snapshot as occurring 24 hours after cluster creation. An upgrade must therefore not be treated as an immediately completed backup: wait for an actual snapshot to finish, verify its timestamp and restore eligibility, and then perform the separate restore checks. See [Flex costs](https://www.mongodb.com/docs/atlas/billing/atlas-flex-costs/) and [Flex backup behavior](https://www.mongodb.com/docs/atlas/backup/cloud-backup/flex-cluster-backup/).
 
-**The upgrade was prepared only; it was not applied. No production backup or isolated restore has been performed.** The alternative consistent BSON backup route in section 1 remains subject to its writer-pause, durable-storage, and restore requirements.
+At this earlier inspection the upgrade was prepared only, and no production backup or isolated restore had been performed. The alternative consistent BSON backup route in section 1 remains subject to its writer-pause, durable-storage, and restore requirements.
 
-### Approved upgrade attempt and payment prerequisite
+### Historical payment prerequisite, now resolved
 
 The owner subsequently approved Flex at the reviewed price and maintenance interruption. The backend was briefly suspended to stop application writes, but Atlas rejected the upgrade with **402 Payment Required** because the organization has no payment method. No cluster upgrade was applied. The existing backend was resumed on its unchanged production commit; Render reported the resumed deployment live, and its health endpoint again returned `healthy` with the database `connected`. Atlas still reported Free/M0 and `IDLE`.
 
-The authenticated Atlas payment-method page is prepared for the owner to complete directly. Approval for the reviewed Flex cost already exists; do not ask for that same approval again. Payment setup must finish before retrying the upgrade. Recheck state before retrying, coordinate the brief maintenance pause, resume the application afterward, and verify connectivity. A successful upgrade alone will not satisfy the backup/restore requirement above.
+The owner subsequently completed payment setup and the upgrade directly. The current verified state above supersedes this failed initial attempt. No additional payment setup or upgrade retry is needed.
 
 ## 8. Isolated real-Mongo launcher prepared
 
@@ -149,4 +161,4 @@ Preparation checks passed: Python compilation, **13 target/network refusal check
 
 An official MongoDB 8.0.38 Debian binary was downloaded and its official SHA-256 verified for a synthetic-only local run. It aborts before startup because this execution environment lacks the CPU topology files the binary requires. No system mounts or executor restrictions were changed to work around that. **No real MongoDB process was started, and no real database backup/restore or recovery rehearsal was completed.** Use a compatible isolated runtime for the prepared launcher after the actual backup is available.
 
-The event release also passed the original eight-scenario synthetic ASGI recovery rehearsal again. The current full release tests are 222 backend tests and 70 JavaScript model tests; those counts and captured exercises do not establish deployed recovery. See [practice-event-rollout.md](practice-event-rollout.md) for event-specific evidence and the remaining frontend verification boundary.
+The event release also passed the original eight-scenario synthetic ASGI recovery rehearsal again. After the publisher acknowledgement correction, the current full release tests are **226 backend tests** and **70 JavaScript model tests**, and the complete CRA production build passes. Those counts and captured exercises do not establish deployed recovery. See [practice-event-rollout.md](practice-event-rollout.md) for event-specific evidence and the remaining frontend verification boundary.
