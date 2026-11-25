@@ -89,7 +89,6 @@ function NautilusCanvas({ native, span, television, asset, onSelectTrade, chartR
       chartRef.current = null;
     };
     // The native chart persists while asset data changes, preserving zoom and avoiding duplicate listeners.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
