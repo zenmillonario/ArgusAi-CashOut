@@ -6,13 +6,14 @@ import {
   saveBillingProof, clearBillingProof, memberBillingCredential, sameBillingCredential,
   billingHeaders, responseBelongsToSession, safeSquareCheckoutUrl, normalizePlansResponse,
   loadBillingState, createMemberCheckout, checkoutAttemptKey, retireFulfilledAttempts,
+  manualApprovalRequest, approveManualPurchase, welcomeEmailLabel,
 } from './billingModel.mjs';
 
 const memberA = memberBillingCredential({ id: 'member-a', active_session_id: 'session-a' });
 const memberB = memberBillingCredential({ id: 'member-b', active_session_id: 'session-b' });
 const proof = (id = 'pending-a', token = 'token-aaaaaaaaaaaaaaaaaaaa') => normalizeBillingProof({ user_id: id, billing_token: token, expires_at: '2100-01-01T00:00:00Z', scope: 'billing' }, id);
 const publicPlans = (extra = {}) => ({ plans: MEMBERSHIP_PLANS.map(plan => ({ ...plan })), recurring: false,
-  environment: 'production', automatic_checkout_available: true, automatic_activation_available: true, ...extra });
+  approval_mode: 'automatic', environment: 'production', automatic_checkout_available: true, automatic_activation_available: true, ...extra });
 const memoryStorage = () => {
   const values = new Map();
   return { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
@@ -163,4 +164,73 @@ test('membership gate errors must carry the currently captured member session', 
   assert.equal(responseBelongsToSession(billingHeaders(memberA), memberB.session), false);
   assert.equal(responseBelongsToSession({ 'X-Billing-Token': 'private-proof' }, memberA.session), false);
   assert.equal(responseBelongsToSession(billingHeaders(memberA), { id: 'member-a', active_session_id: 'replacement-session' }), false);
+});
+
+test('manual approval is the safe default even when dormant automatic configuration is present', () => {
+  for (const mode of [undefined, null, '', 'manual', 'AUTOMATIC', 'unexpected']) {
+    const plans = normalizePlansResponse(publicPlans({ approval_mode: mode, environment: 'sandbox' }));
+    assert.equal(plans.approval_mode, 'manual');
+    assert.equal(plans.automatic_checkout_available, false);
+    assert.equal(plans.automatic_activation_available, false);
+    assert.equal(plans.plans[0].manual_payment_url, MEMBERSHIP_PLANS[0].manual_payment_url);
+  }
+  assert.equal(normalizePlansResponse(publicPlans()).automatic_checkout_available, true);
+});
+
+const manualPurchase = { userId: 'pending-a', planId: 'six_months', paymentReference: '  Square_Receipt-123  ', paymentReviewed: true };
+const manualResult = (extra = {}) => ({ user_id: 'pending-a', duplicate: false,
+  payment: { payment_id: 'Square_Receipt-123', plan_id: 'six_months', evidence_source: 'admin_review' },
+  entitlement: { active: true, source: 'manual_payment', paid_through: '2027-05-25T00:00:00Z' },
+  welcome_email: { status: 'pending' }, ...extra });
+
+test('manual approval requires actual plan, explicit Square review, and a reference code', () => {
+  assert.deepEqual(manualApprovalRequest({ ...manualPurchase, admin_id: 'untrusted', amount_cents: 1 }), {
+    user_id: 'pending-a', plan_id: 'six_months', payment_reference: 'Square_Receipt-123', confirm_payment_reviewed: true,
+  });
+  for (const changes of [{ userId: '' }, { planId: 'SixMonths' }, { planId: 'Trial' }, { paymentReviewed: false }, { paymentReviewed: 'true' },
+    { paymentReference: 'https://squareup.com/receipt/test' }, { paymentReference: 'a b' }, { paymentReference: 'ab' }, { paymentReference: 'x'.repeat(193) }]) {
+    assert.throws(() => manualApprovalRequest({ ...manualPurchase, ...changes }));
+  }
+});
+
+test('manual approval retries keep the same reference and captured admin session without trusting client amounts', async () => {
+  const sent = [];
+  const client = { post: async (...args) => { sent.push(args); return { data: manualResult({ duplicate: sent.length > 1 }) }; } };
+  const args = { client, api: '/api', credential: memberA, currentCredential: () => memberA, purchase: manualPurchase };
+  assert.equal((await approveManualPurchase(args)).duplicate, false);
+  assert.equal((await approveManualPurchase(args)).duplicate, true);
+  assert.equal(sent[0][0], '/api/billing/admin/approve');
+  assert.deepEqual(sent[0][1], { user_id: 'pending-a', plan_id: 'six_months', payment_reference: 'Square_Receipt-123', confirm_payment_reviewed: true });
+  assert.deepEqual(sent[1][1], sent[0][1]);
+  assert.deepEqual(sent[0][2].headers, { 'X-User-ID': 'member-a', 'X-Session-ID': 'session-a' });
+  await assert.rejects(approveManualPurchase({ ...args, credential: proof() }), /administrator/);
+});
+
+test('late manual approval cannot update a replacement session, and inactive results stay inactive', async () => {
+  for (const replacement of [memberB, memberBillingCredential({ id: 'member-a', active_session_id: 'replacement-session' }), null]) {
+    let current = memberA;
+    const pending = deferred();
+    let calls = 0;
+    const args = { client: { post: () => { calls += 1; return pending.promise; } }, api: '/api', credential: memberA, currentCredential: () => current, purchase: manualPurchase };
+    const running = approveManualPurchase(args);
+    current = replacement;
+    pending.resolve({ data: manualResult() });
+    assert.equal(await running, null);
+    assert.equal(await approveManualPurchase(args), null);
+    assert.equal(calls, 1);
+  }
+  const result = await approveManualPurchase({ client: { post: async () => ({ data: manualResult({ duplicate: true, entitlement: { active: false }, welcome_email: { status: 'failed' } }) }) },
+    api: '/api', credential: memberA, currentCredential: () => memberA, purchase: manualPurchase });
+  assert.equal(result.entitlement.active, false);
+  assert.equal(result.welcome_email.status, 'failed');
+});
+
+test('manual responses must match the member, plan, evidence, and reference without implying email delivery', async () => {
+  for (const extra of [{ user_id: 'another-member' }, { payment: { ...manualResult().payment, plan_id: 'monthly' } },
+    { payment: { ...manualResult().payment, payment_id: 'another-receipt' } }, { payment: { ...manualResult().payment, evidence_source: 'square_api' } }]) {
+    await assert.rejects(approveManualPurchase({ client: { post: async () => ({ data: manualResult(extra) }) }, api: '/api', credential: memberA,
+      currentCredential: () => memberA, purchase: manualPurchase }), /could not be matched/);
+  }
+  assert.equal(welcomeEmailLabel('sent'), 'Email provider accepted');
+  assert.match(welcomeEmailLabel('failed'), /follow up manually/);
 });

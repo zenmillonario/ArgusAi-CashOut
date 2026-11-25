@@ -116,6 +116,7 @@ function App() {
   const [mobileUserListOpen, setMobileUserListOpen] = useState(false); // Track mobile user list state
   const [pendingUsers, setPendingUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [billingReviewSelection, setBillingReviewSelection] = useState({ userId: '', version: 0 });
   const [communityMembers, setCommunityMembers] = useState([]);
   const [memberDirectoryError, setMemberDirectoryError] = useState('');
   const [showAdminPanel, setShowAdminPanel] = useState(false);
@@ -1153,21 +1154,25 @@ function App() {
   };
 
   const handleApproval = async (userId, approved) => {
+    const session = activeUserRef.current;
+    if (!session?.is_admin) return;
+    if (approved && !window.confirm('Grant complimentary access to this member? This does not record a paid purchase or apply a purchased access term. Use “Review paid purchase” for a Square payment.')) return;
     try {
       await axios.post(`${API}/users/approve`, {
         user_id: userId,
         approved: approved,
-        admin_id: currentUser.id,
+        admin_id: session.id,
         role: "member"
-      });
+      }, { headers: sessionHeaders(session) });
+      if (!sameSession(activeUserRef.current, session)) return;
       
       // Reload pending users
       loadPendingUsers();
       loadAllUsers();
       
-      alert(`User ${approved ? 'approved' : 'rejected'} successfully`);
+      alert(approved ? 'Complimentary access granted. No paid purchase was recorded.' : 'User rejected successfully');
     } catch (error) {
-      alert(error.response?.data?.detail || 'Error processing approval');
+      if (sameSession(activeUserRef.current, session)) alert(typeof error.response?.data?.detail === 'string' ? error.response.data.detail : 'Error processing approval');
     }
   };
 
@@ -1662,6 +1667,7 @@ function App() {
     setOpenPositions([]);
     setPendingUsers([]);
     setAllUsers([]);
+    setBillingReviewSelection({ userId: '', version: 0 });
     setCommunityMembers([]);
     setMemberDirectoryError('');
     setOnlineUsers([]);
@@ -1736,7 +1742,7 @@ function App() {
     const credential = currentUser ? memberBillingCredential(currentUser) : billingProof;
     return <div className="billing-portal"><div className="billing-portal-shell">
       <header className="billing-portal-top"><span className="billing-brand">CashOutAI</span><button type="button" className="billing-exit" onClick={returnToMemberSignIn}>{currentUser ? 'Sign out' : 'Back to sign in'}</button></header>
-      <div className="billing-portal-intro"><span>ACCOUNT: {currentUser?.username || billingProof?.username || 'YOUR ACCOUNT'}</span><h1>{currentUser ? 'Review your membership access.' : 'Your account is ready. Choose your membership.'}</h1><p>This page gives you access to your own membership and payment information. Trading rooms and community access open only after your membership is approved or a qualifying payment is verified.</p></div>
+      <div className="billing-portal-intro"><span>ACCOUNT: {currentUser?.username || billingProof?.username || 'YOUR ACCOUNT'}</span><h1>{currentUser ? 'Review your membership access.' : 'Your account is ready. Choose your membership.'}</h1><p>Choose a one-time purchase, pay on Square, and wait for the CashOutAI team to approve access. You will use this same account for the trading rooms and community. If you have already paid, check your status here.</p></div>
       <BillingPanel apiBase={API} credential={credential} initialPlanId={billingPlanId}
         onAuthExpired={returnToMemberSignIn}
         onAccessReady={status => {
@@ -1951,8 +1957,9 @@ function App() {
                       required
                     >
                       <option value="">Select Membership Plan</option>
-                      {MEMBERSHIP_PLANS.map(plan => <option value={plan.registrationLabel} key={plan.id}>{plan.label} — {moneyFromCents(plan.amount_cents)}</option>)}
+                      {MEMBERSHIP_PLANS.map(plan => <option value={plan.registrationLabel} key={plan.id}>{plan.label} — {moneyFromCents(plan.amount_cents)} one time</option>)}
                     </select>
+                    <p className={`text-xs mt-2 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>Pay once on Square after creating your account. Access begins after the team approves your purchase. No automatic renewal or trial.</p>
                   </div>
                 </>
               )}
@@ -2926,7 +2933,9 @@ function App() {
         {activeTab === 'admin' && currentUser?.is_admin && (
           <div className="space-y-6">
             <AdminBillingPanel key={`${currentUser.id}:${currentUser.active_session_id}`} apiBase={API}
-              credential={memberBillingCredential(currentUser)} />
+              credential={memberBillingCredential(currentUser)} members={[...allUsers, ...pendingUsers]}
+              selectedMemberId={billingReviewSelection.userId} selectionVersion={billingReviewSelection.version}
+              onApproved={() => { loadPendingUsers(); loadAllUsers(); }} />
             <div className={`backdrop-blur-lg rounded-xl border p-6 ${
               isDarkTheme 
                 ? 'bg-white/5 border-white/10' 
@@ -2949,7 +2958,7 @@ function App() {
                           ? 'bg-white/5 border-white/10' 
                           : 'bg-white/70 border-gray-200'
                       }`}>
-                        <div className="flex justify-between items-start">
+                        <div className="flex flex-wrap justify-between items-start gap-4">
                           <div>
                             <h4 className={`font-semibold ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}>
                               {user.real_name || user.username}
@@ -2961,18 +2970,25 @@ function App() {
                               Membership: {user.membership_plan || 'Not specified'}
                             </p>
                           </div>
-                          <div className="flex space-x-2">
+                          <div className="flex flex-wrap gap-2">
                             <button
-                              onClick={() => handleApproval(user.id, true)}
+                              onClick={() => {
+                                setBillingReviewSelection(previous => ({ userId: user.id, version: previous.version + 1 }));
+                                document.getElementById('admin-paid-approval')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }}
                               className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
                             >
-                              Approve
+                              Review paid purchase
                             </button>
                             <button
                               onClick={() => handleApproval(user.id, false)}
                               className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
                             >
                               Reject
+                            </button>
+                            <button type="button" onClick={() => handleApproval(user.id, true)}
+                              className={`basis-full text-left text-xs underline underline-offset-4 ${isDarkTheme ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}>
+                              Grant complimentary access
                             </button>
                           </div>
                         </div>

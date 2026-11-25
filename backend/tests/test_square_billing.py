@@ -32,6 +32,7 @@ from square_billing import (
 
 NOW = datetime.utcnow().replace(microsecond=0)
 SETTINGS = SquareSettings(
+    approval_mode="automatic",
     enabled=True, environment="production", access_token="synthetic-not-a-real-token",
     merchant_id=PRODUCTION_MERCHANT, location_id="TEST_LOCATION",
     signature_key="synthetic-square-signature-key-only-for-tests",

@@ -44,10 +44,10 @@ def membership_snapshot(user, now=None):
     if user.get("status") != "approved":
         return result
     managed = user.get("billing_entitlement")
-    if isinstance(managed, dict) and managed.get("managed_by") == "square":
+    if isinstance(managed, dict) and managed.get("managed_by") in ("square", "manual_payment"):
         end = utc_datetime(managed.get("paid_through"))
         lifetime = managed.get("lifetime") is True
-        result.update(source="square", paid_through=iso_date(end), lifetime=lifetime,
+        result.update(source=managed["managed_by"], paid_through=iso_date(end), lifetime=lifetime,
                       plan_id=managed.get("plan_id"), active=bool(lifetime or (end and end > now)))
         if managed.get("legacy_access") is True:
             result.update(source="legacy", active=True)

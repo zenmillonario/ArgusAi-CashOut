@@ -111,10 +111,47 @@ export function normalizePlansResponse(payload) {
     return { ...expected, manual_payment_url: manual };
   });
   if (plans.length !== 3 || new Set(plans.map(plan => plan.id)).size !== 3 || payload.recurring !== false) throw new Error('Membership plans are incomplete.');
-  return { plans, environment: ['sandbox', 'production'].includes(payload.environment) ? payload.environment : null,
-    automatic_checkout_available: payload.automatic_checkout_available === true && ['sandbox', 'production'].includes(payload.environment),
-    automatic_activation_available: payload.automatic_activation_available === true && payload.environment === 'production', recurring: false };
+  const approvalMode = payload.approval_mode === 'automatic' ? 'automatic' : 'manual';
+  return { plans, approval_mode: approvalMode, environment: ['sandbox', 'production'].includes(payload.environment) ? payload.environment : null,
+    automatic_checkout_available: approvalMode === 'automatic' && payload.automatic_checkout_available === true && ['sandbox', 'production'].includes(payload.environment),
+    automatic_activation_available: approvalMode === 'automatic' && payload.automatic_activation_available === true && payload.environment === 'production', recurring: false };
 }
+
+export function manualApprovalRequest({ userId, planId, paymentReference, paymentReviewed }) {
+  if (typeof userId !== 'string' || !userId.trim() || membershipPlan(planId)?.id !== planId) throw new Error('Choose a member and the plan they purchased.');
+  const reference = typeof paymentReference === 'string' ? paymentReference.trim() : '';
+  if (!/^[A-Za-z0-9_-]{3,192}$/.test(reference)) throw new Error('Enter the Square payment or receipt code: 3–192 letters, numbers, underscores, or hyphens. Do not paste a full link.');
+  if (paymentReviewed !== true) throw new Error('Confirm that you checked the payment in Square and matched it to this member.');
+  return { user_id: userId, plan_id: planId, payment_reference: reference, confirm_payment_reviewed: true };
+}
+
+export async function approveManualPurchase({ client, api, credential, currentCredential, purchase }) {
+  if (credential?.kind !== 'member') throw new Error('An active administrator session is required.');
+  const body = manualApprovalRequest(purchase);
+  if (!sameBillingCredential(credential, currentCredential())) return null;
+  const response = await client.post(`${api}/billing/admin/approve`, body, { headers: billingHeaders(credential) });
+  if (!sameBillingCredential(credential, currentCredential())) return null;
+  const result = response.data;
+  if (result?.user_id !== body.user_id || result?.payment?.plan_id !== body.plan_id ||
+      result?.payment?.evidence_source !== 'admin_review' || typeof result?.entitlement?.active !== 'boolean' ||
+      typeof result?.payment?.payment_id !== 'string' || result.payment.payment_id.toLowerCase() !== body.payment_reference.toLowerCase() ||
+      typeof result?.duplicate !== 'boolean') throw new Error('The approval response could not be matched. Refresh payments and retry with the same reference.');
+  return result;
+}
+
+export function manualApprovalError(error) {
+  if ([401, 403].includes(error?.response?.status)) return 'Your administrator session could not be verified. Sign in again before approving this purchase.';
+  if (error?.response?.status === 409) return 'This approval needs review. Refresh payments, check the member’s status and purchased plan, and reuse this same Square reference if you retry.';
+  if (error?.response?.status === 404) return 'This member account could not be found. Refresh the member list before continuing.';
+  if ([400, 422].includes(error?.response?.status)) return 'The approval details were not accepted. Check the member, purchased plan, and Square payment or receipt code.';
+  return 'Approval could not be confirmed. Refresh payments and retry with the same reference. A retry will not add the same purchase twice or send another welcome email.';
+}
+
+export const welcomeEmailLabel = status => ({
+  pending: 'Welcome email queued', sending: 'Welcome email is being submitted', sent: 'Email provider accepted',
+  failed: 'Welcome email failed — follow up manually', unavailable: 'Email service unavailable — send the welcome email manually',
+  unknown: 'Email outcome unknown — check before sending again',
+}[status] || 'Email status not recorded');
 
 export async function loadBillingState({ client, api, credential, currentCredential }) {
   if (!sameBillingCredential(credential, currentCredential())) return null;

@@ -1,70 +1,72 @@
-# Square payment confirmation and membership access
+# One-time Square purchases and manual membership approval
 
-**Status: implementation draft for review; not deployed or connected to live payments.** The owner has identified Square and supplied the three membership prices and reusable checkout links below. The earlier Stripe/PayPal examples are superseded by this Square-specific plan. Production configuration, sandbox exercise, and launch verification are still separate steps.
+**Status: implementation draft for review; not deployed.** The owner confirmed one-time purchases and chose manual approval for this launch. Members create or use one CashOutAI account, pay through a supplied Square link, and wait for the owner to review the payment and approve access. The approval action starts the welcome-email process. Square API credentials, webhook subscriptions, and a billing reconciliation worker are not required for this selected workflow.
 
 ## Approved membership options
 
-| Display label | Billing API plan ID | USD price | New API checkout behavior |
+| Display label | Billing plan ID | USD price | Access from a new paid approval |
 | --- | --- | ---: | --- |
-| 1 month | `monthly` | $99 | One purchase for one calendar month |
-| 6 months | `six_months` | $499 | One purchase for six calendar months |
-| Lifetime | `lifetime` | $899 | One purchase for a lifetime grant |
+| 1 month | `monthly` | $99 once | One calendar month |
+| 6 months | `six_months` | $499 once | Six calendar months |
+| Lifetime | `lifetime` | $899 once | Lifetime, without an expiry date |
 
-The internal ID `monthly` is not a promise of recurring billing. The new API-created checkout flow is one-time; it does not create a subscription or automatic renewal. Existing Dashboard-link renewal settings have not been independently inspected. No free trial, discount, promotional deadline, tax assumption, or refund policy is invented here.
+All three are **one-time purchases with no automatic renewal**. The internal ID `monthly` means one month of access, not a recurring charge. A member who wants another term makes a new purchase. No new trial, discount, sale deadline, tax assumption, or refund policy is added. The owner confirmed the purchase terms; the live Square Dashboard settings have not been independently inspected.
 
-## The member journey
+## The selected member journey
 
-1. **Use one account.** Existing members sign in with their current credentials. The website’s `?join=monthly`, `?join=six_months`, and `?join=lifetime` entry points select the relevant plan. Signed-out visitors can register or switch to sign-in; restored/signed-in members use their existing account.
-2. **Allow checkout without opening paid rooms.** New registrations remain pending. The separate billing authentication endpoint verifies username/password and returns a short-lived billing-only token. It does not grant member-room access or replace the normal login session.
-3. **Create a member-bound Square checkout.** The server chooses the fixed plan price and creates a checkout intent, then requests a Square payment link with a stable idempotency key. The stored intent binds the member, plan, environment, amount, merchant, location, order, and reference before the link is returned.
-4. **Confirm payment on the server.** The app displays payment status while the signed event is verified and Square’s current payment/order records are retrieved. A return to the app is only navigation. A success-page URL cannot activate membership.
-5. **Apply access once.** A qualifying production payment grants the purchased term once. Sandbox payments are recorded as tests and never activate real member access. Provider errors, missing configuration, unmatched payments, and pending payments keep access unchanged.
+1. **Use one account.** Existing members keep their credentials, stable member ID, profile, history, and established access. The website's `?join=monthly`, `?join=six_months`, and `?join=lifetime` routes select a plan within the app. Do not register a second account to renew.
+2. **Keep a new request pending.** Registration does not unlock paid rooms. The separate billing sign-in verifies the account password and gives limited access to its membership screen. New-signup email verification remains separate work; password recovery and billing authentication do not establish it.
+3. **Pay the selected one-time price at Square.** The membership screen opens the corresponding owner-supplied reusable link and shows the member's account email and identity. Ask members to use that email at Square. If their payment email differs, they give the team their CashOutAI account email and Square receipt/payment reference for matching.
+4. **The owner reviews the purchase.** The owner uses their existing Square alert and payment record to check the buyer, purchased plan, amount, and completed payment. A selected plan, screenshot, browser return, or email match alone does not activate access. The app does not automatically consume the Square alert in manual mode.
+5. **Approve the paid purchase in CashOutAI.** A current administrator selects the member and actual purchased plan, records the Square payment or receipt reference, confirms the match, and chooses **Approve access & send welcome email**. The app records an administrator-reviewed purchase and its term once.
+6. **Welcome the member.** The approval schedules the existing welcome-email path once. The member can refresh membership status and sign in after approval. If the email fails or is unavailable, access remains approved and the administrator sees that separate outcome.
 
-Square’s [Checkout API](https://developer.squareup.com/docs/checkout-api) returns a payment link plus an order ID. Its [payment-method guidance](https://developer.squareup.com/docs/checkout-api/optional-checkout-configurations) specifically requires a completed payment before fulfillment; bank transfers can remain pending after checkout.
+The same-email instruction helps the owner find the right record; it is not payment proof. Shared Square links do not create an authenticated CashOutAI account binding. Do not append an invented member parameter and treat it as verification. Square documents reusable Dashboard links and transaction-specific API links in its [Checkout API guidance](https://developer.squareup.com/docs/checkout-api/common-pitfalls).
 
-## The three supplied links are a separate path
+## Paid approval and renewal rules
 
-The owner-provided URLs follow Square’s documented reusable Dashboard `/checkout/` format. API-created links are transaction-specific and single-use. A payment through a shared Dashboard link does not automatically establish which CashOutAI account should receive it. [Square’s distinction](https://developer.squareup.com/docs/checkout-api/common-pitfalls)
+A new one- or six-month term starts when the administrator approves it. Another purchased term extends from the later of approval time or the current paid-through time. Calendar-month arithmetic clamps to the end of a shorter month where needed. Lifetime has no expiry and must not be downgraded by a shorter purchase.
 
-The draft therefore keeps those URLs as an explicitly labeled **manual-review fallback**. No matching by payer email, amount alone, editable member ID, or screenshot grants automatic access. A verified but unmatched transaction stays available for review. The exact supplied URLs and operational setup are in [square-payments-rollout.md](square-payments-rollout.md).
+The approval record links the member, selected plan, fixed USD amount, receipt/reference, approving administrator, approval time, and entitlement. It is **administrator-reviewed evidence**, not a Square-API-verified payment. Keep that distinction visible in the ledger.
 
-The website routes members through the app rather than sending anonymous visitors straight to a reusable payment link.
+A receipt/reference is required: 3–192 letters, numbers, underscores, or hyphens. Enter the payment/receipt code, not a receipt URL. References are deduplicated case-insensitively. Retrying the same reference for the same member and plan returns the existing approval, adds no time, and sends no second welcome email. Reassigning that reference to another member or plan is rejected for review. A renewal needs a new real payment reference.
+
+The separate **Grant complimentary access** action records independent access without a purchased term or paid-through date. Use **Approve a paid purchase** for Square purchases so the receipt, dates, and email outcome are tracked together. This release does not add a receipt editor, arbitrary entitlement override, or automatic refund revocation.
 
 ## Draft API contract
 
 All paths below are beneath `/api`.
 
-| Endpoint | Purpose |
+| Endpoint | Purpose in manual mode |
 | --- | --- |
-| `GET /billing/plans` | Public fixed plans, environment, `recurring: false`, manual URLs, and separate automatic-checkout / automatic-activation availability flags. |
-| `POST /billing/auth` | Body `{username, password}`; returns `{billing_token, expires_at, user_id, scope: "billing"}`. This is restricted billing proof. |
-| `GET /billing/status` | The authenticated account’s payment and membership state. |
-| `POST /billing/checkout` | Body `{plan_id, idempotency_key}`; accepts billing proof or a current normal session. Returns a ready hosted URL or a preparing state without a URL. Missing configuration fails closed. |
-| `POST /billing/square/webhook` | Public provider notification route, protected by Square signature verification rather than member login. |
-| `GET /billing/admin/payments` | Read-only payment review for a current administrator. |
+| `GET /billing/plans` | Fixed one-time plans, supplied Square URLs, approval mode, and automatic-feature availability flags. |
+| `POST /billing/auth` | Body `{username, password}`; returns short-lived billing-only proof without unlocking paid rooms. |
+| `GET /billing/status` | The authenticated account's membership, payment, and approval state. |
+| `GET /billing/admin/payments` | Payment/approval ledger for a current administrator. |
+| `POST /billing/admin/approve` | Body `{user_id, plan_id, payment_reference, confirm_payment_reviewed: true}`; a current administrator approves one reviewed purchase. |
 
-Restricted requests use `X-Billing-Token`. A token cannot authorize other users’ billing records or normal app APIs. Normal members can also use their active app session. Secret Square credentials remain server-side.
+Restricted billing requests use `X-Billing-Token`; eligible members can also use their current normal session. A billing token cannot authorize another account's records, member-room APIs, or admin actions. Paid approval requires the administrator's actual active session.
 
-## What qualifies as a payment
-
-The receiver verifies `x-square-hmacsha256-signature` against the raw request body, the subscription signature key, and the **exact configured notification URL**, using constant-time comparison. [Square verification](https://developer.squareup.com/docs/webhooks/step3validate)
-
-It then retrieves the current payment and order and checks the recorded intent, expected merchant/location, order/reference, USD amount, and `Payment.status = COMPLETED`. Production is restricted to merchant `VMNWS6K9Y9SN5`; the location must belong to that merchant, be active, and use USD. The new grant is held for review when refund data is present. A completed order or signed notification alone is insufficient. [GetPayment](https://developer.squareup.com/reference/square/payments-api/get-payment), [RetrieveOrder](https://developer.squareup.com/reference/square/orders-api/retrieve-order), [RetrieveLocation](https://developer.squareup.com/reference/square/locations-api/retrieve-location)
-
-Checkout intents, received events, and payment records persist in `billing_checkouts`, `billing_events`, and `billing_payments`. Environment and merchant form part of their identity. The user's `billing_entitlement` stores both the effective grant and applied payment IDs in one atomic, conditional update. That prevents two different events for the same payment from extending access twice and allows bookkeeping to recover after interruption without requiring a multi-document Mongo transaction. Retrying checkout creation reuses its stored provider idempotency key.
+The approval response includes the authoritative entitlement/payment and `welcome_email.status`: `pending`, `sending`, `sent`, `failed`, `unavailable`, or `unknown`. `sent` means the email service accepted the message, not proof of inbox delivery. Repeating an approval is not an email-resend feature.
 
 ## Preserve existing access
 
-Current approved members retain their established membership when no historical Square IDs exist. If such an account later receives a Square grant, `legacy_access` preserves its independently established access; the end of the newly purchased term does not silently remove that legacy membership. Existing lifetime access is not downgraded by a shorter purchase or a failed transaction. Existing trial accounts keep their original dates and normal expiration behavior; new trials remain disabled in both the UI and server.
+The release must reuse the production database and stable `users.id`; existing members do not register again. Preserve existing approved, lifetime, and independently administrator-granted access. If such a member later buys a dated term, that independent access is retained; expiry of the new purchase does not silently remove it.
 
-Paid terms use calendar-month expiry rather than a permanent one-time approval flag. Effective entitlement is checked alongside the active session on protected APIs and room/stream access, so a membership renewal does not require a new login every billing cycle.
+Existing trial accounts keep their established dates and normal active/expired rules. New trials stay disabled in both registration UI and server. A new paid-plan selection still creates a pending request until the owner approves it.
 
-Payment records are evidence of payment; administrator approval and manual decisions remain separate. The retained administrator Approve action records independent manual access without a paid-through date. It does not automatically assign a one- or six-month term to a purchase made through a supplied shared link. Use the account-bound verified payment flow for automatic term tracking; any dated manual-grant workflow needs a separate defined policy and implementation. The draft does **not** implement automatic recurring charges, a blanket refund revocation policy, or a new audited manual-override editor. Refunds and unmatched static-link purchases require owner review without erasing unrelated legacy access.
+Paid expiry is enforced alongside the active session on protected APIs and room/stream access. Keeping a device signed in does not make a one-month membership permanent. Renewal does not require a new identity or an artificial login reset. The single-active-session rule remains.
 
-## Reliability and release boundary
+## Optional automatic Square integration: dormant
 
-Square can deliver duplicates and out-of-order events and retries failed delivery for up to **24 hours**. Durable event state and payment-level deduplication are therefore required. [Webhook behavior](https://developer.squareup.com/docs/webhooks/overview)
+`MEMBERSHIP_APPROVAL_MODE` defaults to `manual`; an invalid value also resolves to manual. In that mode, previously stored Square settings do not enable API checkout, webhook grants, or the billing reconciliation worker. A future switch requires explicit `automatic` mode **and** the existing Square enable/configuration checks. Automatic activation is not part of this launch decision.
 
-A provider outage or lost browser return must not turn into a second charge or a fabricated paid state. The draft worker retries durable unfinished work and reconciles known ready checkouts by reading their Square orders, then independently verifies any discovered payment. This is separate from Square’s [Events API](https://developer.squareup.com/docs/events-api/overview), which can help recover eligible events from the preceding 28 days but must be enabled and has its own authentication rules. An Events API recovery job is not implemented by the checkout polling worker.
+New manual paid approvals are disabled in automatic mode; an already-recorded manual receipt can still be recovered idempotently. A future mode change must be a coordinated deployment that drains the old billing work before enabling the other mode, rather than running manual and automatic approval workers concurrently.
 
-The draft can be reviewed without credentials. It becomes a live activation path only after the explicit enable flag, correct production configuration, real webhook subscription, and verified deployment are in place. Testing must keep sandbox and production separate. See [square-payments-rollout.md](square-payments-rollout.md) and [member-launch-plan.md](member-launch-plan.md).
+The retained automatic draft creates an account-bound checkout intent, verifies the raw webhook signature against the exact configured notification URL, then checks Square's current payment/order, merchant/location, currency, amount, reference, and completed status. Durable records and payment-level deduplication prevent repeated grants. Sandbox transactions never grant real access. [Square signature verification](https://developer.squareup.com/docs/webhooks/step3validate), [GetPayment](https://developer.squareup.com/reference/square/payments-api/get-payment), [RetrieveOrder](https://developer.squareup.com/reference/square/orders-api/retrieve-order)
+
+That future path has separate configuration, sandbox, deployment, and recovery requirements in [square-payments-rollout.md](square-payments-rollout.md). It does not create subscriptions, automatically revoke refunded access, or implement Events API backfill. Those optional requirements do not block the selected manual workflow.
+
+## Release boundary
+
+The draft is reviewable without Square credentials. Production needs coordinated app deployment, preservation of the existing database, current administrator access, and verification of the email service and live Square links. No live payment, approval, email, hosting change, or database migration was performed by this review. See [member-launch-plan.md](member-launch-plan.md) for account continuity and hosting evidence.

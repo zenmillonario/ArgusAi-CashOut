@@ -1,111 +1,103 @@
-# Square payments: rollout and operational verification
+# Square purchases: manual launch and optional future automation
 
-**Status: implementation draft; production setup and payment testing have not been performed by this review.** This guide documents the selected Square integration and the owner-supplied prices. Do not describe live automatic activation as available until deployment and provider configuration are verified.
+**Status: implementation draft; production has not been updated.** The owner chose one-time purchases with manual administrator approval and a welcome email. The retained automatic Square integration is dormant and is not a launch dependency.
 
 ## 1. Fixed membership catalog and supplied links
 
-| Membership | Plan ID | Server amount in USD cents | Supplied reusable Square link |
+| Membership | Plan ID | USD cents | Supplied reusable Square link |
 | --- | --- | ---: | --- |
-| 1 month — $99 | `monthly` | 9900 | [1-month checkout](https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/SGEVW3GCMZ2X4WSWREYY2RF2) |
-| 6 months — $499 | `six_months` | 49900 | [6-month checkout](https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/FEYSOTOHEO6HE6N4ONWO4F7C) |
-| Lifetime — $899 | `lifetime` | 89900 | [Lifetime checkout](https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/7YFX27AOC4IUYZ5DXP4W3VBL) |
+| 1 month — $99 once | `monthly` | 9900 | [1-month checkout](https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/SGEVW3GCMZ2X4WSWREYY2RF2) |
+| 6 months — $499 once | `six_months` | 49900 | [6-month checkout](https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/FEYSOTOHEO6HE6N4ONWO4F7C) |
+| Lifetime — $899 once | `lifetime` | 89900 | [Lifetime checkout](https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/7YFX27AOC4IUYZ5DXP4W3VBL) |
 
-These prices come from the owner. The public checkout pages could not be rendered by the research tool, so their current settings, tax treatment, and any renewal configuration were not independently verified. No transaction was submitted. The URL pattern matches Square’s documented Dashboard-link format.
+Every purchase is one-time, as confirmed by the owner. No subscription, automatic renewal, new trial, or discount is included. Another fixed term needs a new purchase. The public checkout pages could not be rendered by the research tool, so their live settings and tax treatment have not been independently verified. No transaction was submitted.
 
-The new automated flow creates one-time API links for a stored member/order intent. Keep the supplied Dashboard links intact as the documented manual-review fallback. Do not append an invented account parameter and treat it as an authenticated binding. [Dashboard/API differences](https://developer.squareup.com/docs/checkout-api/common-pitfalls)
+These supplied links are the **primary payment path for this manual launch**. Do not invent an account parameter as payment proof. Square distinguishes reusable Dashboard links from transaction-specific API links. [Dashboard/API differences](https://developer.squareup.com/docs/checkout-api/common-pitfalls)
 
-The API plan ID `monthly` means one month of access in this draft. It is not an automatic monthly charge. No new trials or subscriptions are created.
+## 2. Manual-mode deployment settings
 
-## 2. Server configuration
+Set `MEMBERSHIP_APPROVAL_MODE=manual` explicitly in the intended backend deployment. Manual is also the default for an absent or invalid value. In manual mode, former `SQUARE_BILLING_ENABLED` or credential values do not enable automatic checkout, webhook activation, or the billing worker.
 
-Configure these on the backend through the deployment’s secret/configuration mechanism. Do not place access tokens or webhook keys in frontend code, committed files, chat, URLs, or logs.
+**No Square API token, webhook key, subscription, or persistent billing worker is needed for this workflow.** The owner continues to receive their existing Square alert and reviews the payment in Square. The app does not read that alert or automatically verify the payment.
 
-| Variable | Required meaning |
-| --- | --- |
-| `SQUARE_BILLING_ENABLED` | Explicit `true` to enable configured API checkout. Merely storing the public links does not enable it. |
-| `SQUARE_ENVIRONMENT` | Explicit `sandbox` or `production`; do not silently fall back between them. |
-| `SQUARE_ACCESS_TOKEN` | Server credential for the selected environment and seller. |
-| `SQUARE_MERCHANT_ID` | Expected seller. Production must match owner-supplied `VMNWS6K9Y9SN5`. Sandbox uses its own test seller. |
-| `SQUARE_LOCATION_ID` | The intended location; the draft verifies its merchant, USD currency, active status, and ID. |
-| `SQUARE_WEBHOOK_SIGNATURE_KEY` | Signing key for this exact environment’s webhook subscription. |
-| `SQUARE_WEBHOOK_NOTIFICATION_URL` | Exact public HTTPS URL ending in `/api/billing/square/webhook`, including the correct host/path. Signature validation uses this value. |
-| `SQUARE_CHECKOUT_RETURN_URL` | The draft supports `https://cashoutai.app/?billing=1` as its neutral HTTPS membership return route. Deploy and verify that app route before using it in live configuration. It is navigation, never payment proof. |
+The live app still needs its database, frontend-to-backend routing, administrator sign-in, and configured email service. Confirm the actual production service before deployment; a Vercel or Railway project's existence does not establish that it is the active backend. Database and email settings have not been changed by this review.
 
-The draft pins `Square-Version: 2026-11-18`. The owner’s real API/backend origin and return route must be used; this document does not invent a production callback host.
+## 3. Member entry and payment matching
 
-Square’s sandbox API base is `https://connect.squareupsandbox.com`; production uses `https://connect.squareup.com`. Credentials and objects cannot be mixed across environments. Sandbox records must be labeled test-only and must never activate actual members. [Sandbox guide](https://developer.squareup.com/docs/devtools/sandbox/overview)
-
-### Permissions
-
-| Operation | Required permissions |
-| --- | --- |
-| CreatePaymentLink | `ORDERS_READ`, `ORDERS_WRITE`, `PAYMENTS_WRITE` |
-| GetPayment and payment event access | `PAYMENTS_READ` |
-| RetrieveOrder | `ORDERS_READ` |
-| RetrieveLocation | `MERCHANT_PROFILE_READ` |
-
-Sources: [CreatePaymentLink](https://developer.squareup.com/reference/square/checkout-api/create-payment-link), [GetPayment](https://developer.squareup.com/reference/square/payments-api/get-payment), [RetrieveOrder](https://developer.squareup.com/reference/square/orders-api/retrieve-order), [RetrieveLocation](https://developer.squareup.com/reference/square/locations-api/retrieve-location), [webhook permissions](https://developer.squareup.com/docs/webhooks/troubleshooting).
-
-For one owner-operated merchant, choose the appropriate server credential for that seller. If OAuth is used, the seller must have granted the required scopes. Configuring a webhook does not substitute for API permission.
-
-## 3. Checkout and member binding
-
-The app’s plan entries are:
+The coordinated plan-entry URLs are:
 
 - `https://cashoutai.app/?join=monthly`
 - `https://cashoutai.app/?join=six_months`
 - `https://cashoutai.app/?join=lifetime`
 
-These routes belong to the implementation draft and must deploy with the marketing links. The chosen plan survives switching from registration to sign-in. Already signed-in users use their existing account. The neutral return query `?billing=1` opens Profile membership for an existing session, keeps a pending account in its restricted billing portal, or asks a signed-out user to sign in. It does not claim checkout success or change membership.
+Deploy and verify those app routes before publishing the marketing buttons. The plan survives switching between registration and sign-in. Existing members use their current accounts. The `?billing=1` route opens membership or asks for sign-in; it never proves payment or changes access.
 
-Pending users cannot use normal member login solely to obtain checkout. The separate `POST /api/billing/auth` accepts username/password and returns a short-lived token scoped to billing. Subsequent billing requests send `X-Billing-Token`; paid rooms still require an eligible membership and normal active session.
+Pending and expired accounts can use `POST /api/billing/auth` with their username/password to obtain short-lived billing-only proof, sent through `X-Billing-Token`. That portal cannot authorize paid rooms or admin actions.
 
-`POST /api/billing/checkout` accepts only a catalog `plan_id` and an `idempotency_key`. The server records the member/plan/amount/environment intent and creates the Square-hosted link using its own fixed price. Persist the order ID and opaque order reference. A preparing response with no URL is not an invitation for the client to invent a checkout URL or retry with a new payment identity.
+The **Membership & payments** screen shows **One-time payment · Manual approval**, account email, username, and account ID. Members use the same email at Square where possible. If they paid under another email, they give the team their CashOutAI account email and receipt/payment reference. **Awaiting admin approval** remains until a real administrator decision changes access. A browser return from Square is not activation.
 
-Square’s [creation API](https://developer.squareup.com/reference/square/checkout-api/create-payment-link) treats a missing/empty provider idempotency key as a separate request. Reuse the stored key for the same attempt; create a new intent only for a deliberate new purchase.
+## 4. Owner's approval procedure
 
-## 4. Webhooks and eligibility
+1. Open the Square payment record associated with the alert. Check completed payment, actual buyer, matching CashOutAI account, and the purchased $99, $499, or $899 plan. Resolve mismatches, refunds, or incomplete payments before approval.
+2. Sign in to CashOutAI as an administrator and open **Approve a paid purchase**. Select the existing member and the actual purchased plan, rather than assuming their registration choice was correct.
+3. Enter the Square payment or receipt **code**: 3–192 letters, numbers, underscores, or hyphens. Do not paste a receipt URL. Confirm that payment and account have been reviewed.
+4. Choose **Approve access & send welcome email**. The app records the reference, administrator review, member, plan, amount, approval time, and entitlement, then schedules one welcome email through the existing service.
+5. Check membership dates and the separate email outcome. Members can refresh and sign in after approval even if email fails. A `sent` email was accepted by the service; inbox delivery is not independently established.
 
-Configure `payment.created` and `payment.updated` for the deployed endpoint and selected environment. The handler also accepts `refund.created` and `refund.updated` to flag review; subscribe to those when exercising refund tracking. Verify the raw body, `x-square-hmacsha256-signature`, exact configured notification URL, and signing key before recording a trusted event. Compare signatures in constant time. [Signature validation](https://developer.squareup.com/docs/webhooks/step3validate)
+The endpoint is `POST /api/billing/admin/approve` with `{user_id, plan_id, payment_reference, confirm_payment_reviewed: true}`. It requires the current administrator session, not a billing token. The ledger is `GET /api/billing/admin/payments`.
 
-The handler retrieves current Square payment/order data and verifies all of the following before a new production grant:
+References are deduplicated case-insensitively. Repeating the same member/plan/reference returns the prior grant without extra time or another welcome email. Reusing it for another member or plan returns a conflict. Do not invent a new reference to force a retry or resend.
 
-- Correct environment and configured merchant/location.
-- A stored checkout intent owned by the target member.
-- Exact order ID, opaque reference, plan, and expected USD amount.
-- `Payment.status = COMPLETED`, with no refund indication requiring review.
-- No previous grant for that payment.
+This is an **administrator-reviewed purchase**, not a Square-API-verified payment. The separate **Grant complimentary access** control records independent membership without a paid-through date. Use paid approval for purchased one- and six-month terms.
 
-Square documents that a checkout redirect can precede settlement for asynchronous methods. `PENDING`, authorization, or browser success is not sufficient. Order fulfillment state can also remain open after successful payment, so it is not the sole payment test. [Payment-method behavior](https://developer.squareup.com/docs/checkout-api/optional-checkout-configurations), [order-state limitation](https://developer.squareup.com/docs/checkout-api/common-pitfalls)
+### Dates, renewals, and exceptions
 
-Refund indications stop a new automatic grant. Existing grants are not automatically revoked under an invented refund policy. The owner must define and approve that policy before enforcement is added.
+A new dated term starts at approval. Another purchased term extends from the later of the current paid-through date and approval time. One- and six-calendar-month calculations clamp shorter month ends. Lifetime has no expiry and is not downgraded by a shorter purchase.
 
-## 5. Review, retries, and reconciliation
+Existing approved, lifetime, and independent complimentary access is retained. A dated purchase does not silently replace it. Existing trial dates stay unchanged; new trials are disabled.
 
-The admin read-only payment view is `GET /api/billing/admin/payments`. Use it to inspect matched, pending, test-only, failed, duplicate, and manual-review cases. Keep payment confirmation separate from any manual membership decision and retain the member’s existing identity.
+Refunds, wrong-account assignments, and corrections require owner review. This release does not automatically revoke refunded access or add an arbitrary entitlement/receipt editor. A repeated approval is not an email resend. Welcome status can be `pending`, `sending`, `sent`, `failed`, `unavailable`, or `unknown`; resolve failed/uncertain email separately from the membership already recorded.
 
-Square retries unacknowledged webhooks for up to 24 hours and does not guarantee event order. Store received events durably and deduplicate by event ID and payment grant. Provider read failures must stay retryable, not turn into a final “paid” or “unpaid” guess. [Delivery behavior](https://developer.squareup.com/docs/webhooks/overview)
+## 5. Verification before the manual launch
 
-For an outage, inspect [webhook logs](https://developer.squareup.com/docs/devtools/webhook-logs) and re-read the relevant payment/order. The [Events API](https://developer.squareup.com/docs/events-api/overview) supports a 28-day recovery window, requires prior enablement, and uses the application’s personal access token rather than an OAuth token. Access to event types must have existed when those events occurred. Do not promise it can recover arbitrary older or previously unavailable events.
+Use an isolated app database and stubbed/non-production email service to verify the proposed release:
 
-The draft includes a scheduled worker with bounded batches. It retries persisted checkout creation and received events, then reconciles known ready checkouts by reading their orders. The first order check is scheduled after two minutes and later checks no more often than every five minutes. Polling pauses seven days after checkout creation, and canceled orders stop polling. The stored record remains; a later valid signed payment notification can still be verified. Each discovered tender payment ID goes through the full independent payment/order validation; an order alone does not grant access. This worker does not implement Events API backfill.
+1. Existing accounts retain IDs, access, profile/history, and recovery options. New registration stays pending with no trial.
+2. Each plan-entry route reaches the correct one-time Square link after account entry. Billing proof cannot open paid rooms or another account's records.
+3. Only a current administrator can approve each plan with confirmed review, receipt evidence, correct dates, and separate email status.
+4. Duplicate references do not add time or send twice; reassignment conflicts; a new-receipt renewal extends correctly. Lifetime and independent legacy access remain.
+5. Expiry is enforced without deleting login or member history. Failed/unavailable email does not undo approval.
+6. Manual mode makes no provider API call and grants nothing through automatic webhook/worker paths, even with old Square flags or credentials present.
 
-Automatic refunds and a new audited manual-override editor are not implemented. The retained admin Approve action gives independent manual access without setting a paid-through date; it is not an automatic one- or six-month grant for a shared-link purchase. Payment records and that manual access decision remain separate; a support action must not silently rewrite a receipt as paid.
+These checks do not establish live email delivery, Square notification delivery, checkout settings, or production routing. Verify those deployment facts separately with the owner before opening the campaign. This code review does not send email, purchase anything, approve real users, or change hosting.
 
-## 6. Verification before live enablement
+## 6. Optional future automatic mode — disabled for this launch
 
-Use an isolated app database and Square sandbox to exercise:
+Automatic code remains available for a later explicit decision. It only becomes eligible with `MEMBERSHIP_APPROVAL_MODE=automatic` **and** all existing Square enable/configuration checks. Do not switch modes just to use the supplied manual links.
 
-1. Register / existing-member sign-in / pending-account billing proof, with no new trials.
-2. Each fixed plan and exact amount; unauthorized plan/amount changes rejected.
-3. Invalid signature, wrong merchant/location, wrong reference, and unmatched shared-link payment.
-4. Successful payment, pending payment, failed payment, refund indication, and provider read failure.
-5. Duplicate events, distinct events for one payment, concurrent checkout retries, interrupted processing, and lost browser return.
-6. One- and six-calendar-month expiry, lifetime preservation, existing approved/trial accounts, and current-session protection.
-7. Sandbox success recorded without activating a real member; production readiness and activation flags remain distinct.
+Automatic mode rejects new manual paid approvals, while allowing idempotent recovery of a previously recorded manual receipt. Before changing modes, drain old in-flight billing work and deploy the new mode consistently across backend instances. Do not run mixed manual and automatic approval workers against the same live payment records.
 
-Local automated fixtures test implementation logic; they do not verify live credentials, Square Dashboard configuration, actual settlement, email delivery, or deployment. No live charge is needed to review the code.
+### Future configuration
 
-After verified configuration and deployment, expose account-first checkout. Keep unconfigured behavior explicit and the supplied static-link fallback labeled manual review. Do not advertise instant activation, recurring charges, a discount, or a sale deadline that has not been approved.
+| Variable | Purpose if automatic mode is deliberately selected |
+| --- | --- |
+| `SQUARE_BILLING_ENABLED` | Explicit `true`; insufficient without automatic mode. |
+| `SQUARE_ENVIRONMENT` | Explicit `sandbox` or `production`. |
+| `SQUARE_ACCESS_TOKEN` | Server credential for the chosen seller/environment. |
+| `SQUARE_MERCHANT_ID` | Expected seller; production must match `VMNWS6K9Y9SN5`. |
+| `SQUARE_LOCATION_ID` | Active USD location belonging to that seller. |
+| `SQUARE_WEBHOOK_SIGNATURE_KEY` | Subscription key for this exact environment. |
+| `SQUARE_WEBHOOK_NOTIFICATION_URL` | Exact public HTTPS URL ending `/api/billing/square/webhook`. |
+| `SQUARE_CHECKOUT_RETURN_URL` | Verified neutral app route such as supported `https://cashoutai.app/?billing=1`; never proof of payment. |
 
-See [payment-access-plan.md](payment-access-plan.md) for the access rules and [member-launch-plan.md](member-launch-plan.md) for continuity and launch sequencing.
+The draft pins `Square-Version: 2026-11-18`. Keep server secrets out of frontend files, commits, chat, URLs, and logs. Separate sandbox and production credentials/objects; sandbox must never activate actual members. [Square sandbox](https://developer.squareup.com/docs/devtools/sandbox/overview)
+
+Future API permissions are `ORDERS_READ`, `ORDERS_WRITE`, and `PAYMENTS_WRITE` for checkout; `PAYMENTS_READ` for payment lookup; and `MERCHANT_PROFILE_READ` for location verification. [CreatePaymentLink](https://developer.squareup.com/reference/square/checkout-api/create-payment-link), [GetPayment](https://developer.squareup.com/reference/square/payments-api/get-payment), [RetrieveLocation](https://developer.squareup.com/reference/square/locations-api/retrieve-location)
+
+### Future verification and recovery
+
+`POST /api/billing/checkout` creates a stored account/plan/order intent with a stable provider idempotency key. The receiver verifies the raw-body signature against the exact notification URL, re-reads payment/order data, requires the expected completed USD amount and merchant/location/account binding, and grants once. Payment created/updated subscriptions are required; refund events flag review rather than inventing a revocation policy. [Signature verification](https://developer.squareup.com/docs/webhooks/step3validate), [payment methods](https://developer.squareup.com/docs/checkout-api/optional-checkout-configurations)
+
+Durable checkout, event, and payment records support retries. The optional worker reconciles known ready orders first after two minutes, then no more often than every five minutes, with a seven-day polling window. Later valid webhooks can still be processed. Square retries unacknowledged webhooks for up to 24 hours and may deliver events out of order. [Webhook delivery](https://developer.squareup.com/docs/webhooks/overview)
+
+The worker does not implement [Events API backfill](https://developer.squareup.com/docs/events-api/overview). Provider credentials, subscription setup, signed-event tests, sandbox exercise, recovery, and worker deployment need a separate review before a future automatic launch. They are not prerequisites for the selected manual workflow.

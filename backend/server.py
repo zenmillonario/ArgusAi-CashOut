@@ -320,14 +320,22 @@ async def lifespan(app: FastAPI):
     # Start background cleanup task
     cleanup_task = asyncio.create_task(periodic_cleanup())
     stock_push_task = asyncio.create_task(stock_alert_service.run())
-    billing_task = asyncio.create_task(square_billing_service.run())
+    background_tasks = [cleanup_task, stock_push_task]
+    if square_billing_service.settings.mode == "automatic":
+        background_tasks.append(asyncio.create_task(square_billing_service.run()))
+    else:
+        # Manual approval uses request background tasks for its single welcome
+        # attempt and does not need a continuously running Square worker.
+        try:
+            await square_billing_service.initialize()
+        except Exception:
+            logger.warning("Billing indexes unavailable; manual receipts still use unique document IDs.")
     logger.info("Started periodic stale session cleanup (every 10 minutes)")
     yield
     # Clean up on shutdown
-    cleanup_task.cancel()
-    stock_push_task.cancel()
-    billing_task.cancel()
-    for task in (cleanup_task, stock_push_task, billing_task):
+    for task in background_tasks:
+        task.cancel()
+    for task in background_tasks:
         try:
             await task
         except asyncio.CancelledError:
@@ -2388,7 +2396,7 @@ async def approve_user(request: Request, approval: UserApproval, background_task
         {"$set": update_data}
     )
     
-    if result.modified_count == 0:
+    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
     
     # Get updated user
@@ -2399,16 +2407,8 @@ async def approve_user(request: Request, approval: UserApproval, background_task
     user_name = user_to_approve.get('real_name', user_to_approve.get('username'))
     user_email = user_to_approve.get('email')
     
-    if user_email and email_service:
-        # Send approval confirmation email
-        background_tasks.add_task(
-            email_service.send_approval_confirmation,
-            user_email,
-            user_name,
-            approval.approved
-        )
-        
-        # Send comprehensive welcome email for approved users
+    if user_email and email_service and user_to_approve.get("status") != new_status:
+        # One welcome on approval; rejection uses its separate confirmation.
         if approval.approved:
             background_tasks.add_task(
                 email_service.send_general_welcome_email,
@@ -2418,8 +2418,10 @@ async def approve_user(request: Request, approval: UserApproval, background_task
                 user_to_approve.get("membership_plan", "Premium")
             )
             logger.info(f"✅ Welcome email scheduled for approved user {user_email}")
+        else:
+            background_tasks.add_task(email_service.send_approval_confirmation, user_email, user_name, False)
             
-    elif user_email:
+    elif user_email and not email_service:
         action = "approved" if approval.approved else "rejected"
         print(f"Email service unavailable. Would send {action} notification to {user_email}")
     
@@ -3330,24 +3332,16 @@ async def convert_trial_to_member(request: Request, user_id: str, admin_id: str)
     
     logger.info(f"🎉 TRIAL CONVERTED TO MEMBER: {user['username']} by admin {admin['username']}")
     
-    # Send approval confirmation and welcome email
+    # Send one welcome email, not a second approval confirmation as well.
     if email_service:
         try:
-            # Send approval confirmation
-            await email_service.send_approval_confirmation(
-                user["email"], 
-                user.get("real_name", user["username"]), 
-                True
-            )
-            
-            # Send comprehensive welcome email for approved users
-            await email_service.send_general_welcome_email(
+            accepted = await email_service.send_general_welcome_email(
                 user["email"],
                 user.get("real_name", user["username"]), 
                 user["username"],
                 user.get("membership_plan", "Premium")
             )
-            logger.info(f"✅ Welcome email sent to approved user {user['email']}")
+            logger.info("Member welcome accepted by email provider." if accepted else "Member welcome acceptance was not confirmed.")
             
         except Exception as e:
             logger.error(f"Error sending approval/welcome emails: {e}")
@@ -4937,7 +4931,9 @@ except ImportError:
     from square_billing import SquareBillingService
 stock_alert_service = StockAlertService(db, require_profile_owner, get_active_fcm_tokens)
 app.include_router(stock_alert_service.router())
-square_billing_service = SquareBillingService(db, require_profile_owner, verify_password)
+square_billing_service = SquareBillingService(
+    db, require_profile_owner, verify_password,
+    welcome_sender=email_service.send_general_welcome_email_outcome if email_service else None)
 app.include_router(square_billing_service.router())
 
 # Include the router in the main app

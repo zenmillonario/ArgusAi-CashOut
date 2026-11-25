@@ -1,9 +1,9 @@
-"""Square fixed-term checkout and verified access, disabled until configured.
+"""One-time memberships, with explicit administrator approval by default.
 
-No browser redirect, email address, public member ID, or Dashboard payment link
-is payment proof. Only a server-recorded checkout/order and independently read
-Square payment can create a grant. Durable receipts and a compare-and-swap user
-update make retries safe without requiring Mongo multi-document transactions.
+Manual receipts record an administrator's review, never Square API verification.
+The optional automatic integration requires a separate, explicit mode selection.
+Durable receipts and a compare-and-swap user update make either path retry-safe
+without requiring Mongo multi-document transactions.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ import secrets
 from urllib.parse import quote, urlsplit
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 try:
@@ -86,6 +86,7 @@ def add_months(value, months):
 
 @dataclass(frozen=True)
 class SquareSettings:
+    approval_mode: str = "manual"
     enabled: bool = False
     environment: str = ""
     access_token: str = ""
@@ -98,6 +99,7 @@ class SquareSettings:
     @classmethod
     def from_env(cls):
         return cls(
+            approval_mode=os.getenv("MEMBERSHIP_APPROVAL_MODE", "manual").strip().lower(),
             enabled=os.getenv("SQUARE_BILLING_ENABLED", "").lower() == "true",
             environment=os.getenv("SQUARE_ENVIRONMENT", "").strip(),
             access_token=os.getenv("SQUARE_ACCESS_TOKEN", "").strip(),
@@ -109,8 +111,14 @@ class SquareSettings:
         )
 
     @property
+    def mode(self):
+        # Stale Square credentials or the previous enable flag alone must never
+        # opt this deployment into automatic payment handling.
+        return "automatic" if self.approval_mode == "automatic" else "manual"
+
+    @property
     def ready(self):
-        return bool(self.enabled and self.environment in ("sandbox", "production")
+        return bool(self.mode == "automatic" and self.enabled and self.environment in ("sandbox", "production")
                     and self.access_token and _id(self.merchant_id) and _id(self.location_id)
                     and len(self.signature_key) >= 16 and _https_url(self.notification_url)
                     and _https_url(self.return_url)
@@ -181,17 +189,28 @@ class CheckoutRequest(BaseModel):
     idempotency_key: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
 
 
+class ManualApprovalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    user_id: str = Field(min_length=1, max_length=240)
+    plan_id: str = Field(min_length=1, max_length=32)
+    payment_reference: str = Field(min_length=3, max_length=192, pattern=r"^[A-Za-z0-9_-]+$")
+    confirm_payment_reviewed: bool = Field(strict=True)
+
+
 class SquareBillingService:
-    def __init__(self, db, require_owner, verify_password, settings=None, provider=None, now=datetime.utcnow):
+    def __init__(self, db, require_owner, verify_password, settings=None, provider=None, now=datetime.utcnow,
+                 welcome_sender=None):
         self.db, self.require_owner, self.verify_password = db, require_owner, verify_password
         self.settings = settings or SquareSettings.from_env()
         self.provider = provider or SquareClient(self.settings)
         self.now = now
+        self.welcome_sender = welcome_sender
         self._location_checked_at = None
 
     def plans(self):
         return {
             "plans": [{k: v for k, v in plan.items() if k != "membership_label"} for plan in PLAN_CATALOG],
+            "approval_mode": self.settings.mode,
             "automatic_checkout_available": self.settings.ready,
             "automatic_activation_available": self.settings.ready and self.settings.environment == "production",
             "environment": self.settings.environment if self.settings.environment in ("sandbox", "production") else None,
@@ -270,6 +289,140 @@ class SquareBillingService:
         if admin and (not user.get("is_admin") or user.get("status") != "approved"):
             raise HTTPException(403, "Administrator access required.")
         return user
+
+    @staticmethod
+    def _manual_key(reference):
+        normalized = reference.strip().casefold()
+        digest = hashlib.sha256(normalized.encode()).hexdigest()
+        return "production:" + PRODUCTION_MERCHANT + ":manual:" + digest
+
+    async def approve_manual(self, admin, body, background_tasks):
+        """Record the owner's review and apply exactly one purchased term.
+
+        This route never calls Square and cannot establish provider verification.
+        The reference is the durable idempotency key, including across accounts.
+        """
+        if self.settings.mode != "manual":
+            existing_manual = await self.db.billing_payments.find_one({"_id": self._manual_key(body.payment_reference)})
+            if not existing_manual or existing_manual.get("evidence_source") != "admin_review":
+                raise HTTPException(409, "New manual paid approval requires manual approval mode. Automatic approval mode is selected.")
+        if not body.confirm_payment_reviewed:
+            raise HTTPException(400, "Review the completed Square payment and confirm the member, plan and amount first.")
+        plan = PLANS.get(body.plan_id)
+        if not plan:
+            raise HTTPException(400, "Choose a supported paid membership plan.")
+        user = await self.db.users.find_one({"id": body.user_id})
+        if not user:
+            raise HTTPException(404, "Member not found.")
+        if user.get("status") not in BILLABLE_STATUSES or user.get("disabled") is True:
+            raise HTTPException(409, "This account requires administrator review before access can be approved.")
+        await self._rate_limit("manual-approval:" + admin["id"], 120, 3600)
+        # A reference already recorded by the optional automatic integration is
+        # not a new manually reviewed payment. Do not grant the term a second time.
+        existing = await self.db.billing_payments.find({
+            "namespace": "production:" + PRODUCTION_MERCHANT,
+            "payment_id": {"$regex": "^" + re.escape(body.payment_reference) + "$", "$options": "i"},
+        }).to_list(3)
+        if any(row.get("evidence_source") != "admin_review" for row in existing):
+            raise HTTPException(409, "This reference already has a payment record. Review that record before changing access.")
+        now = self.now()
+        row = {
+            "_id": self._manual_key(body.payment_reference),
+            "namespace": "production:" + PRODUCTION_MERCHANT,
+            "merchant_id": PRODUCTION_MERCHANT, "environment": "production",
+            "payment_id": body.payment_reference, "user_id": user["id"], "plan_id": plan["id"],
+            "amount_cents": plan["amount_cents"], "amount_source": "plan_catalog", "currency": "USD",
+            "term_months": plan["term_months"], "membership_label": plan["membership_label"],
+            "status": "reviewed", "review_required": False, "received_at": now,
+            "evidence_source": "admin_review", "verification_status": "admin_reviewed",
+            "confirm_payment_reviewed": True, "reviewed_by": admin["id"], "reviewed_at": now,
+            "welcome_email_status": "pending", "welcome_email_requested_at": now,
+            "welcome_email_updated_at": now, "welcome_recipient": user.get("email"),
+        }
+        inserted = await self._insert_once(self.db.billing_payments, row)
+        saved = await self.db.billing_payments.find_one({"_id": row["_id"]})
+        if (saved.get("user_id") != user["id"] or saved.get("plan_id") != plan["id"]
+                or saved.get("evidence_source") != "admin_review"):
+            raise HTTPException(409, "This Square reference is already assigned to a different member or plan.")
+        if saved.get("review_required"):
+            raise HTTPException(409, "This payment record needs administrator review before it can be approved.")
+        outcome = await self.apply_grant(saved, saved)
+        if outcome != "granted":
+            raise HTTPException(409, "Access could not be applied. Review the account and saved payment record.")
+        saved = await self.db.billing_payments.find_one({"_id": row["_id"]})
+        if saved.get("welcome_email_status") == "pending":
+            if not self.welcome_sender or not saved.get("welcome_recipient"):
+                await self.db.billing_payments.update_one(
+                    {"_id": saved["_id"], "welcome_email_status": "pending"},
+                    {"$set": {"welcome_email_status": "unavailable", "welcome_email_updated_at": self.now(),
+                              "welcome_email_reason": "email_not_configured" if not self.welcome_sender else "member_email_missing"}})
+            else:
+                # Multiple request retries can queue this task. Its atomic claim
+                # below permits one send only, without a permanent worker.
+                background_tasks.add_task(self.send_manual_welcome, saved["_id"])
+        saved = await self.db.billing_payments.find_one({"_id": row["_id"]})
+        user = await self.db.users.find_one({"id": user["id"]})
+        return {"user_id": user["id"], "duplicate": not inserted,
+                "entitlement": membership_snapshot(user, self.now()),
+                "payment": self.payment_view(saved, admin=True), "welcome_email": self.welcome_view(saved)}
+
+    async def send_manual_welcome(self, payment_key):
+        """Claim one welcome attempt; never infer delivery or blindly resend.
+
+        A timeout/crash after the claim is ambiguous. It stays sending/unknown for
+        administrator review; approving the same payment again cannot resend it.
+        """
+        now = self.now()
+        row = await self.db.billing_payments.find_one_and_update(
+            {"_id": payment_key, "status": "granted", "evidence_source": "admin_review",
+             "welcome_email_status": "pending"},
+            {"$set": {"welcome_email_status": "sending", "welcome_email_started_at": now,
+                      "welcome_email_updated_at": now}}, return_document=True)
+        if not row:
+            return
+        status, reason, message_id = "unknown", "send_outcome_unknown", None
+        try:
+            user = await self.db.users.find_one({"id": row["user_id"]})
+            if not self.welcome_sender or not row.get("welcome_recipient"):
+                status, reason = "unavailable", "email_not_configured"
+            elif not user or user.get("disabled") is True or user.get("status") != "approved":
+                status, reason = "unavailable", "account_requires_review"
+            else:
+                plan = PLANS[row["plan_id"]]
+                outcome = await self.welcome_sender(
+                    row["welcome_recipient"], user.get("real_name") or user.get("username") or "member",
+                    user.get("username") or "", plan["label"] + " (one-time purchase)")
+                if isinstance(outcome, dict) and outcome.get("status") in ("sent", "failed", "unknown", "unavailable"):
+                    status = outcome["status"]
+                    message_id = outcome.get("provider_message_id")
+                    reason = {"sent": None, "failed": "provider_rejected", "unknown": "send_outcome_unknown",
+                              "unavailable": "email_not_configured"}[status]
+                elif outcome is True:
+                    status, reason = "sent", None  # Accepted by the configured sender, not proof of delivery.
+                # Older boolean-only senders cannot distinguish a rejection from
+                # an accepted send followed by a timeout. False remains unknown.
+        except asyncio.CancelledError:
+            await self.db.billing_payments.update_one(
+                {"_id": payment_key, "welcome_email_status": "sending"},
+                {"$set": {"welcome_email_status": "unknown", "welcome_email_reason": "send_interrupted",
+                          "welcome_email_updated_at": self.now()}})
+            raise
+        except Exception:
+            logger.warning("Membership welcome outcome is unknown; administrator review required.")
+        changes = {"welcome_email_status": status, "welcome_email_reason": reason,
+                   "welcome_email_updated_at": self.now()}
+        if isinstance(message_id, str) and 0 < len(message_id) <= 240:
+            changes["welcome_provider_message_id"] = message_id
+        await self.db.billing_payments.update_one(
+            {"_id": payment_key, "welcome_email_status": "sending"}, {"$set": changes})
+
+    def welcome_view(self, row):
+        status = row.get("welcome_email_status")
+        started = utc_datetime(row.get("welcome_email_started_at"))
+        if status == "sending" and started and self.now() - started >= timedelta(minutes=10):
+            status = "unknown"
+        return {"status": status, "requested_at": iso_date(row.get("welcome_email_requested_at")),
+                "updated_at": iso_date(row.get("welcome_email_updated_at"))}
 
     async def _location(self):
         if not self.settings.ready:
@@ -444,6 +597,8 @@ class SquareBillingService:
     async def verify_payment(self, payment_id, event=None):
         # Different event IDs for the same payment share one verification lease.
         # This also serializes refund review against a simultaneous grant attempt.
+        if not self.settings.ready:
+            raise SquareProblem("square_unconfigured")
         if not _id(payment_id):
             raise SquareProblem("invalid_payment_id", retry=False)
         now, lease = self.now(), secrets.token_hex(16)
@@ -526,6 +681,7 @@ class SquareBillingService:
         await self.db.billing_payments.update_one({"_id": row["_id"]}, {"$set": {
             "user_id": checkout["user_id"], "plan_id": checkout["plan_id"], "checkout_id": checkout_id,
             "amount_cents": expected, "currency": "USD",
+            "evidence_source": "square_api", "verification_status": "provider_verified",
             "verified_at": row.get("verified_at") or self.now(), "last_checked_at": self.now(),
             "status": row["status"] if row["status"] == "granted" else "verified"}})
         row = await self.db.billing_payments.find_one({"_id": row["_id"]})
@@ -551,27 +707,42 @@ class SquareBillingService:
         A crash before it can retry. A crash after it finds the ID and completes
         bookkeeping without adding the term twice. Competing renewals use CAS.
         """
+        manual = payment.get("evidence_source") == "admin_review"
+        if not manual and not self.settings.ready:
+            raise SquareProblem("square_unconfigured")
         for _ in range(12):
             receipt = await self.db.billing_payments.find_one({"_id": payment["_id"]})
+            if not receipt:
+                raise SquareProblem("payment_record_missing")
             if receipt.get("review_required"):
                 return "review"
-            if (receipt.get("verification_lease") != payment.get("verification_lease")
+            if manual:
+                if (receipt.get("evidence_source") != "admin_review"
+                        or receipt.get("confirm_payment_reviewed") is not True
+                        or not receipt.get("reviewed_by") or not utc_datetime(receipt.get("reviewed_at"))
+                        or receipt.get("user_id") != checkout.get("user_id")
+                        or receipt.get("plan_id") != checkout.get("plan_id")):
+                    raise SquareProblem("admin_review_record_invalid", retry=False)
+            elif (receipt.get("verification_lease") != payment.get("verification_lease")
                     or not utc_datetime(receipt.get("verification_lease_until"))
                     or utc_datetime(receipt["verification_lease_until"]) <= self.now()):
                 raise SquareProblem("payment_verification_lease_expired")
+            if not manual and await self.db.billing_payments.find_one({"_id": self._manual_key(receipt["payment_id"])}):
+                await self._review(receipt, "payment_already_manually_reviewed")
+                return "review"
             user = await self.db.users.find_one({"id": checkout["user_id"]})
             if not user or user.get("status") not in BILLABLE_STATUSES or user.get("disabled") is True:
                 await self._review(payment, "account_requires_review")
                 return "review"
             current = user.get("billing_entitlement")
-            previous = current if isinstance(current, dict) and current.get("managed_by") == "square" else {}
+            previous = current if isinstance(current, dict) and current.get("managed_by") in ("square", "manual_payment") else {}
             applied = previous.get("payment_ids", [])
             if not isinstance(applied, list):
                 await self._review(payment, "entitlement_requires_review")
                 return "review"
             if payment["_id"] in applied:
                 await self.db.billing_payments.update_one({"_id": payment["_id"]}, {"$set": {
-                    "status": "granted", "granted_at": payment.get("granted_at") or self.now(),
+                    "status": "granted", "granted_at": receipt.get("granted_at") or self.now(),
                     "reason": None, "entitlement": membership_snapshot(user, self.now())}})
                 return "granted"
             if current is not None and not previous:
@@ -584,17 +755,18 @@ class SquareBillingService:
                         or ("billing_entitlement" not in user and membership_snapshot(user, now)["lifetime"]))
             end = existing_end if lifetime else add_months(base, checkout["term_months"])
             legacy = previous.get("legacy_access") is True or (user["status"] == "approved" and "billing_entitlement" not in user)
-            grant = {"managed_by": "square", "version": previous.get("version", 0) + 1,
+            grant = {"managed_by": "manual_payment" if manual else "square", "version": previous.get("version", 0) + 1,
                      "legacy_access": legacy, "lifetime": lifetime, "paid_through": end,
                      "plan_id": "lifetime" if lifetime else checkout["plan_id"],
                      "payment_ids": applied + [payment["_id"]], "updated_at": now}
             expected = {"id": user["id"], "status": user["status"],
+                        "disabled": user["disabled"] if "disabled" in user else {"$exists": False},
                         "billing_entitlement": current if "billing_entitlement" in user else {"$exists": False}}
             changes = {"billing_entitlement": grant, "status": "approved"}
             if not legacy:
                 changes["membership_plan"] = "Lifetime" if lifetime else checkout["membership_label"]
             if user["status"] != "approved":
-                changes.update(approved_at=now, approved_by="square_verified_payment")
+                changes.update(approved_at=now, approved_by=receipt["reviewed_by"] if manual else "square_verified_payment")
             result = await self.db.users.update_one(expected, {"$set": changes})
             if result.modified_count:
                 # Deliberately loop: recovery and the normal path use the same
@@ -708,16 +880,17 @@ class SquareBillingService:
                 logger.warning("Billing worker deferred a cycle; durable records retained.")
             await asyncio.sleep(5)
 
-    @staticmethod
-    def payment_view(row, admin=False):
+    def payment_view(self, row, admin=False):
         fields = ("payment_id", "plan_id", "amount_cents", "currency", "status", "verified_at",
-                  "review_required", "environment", "reason", "received_at")
+                  "review_required", "environment", "reason", "received_at",
+                  "evidence_source", "verification_status", "reviewed_at")
         if admin:
-            fields += ("user_id", "order_id", "checkout_id", "event_id", "granted_at")
+            fields += ("user_id", "order_id", "checkout_id", "event_id", "granted_at", "reviewed_by")
         result = {field: row.get(field) for field in fields}
-        for field in ("verified_at", "received_at", "granted_at"):
+        for field in ("verified_at", "received_at", "granted_at", "reviewed_at"):
             if field in result:
                 result[field] = iso_date(result[field])
+        result["welcome_email"] = self.welcome_view(row)
         return result
 
     async def status(self, user):
@@ -728,7 +901,11 @@ class SquareBillingService:
         payments = await self.db.billing_payments.find({"user_id": user["id"]}).sort("received_at", -1).to_list(50)
         checkouts = await self.db.billing_checkouts.find({"user_id": user["id"],
             "namespace": self.settings.namespace}).sort("created_at", -1).to_list(20)
-        return {"user_id": user["id"], "account_status": user["status"],
+        selected_plan = next((plan["id"] for plan in PLAN_CATALOG
+                              if plan["membership_label"].casefold() == str(user.get("membership_plan") or "").casefold()), None)
+        return {"user_id": user["id"], "username": user.get("username"), "email": user.get("email"),
+                "membership_plan": user.get("membership_plan"), "selected_plan_id": selected_plan,
+                "approval_mode": self.settings.mode, "account_status": user["status"],
                 "entitlement": membership_snapshot(user, self.now()),
                 "payments": [self.payment_view(row) for row in payments],
                 "checkouts": [{"checkout_id": row["checkout_id"], "plan_id": row["plan_id"], "status": row["status"],
@@ -759,6 +936,10 @@ class SquareBillingService:
         @router.post("/square/webhook")
         async def webhook(request: Request):
             return await self.receive_webhook(request)
+
+        @router.post("/admin/approve")
+        async def admin_approve(request: Request, body: ManualApprovalRequest, background_tasks: BackgroundTasks):
+            return await self.approve_manual(await self.actor(request, admin=True), body, background_tasks)
 
         @router.get("/admin/payments")
         async def admin_payments(request: Request, limit: int = 50):

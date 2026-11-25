@@ -2,6 +2,7 @@ import os
 import asyncio
 import logging
 from datetime import datetime
+from html import escape
 from typing import Optional
 from dotenv import load_dotenv
 from pathlib import Path
@@ -31,9 +32,15 @@ class EmailService:
         recipient: str, 
         subject: str, 
         body: str, 
-        html_body: Optional[str] = None
-    ) -> bool:
-        """Send email using Resend API"""
+        html_body: Optional[str] = None,
+        *,
+        return_outcome: bool = False
+    ):
+        """Send email, optionally distinguishing acceptance from uncertainty.
+
+        Legacy callers retain a boolean result. Paid approval records the more
+        precise result so a timeout never causes an automatic duplicate welcome.
+        """
         try:
             params = {
                 "from": self.sender_email,
@@ -43,12 +50,22 @@ class EmailService:
             }
             
             email = await asyncio.to_thread(resend.Emails.send, params)
-            logger.info(f"Email sent successfully to {recipient} (id: {email.get('id', 'unknown')})")
-            return True
+            message_id = email.get("id") if isinstance(email, dict) else None
+            if isinstance(message_id, str) and message_id:
+                outcome = {"status": "sent", "provider_message_id": message_id}
+                logger.info("Email accepted by provider; inbox delivery is not confirmed.")
+            else:
+                outcome = {"status": "unknown"}
+                logger.warning("Email provider returned no message ID; outcome requires review.")
             
         except Exception as e:
-            logger.error(f"Failed to send email to {recipient}: {str(e)}")
-            return False
+            # A transport error may happen after the provider accepted the send.
+            # Only an explicit HTTP rejection is a definite failed attempt.
+            code = getattr(e, "status_code", None)
+            rejected = type(code) is int and 400 <= code < 500 and code != 408
+            outcome = {"status": "failed" if rejected else "unknown"}
+            logger.warning("Email send was rejected." if rejected else "Email send outcome is unknown.")
+        return outcome if return_outcome else outcome["status"] == "sent"
     
     async def send_registration_notification(
         self, 
@@ -679,152 +696,85 @@ The CashOutAi Team
         return await self.send_email(user_email, subject, plain_body, html_body)
     
     async def send_general_welcome_email(
-        self, 
-        user_email: str, 
+        self,
+        user_email: str,
         user_name: str,
         username: str,
-        membership_plan: str
-    ) -> bool:
-        """Send general welcome email for approved users with login info"""
-        subject = "🎉 Welcome to ArgusAI CashOut - Account Approved!"
-        
-        plain_body = f"""
-🎉 Welcome to ArgusAI CashOut, {user_name}!
+        membership_plan: str,
+        *,
+        return_outcome: bool = False
+    ):
+        """Send one approval welcome using the member's existing account."""
+        subject = "Welcome to CashOutAI — your access is approved"
+        login_url = "https://cashoutai.app/"
+        plain_body = f"""Welcome to CashOutAI, {user_name}!
 
-Great news! Your account has been approved and you now have full access to our premium trading platform.
+Your access has been approved.
+Membership: {membership_plan}
 
-🔑 YOUR LOGIN CREDENTIALS:
-• Website: https://www.CashOutAi.App/
-• Username: {username}
-• Email: {user_email}
-• Password: [The password you created during registration]
-• Membership Plan: {membership_plan}
+Sign in at {login_url} with your existing account:
+Username: {username}
+Email: {user_email}
+Use the password you chose when registering. You do not need to register again.
 
-🚀 PREMIUM FEATURES YOU NOW HAVE ACCESS TO:
-• Unlimited real-time chat with successful traders
-• Complete trading discussion history
-• Advanced portfolio management tools
-• Paper trading practice mode
-• Real-time market data and alerts
-• Achievement system and XP rewards
-• Priority customer support
-• Email-to-chat price alerts
-• WhatsApp trading alerts
+Open Membership in the app to see your access status and any paid-through date.
 
-💡 GET STARTED:
-1. Login at: https://www.CashOutAi.App/
-2. Join the live trading chat
-3. Connect with our community of traders
-4. Start building and tracking your portfolio
-5. Practice with paper trading
+Getting started:
+1. Set up your profile and connect with the community.
+2. Explore the bot rooms and practice with your simulated balance.
+3. Join the conversation and share your learning progress.
 
-🎯 COMMUNITY GUIDELINES:
-• Share your trades and insights
-• Help fellow traders learn and grow
-• Ask questions - our community loves to help
-• Stay respectful and professional
+Practice balances and bot examples are for training. They do not place real-money trades.
 
-Questions or need help getting started? Reply to this email!
+If you need help, reply to this email.
 
-Welcome to the ArgusAI trading family! 🎯
-
---
-The ArgusAI CashOut Team
+The CashOutAI Team
 """
-        
-        html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f4f4f4; margin: 0; padding: 20px; }}
-        .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.1); }}
-        .header {{ background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; }}
-        .header h1 {{ margin: 0; font-size: 28px; }}
-        .content {{ padding: 30px; }}
-        .login-box {{ background: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #0ea5e9; }}
-        .features-box {{ background: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-        .cta-button {{ background: #059669; color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; display: inline-block; margin: 20px 0; font-weight: bold; }}
-        .approved-badge {{ background: #dcfce7; color: #166534; padding: 10px 20px; border-radius: 20px; display: inline-block; font-weight: bold; }}
-        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 14px; background: #f8f9fa; }}
-        .feature-list {{ margin: 15px 0; }}
-        .feature-list li {{ margin: 5px 0; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🎉 Account Approved!</h1>
-            <p>Welcome to ArgusAI CashOut Premium</p>
-        </div>
-        
-        <div class="content">
-            <div style="text-align: center; margin: 20px 0;">
-                <div class="approved-badge">✅ APPROVED - FULL ACCESS GRANTED</div>
-            </div>
-            
-            <h2>Welcome, {user_name}! 🚀</h2>
-            <p>Congratulations! Your <strong>{membership_plan}</strong> membership has been approved and you now have full access to our premium trading platform.</p>
-            
-            <div class="login-box">
-                <h3>🔑 Your Login Credentials</h3>
-                <p><strong>Website:</strong> <a href="https://www.CashOutAi.App/">https://www.CashOutAi.App/</a></p>
-                <p><strong>Username:</strong> {username}</p>
-                <p><strong>Email:</strong> {user_email}</p>
-                <p><strong>Password:</strong> [Your registration password]</p>
-                <p><strong>Membership:</strong> {membership_plan}</p>
-                <div style="text-align: center; margin: 20px 0;">
-                    <a href="https://www.CashOutAi.App/" class="cta-button">🚀 Login & Start Trading</a>
-                </div>
-            </div>
-            
-            <div class="features-box">
-                <h3>🚀 Your Premium Features</h3>
-                <ul class="feature-list">
-                    <li>💬 <strong>Unlimited real-time chat</strong> with successful traders</li>
-                    <li>📚 <strong>Complete trading history</strong> and discussions</li>
-                    <li>📊 <strong>Advanced portfolio management</strong></li>
-                    <li>📈 <strong>Paper trading practice</strong> mode</li>
-                    <li>🔔 <strong>Real-time alerts</strong> and notifications</li>
-                    <li>🏆 <strong>Achievement system</strong> and XP rewards</li>
-                    <li>⭐ <strong>Priority support</strong></li>
-                    <li>📧 <strong>Email-to-chat</strong> price alerts</li>
-                    <li>📱 <strong>WhatsApp</strong> trading alerts</li>
-                </ul>
-            </div>
-            
-            <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3>💡 Getting Started</h3>
-                <p><strong>1.</strong> Login to your account</p>
-                <p><strong>2.</strong> Join the live trading chat</p>
-                <p><strong>3.</strong> Connect with our trader community</p>
-                <p><strong>4.</strong> Start building your portfolio</p>
-                <p><strong>5.</strong> Practice with paper trading</p>
-            </div>
-            
-            <div style="background: #e0e7ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3>🎯 Community Guidelines</h3>
-                <p>• Share trades and insights with the community</p>
-                <p>• Help fellow traders learn and grow</p>
-                <p>• Ask questions - we love helping members succeed</p>
-                <p>• Maintain respectful and professional discussions</p>
-            </div>
-            
-            <p>Questions or need help getting started? Simply reply to this email for instant support!</p>
-            <p><strong>Welcome to the ArgusAI trading family!</strong> 🎯</p>
-        </div>
-        
-        <div class="footer">
-            <p>The ArgusAI CashOut Team</p>
-            <p>Your premium membership gives you access to all our trading features and community.</p>
-        </div>
-    </div>
+        # Account fields are user-controlled. Escape only their HTML rendering;
+        # plain text retains the member's exact username and email address.
+        safe_name, safe_username, safe_email, safe_plan = (
+            escape(str(value), quote=True)
+            for value in (user_name, username, user_email, membership_plan)
+        )
+        html_body = f"""<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>CashOutAI access approved</title></head>
+<body style="margin:0;padding:24px;background:#f4f7fa;color:#172033;font-family:Arial,sans-serif;line-height:1.6;">
+  <main style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;">
+    <header style="padding:28px;background:#102a36;color:white;">
+      <p style="margin:0;color:#79e6bd;font-weight:bold;">CashOutAI</p>
+      <h1 style="margin:10px 0 0;font-size:27px;">Your access is approved</h1>
+    </header>
+    <section style="padding:28px;">
+      <h2 style="font-size:20px;">Welcome, {safe_name}.</h2>
+      <p>Your <strong>{safe_plan}</strong> access has been approved.</p>
+      <p>Sign in with your existing account. You do not need to register again.</p>
+      <div style="padding:18px;background:#f0f8f5;border-radius:8px;">
+        <p style="margin:0;"><strong>Username:</strong> {safe_username}<br>
+        <strong>Email:</strong> {safe_email}</p>
+        <p>Use the password you chose when registering.</p>
+        <a href="{login_url}" style="display:inline-block;background:#08765c;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;">Open CashOutAI</a>
+      </div>
+      <p>Open <strong>Membership</strong> in the app to see your access status and any paid-through date.</p>
+      <h2 style="font-size:20px;">Getting started</h2>
+      <ol>
+        <li>Set up your profile and connect with the community.</li>
+        <li>Explore the bot rooms and practice with your simulated balance.</li>
+        <li>Join the conversation and share your learning progress.</li>
+      </ol>
+      <p style="font-size:14px;color:#526174;">Practice balances and bot examples are for training. They do not place real-money trades.</p>
+      <p>If you need help, reply to this email.</p>
+      <p>The CashOutAI Team</p>
+    </section>
+  </main>
 </body>
-</html>
-"""
-        
-        return await self.send_email(user_email, subject, plain_body, html_body)
+</html>"""
+        return await self.send_email(user_email, subject, plain_body, html_body, return_outcome=return_outcome)
+
+    async def send_general_welcome_email_outcome(self, user_email, user_name, username, membership_plan):
+        """Existing welcome template with an auditable provider acceptance result."""
+        return await self.send_general_welcome_email(
+            user_email, user_name, username, membership_plan, return_outcome=True)
 
 # Create global email service instance
 email_service = EmailService()
