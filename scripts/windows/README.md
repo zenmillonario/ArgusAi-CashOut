@@ -7,7 +7,7 @@ This companion connects the display data from your five existing PAPER engines t
 ## What you can check now
 
 1. Extract the complete companion ZIP into its own folder.
-2. Start a validated five-asset run from the existing bot package with `05_START_FIVE_ASSET_PAPER_6H.cmd`.
+2. Start a validated five-asset run from the complete private bot package. The updated 0.0.10.11 package adds `05_START_FIVE_ASSET_PAPER_12H.cmd`; the existing `05_START_FIVE_ASSET_PAPER_6H.cmd` remains available. Do not mix launcher files between package versions.
 3. Open the companion's `scripts\windows` folder.
 4. Double-click **01_CHECK_LOCAL_FEEDS.cmd**.
 
@@ -15,7 +15,7 @@ The check reads each of the five fixed local endpoints once: BTC 8787, ETH 8788,
 
 For each asset, **reachable; matching read-only PAPER identity** means the expected local bot endpoint answered. The check does not establish backend acceptance or source/quote freshness. Exit code 0 means all five identity checks passed; exit code 1 means at least one did not. The window stays open so you can read the result.
 
-If a source is unavailable, check that asset's engine window and whether its six-hour session has finished. The companion does not start or restart the engines.
+If a source is unavailable, check that asset's engine window and whether its selected six- or twelve-hour session has finished. The companion does not start or restart the engines.
 
 ## Connect after the updated app is deployed
 
@@ -30,7 +30,9 @@ The button sends snapshots to **https://cashoutai.onrender.com**. The key is use
 
 **snapshot accepted** confirms that the backend accepted a new packet. **source unchanged; no new snapshot accepted** means the source timestamp has not advanced; it is not by itself an authentication failure. The app separately checks native quote freshness before allowing practice entries.
 
-Press **Ctrl+C** to stop the publisher. The bots continue under their own launchers and six-hour limits. Keep the computer awake and online for the advertised running session.
+Press **Ctrl+C** to stop the publisher. The bots continue under their own launchers and selected duration. Keep the computer awake and online for the advertised running session. Around the intended 8 a.m./8 p.m. Eastern review windows, finish and preserve the prior run before launching the next one. Expect a short review gap; the publisher can keep waiting for fresh local feeds.
+
+After the app update is deployed, a newly accepted fresh PAPER run creates an in-app room notice and a dated entry in Notifications. Five near-simultaneous starts share one compact banner. Repeated heartbeats do not repeat the notice, and an eight-o'clock timer does not announce an unavailable feed. Device push remains Stocks-only.
 
 ## Common results
 

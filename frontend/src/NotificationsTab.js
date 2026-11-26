@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { notificationPresentation, unreadCount } from './social/socialModel.mjs';
 
-const NotificationsTab = ({ notifications = [], onMarkAsRead, onMarkAllAsRead, onDeleteNotification, onOpenNotification, onOpenStocks }) => {
+const NotificationsTab = ({ notifications = [], botNotices = [], botNoticesError = '', onRefreshBotNotices, onOpenBotNotice, onMarkAsRead, onMarkAllAsRead, onDeleteNotification, onOpenNotification, onOpenStocks }) => {
   const [pending, setPending] = useState(new Set());
   const [error, setError] = useState('');
   const unread = unreadCount(notifications);
@@ -20,7 +20,18 @@ const NotificationsTab = ({ notifications = [], onMarkAsRead, onMarkAllAsRead, o
   };
   return <section className="cashout-notification-screen" aria-labelledby="cashout-inbox-heading">
     <div className="cashout-inbox-heading"><div><h2 id="cashout-inbox-heading">Notifications</h2><p>{unread ? `${unread} unread · ` : ''}{notifications.length} community {notifications.length === 1 ? 'update' : 'updates'}</p></div>{onMarkAllAsRead && <button type="button" disabled={!unread || pending.has('all')} onClick={() => run('all', onMarkAllAsRead)}>{pending.has('all') ? 'Saving…' : 'Mark all read'}</button>}</div>
-    <div className="cashout-inbox-info"><p>Replies, reactions, follows, mentions, and achievements stay in your app inbox. Only stock alerts send device push notifications.</p>{onOpenStocks && <button type="button" onClick={onOpenStocks}>Open stock alerts ↗</button>}</div>
+    <div className="cashout-inbox-info"><p>Bot sessions, replies, reactions, follows, mentions, and achievements stay in the app. Only stock alerts send device push notifications.</p>{onOpenStocks && <button type="button" onClick={onOpenStocks}>Open stock alerts ↗</button>}</div>
+    <section className="cashout-run-history" aria-labelledby="cashout-run-history-heading">
+      <h3 id="cashout-run-history-heading">Bot session history</h3>
+      <p>These shared notices record when a fresh PAPER feed reached the app. Open a room to check its current live or offline status.</p>
+      {botNoticesError && <p role="alert">{botNoticesError} {onRefreshBotNotices && <button type="button" onClick={onRefreshBotNotices}>Retry</button>}</p>}
+      {botNotices.length ? <div className="cashout-inbox-list">{botNotices.map(item => <article key={item.id} className="cashout-notification-card">
+        <span className="cashout-notification-icon" aria-hidden="true">↗</span>
+        <div className="cashout-notification-body"><div className="cashout-notification-top"><h4>{item.title}</h4><time dateTime={item.createdAt}>{formatDate(item.createdAt)}</time></div>
+          <p>{item.message}</p>{onOpenBotNotice && <button type="button" onClick={() => onOpenBotNotice(item)}>Open {item.asset} room ↗</button>}
+        </div>
+      </article>)}</div> : !botNoticesError && <p>New bot sessions will appear here after their first fresh feed is received.</p>}
+    </section>
     {error && <p className="cashout-inbox-error" role="alert">{error}</p>}
     {notifications.length ? <div className="cashout-inbox-list">{notifications.map(item => {
       const presentation = notificationPresentation(item);

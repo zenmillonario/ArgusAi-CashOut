@@ -123,10 +123,15 @@ export default function BillingPanel({ apiBase, credential, initialPlanId = '', 
       {membership?.active && membership?.lifetime ? <p className="billing-terms">You already have lifetime access. No renewal is needed.</p> : <>
         <div className="billing-plans" role="radiogroup" aria-label="Membership access term">
           {(plans?.plans || MEMBERSHIP_PLANS).map(plan => <button type="button" role="radio" aria-checked={planId === plan.id} key={plan.id} className={planId === plan.id ? 'is-selected' : ''} onClick={() => { planEdited.current = true; setPlanId(plan.id); }} disabled={ownCheckout.busy}>
-            <span>{plan.label}</span><strong>{moneyFromCents(plan.amount_cents)}</strong><small>One-time purchase<br />{plan.term_months === null ? 'Lifetime access' : `${plan.term_months} calendar ${plan.term_months === 1 ? 'month' : 'months'} of access`}</small>
+            <span>{plan.label}</span>
+            <small className="billing-regular-price">Regular <s>{moneyFromCents(plan.regular_amount_cents)}</s></small>
+            <span className="billing-offer-label">{plan.offer_label}</span>
+            <strong>{moneyFromCents(plan.amount_cents)}</strong>
+            <small className="billing-savings">Save {moneyFromCents(plan.savings_cents)}</small>
+            <small>One-time purchase<br />{plan.term_months === null ? 'Lifetime access' : `${plan.term_months} calendar ${plan.term_months === 1 ? 'month' : 'months'} of access`}</small>
           </button>)}
         </div>
-        <p className="billing-terms">Choose an access term. Each purchase is paid once, with no recurring charge or automatic renewal. Enter your payment details on Square.</p>
+        <p className="billing-terms">Choose an access term at the current offer price. Each purchase is paid once, with no recurring charge or automatic renewal. Enter your payment details on Square.</p>
         {data.plansError ? <p className="billing-error" role="status">{data.plansError}</p>
           : manualMode ? <div className="billing-checkout-box is-manual"><div><h3>One-time payment · Manual approval</h3><p>Selected plan: {selected.label}. Pay once through Square. The CashOutAI team checks the payment, approves your membership, and sends a welcome email. Already paid? Wait for approval before making another purchase.</p></div>{manualUrl && <a href={manualUrl} target="_blank" rel="noopener noreferrer" className="billing-primary-action">Pay {moneyFromCents(selected.amount_cents)} once ↗</a>}</div>
             : plans?.automatic_checkout_available ? <div className="billing-checkout-box">
@@ -243,7 +248,7 @@ export function AdminBillingPanel({ apiBase, credential, members = [], selectedM
           </label>
           <label>Actual purchased plan
             <select value={draft.planId} onChange={event => updateDraft({ planId: event.target.value })} required>
-              {MEMBERSHIP_PLANS.map(plan => <option key={plan.id} value={plan.id}>{plan.label} · {moneyFromCents(plan.amount_cents)} one time</option>)}
+              {MEMBERSHIP_PLANS.map(plan => <option key={plan.id} value={plan.id}>{plan.label} · {moneyFromCents(plan.amount_cents)} one time · {plan.offer_label}</option>)}
             </select>
           </label>
           <label>Square payment or receipt reference

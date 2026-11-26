@@ -1,10 +1,11 @@
 import { sameSession, sessionHeaders } from '../sessionAuth.mjs';
 
 export const BILLING_STORAGE_KEY = 'cashoutai_billing_session_v1';
+// Reference prices describe the offer; amount_cents remains the actual purchase amount.
 export const MEMBERSHIP_PLANS = Object.freeze([
-  { id: 'monthly', registrationLabel: 'Monthly', label: '1 month', amount_cents: 9900, currency: 'USD', term_months: 1, manual_payment_url: 'https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/SGEVW3GCMZ2X4WSWREYY2RF2' },
-  { id: 'six_months', registrationLabel: 'SixMonths', label: '6 months', amount_cents: 49900, currency: 'USD', term_months: 6, manual_payment_url: 'https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/FEYSOTOHEO6HE6N4ONWO4F7C' },
-  { id: 'lifetime', registrationLabel: 'Lifetime', label: 'Lifetime', amount_cents: 89900, currency: 'USD', term_months: null, manual_payment_url: 'https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/7YFX27AOC4IUYZ5DXP4W3VBL' },
+  { id: 'monthly', registrationLabel: 'Monthly', label: '1 month', amount_cents: 9900, regular_amount_cents: 19900, savings_cents: 10000, offer_label: 'Current offer', currency: 'USD', term_months: 1, manual_payment_url: 'https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/SGEVW3GCMZ2X4WSWREYY2RF2' },
+  { id: 'six_months', registrationLabel: 'SixMonths', label: '6 months', amount_cents: 49900, regular_amount_cents: 99900, savings_cents: 50000, offer_label: 'Current offer', currency: 'USD', term_months: 6, manual_payment_url: 'https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/FEYSOTOHEO6HE6N4ONWO4F7C' },
+  { id: 'lifetime', registrationLabel: 'Lifetime', label: 'Lifetime', amount_cents: 89900, regular_amount_cents: 249900, savings_cents: 160000, offer_label: 'Current offer', currency: 'USD', term_months: null, manual_payment_url: 'https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/7YFX27AOC4IUYZ5DXP4W3VBL' },
 ]);
 export const membershipPlan = value => MEMBERSHIP_PLANS.find(plan => plan.id === value || plan.registrationLabel === value) || null;
 export function moneyFromCents(value, currency = 'USD') {
@@ -107,6 +108,9 @@ export function normalizePlansResponse(payload) {
   const plans = payload.plans.map(plan => {
     const expected = membershipPlan(plan.id);
     if (!expected || expected.id !== plan.id || plan.amount_cents !== expected.amount_cents || plan.currency !== 'USD' || plan.term_months !== expected.term_months) throw new Error('Membership pricing needs to be refreshed.');
+    // Older responses can omit display metadata. Any supplied reference price
+    // must agree with the owner-approved fallback before checkout is offered.
+    if (['regular_amount_cents', 'savings_cents', 'offer_label'].some(field => plan[field] !== undefined && plan[field] !== expected[field])) throw new Error('Membership pricing needs to be refreshed.');
     const manual = safeSquareCheckoutUrl(plan.manual_payment_url, { mode: 'manual', planId: plan.id });
     return { ...expected, manual_payment_url: manual };
   });

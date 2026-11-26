@@ -20,6 +20,9 @@ import capacitorManager from './capacitor-utils';
 import './App.css';
 import BotTabs from './nautilus/BotTabs';
 import BotTabContainer from './nautilus/BotTabContainer';
+import BotRunBanner from './nautilus/BotRunBanner';
+import useBotAnnouncements from './nautilus/useBotAnnouncements';
+import { normalizeBotAnnouncement } from './nautilus/botAnnouncements.mjs';
 import StocksWorkspace from './nautilus/StocksWorkspace';
 import useStockAlerts from './useStockAlerts';
 import { readStockAlertLink } from './stockNotifications.mjs';
@@ -246,6 +249,12 @@ function App() {
   const stockUserRef = useRef(null);
   stockUserRef.current = membershipPaymentRequired ? null : currentUser;
   const stocks = useStockAlerts({ currentUser: membershipPaymentRequired ? null : currentUser, activeUserRef: stockUserRef, activeTab, setActiveTab, apiBase: API });
+  const botAnnouncements = useBotAnnouncements({ currentUser: membershipPaymentRequired ? null : currentUser,
+    activeUserRef: stockUserRef, activeTab, apiBase: API });
+  const openBotAnnouncement = raw => {
+    const notice = normalizeBotAnnouncement(raw);
+    if (notice) { setActiveTab(notice.tab); botAnnouncements.dismiss(); }
+  };
 
   // Filter messages based on search query
   useEffect(() => {
@@ -941,6 +950,8 @@ function App() {
             
             playSimpleAdminSound();
             
+        } else if (data.type === 'bot_session_started') {
+            botAnnouncements.receive(data.notice);
         } else if (data.type === 'notification') {
             // New notification received
             console.log('🔔 Notification received:', data);
@@ -2152,6 +2163,7 @@ function App() {
         onToggleTheme={toggleTheme} onLogout={logout}
         connectionLabel={isConnected ? (connectionMode === 'websocket' ? 'Connected' : 'Polling') : 'Disconnected'} />
       <PracticeEventMemberBanner status={practiceEvent.status} onMembership={() => setActiveTab('profile')} />
+      <BotRunBanner notices={botAnnouncements.banners} onOpen={openBotAnnouncement} onDismiss={botAnnouncements.dismiss} />
 
       {/* Main Content - Fixed height with proper scrolling accounting for header */}
       <div className="cashout-content-width mx-auto flex flex-col min-h-0 pb-6">{/* Allow natural height with bottom padding */}
@@ -2447,6 +2459,10 @@ function App() {
             <NotificationsTab 
               key={`${currentUser.id}:${currentUser.active_session_id}`}
               notifications={notifications}
+              botNotices={botAnnouncements.notices}
+              botNoticesError={botAnnouncements.error}
+              onRefreshBotNotices={botAnnouncements.refresh}
+              onOpenBotNotice={openBotAnnouncement}
               isDarkTheme={isDarkTheme}
               currentUser={currentUser}
               onMarkAsRead={markNotificationAsRead}

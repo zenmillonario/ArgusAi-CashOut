@@ -52,9 +52,9 @@ Confirm the bot publishers and source freshness before presenting live practice.
 
 ## Conversion terms
 
-The current offers remain **$99 for one month, $499 for six months, and $899 Lifetime**, all one-time purchases with manual approval. The event cutoff does not automatically change those prices or disable ordinary paid signup.
+The current discounted offers are **$99 for one month (regular $199), $499 for six months (regular $999), and $899 Lifetime (regular $2,499)**, all one-time purchases with manual approval. The owner confirmed that the existing Square links already use these discounted amounts. The event cutoff does not automatically change those prices or disable ordinary paid signup. No discount expiry has been supplied.
 
-If the owner later supplies a special sale price, record eligibility from Square's actual payment completion time and the matching offer, even if the owner reviews the receipt afterward. The present manual record stores the receipt and approval time but has no dedicated completion-time field. Do not treat a member's claim, checkout visit, or selected plan as payment proof. No extra review grace or new discounted offer is configured here.
+If the owner later supplies a deadline for the discounted offers, record eligibility from Square's actual payment completion time and the matching offer, even if the owner reviews the receipt afterward. The present manual record stores the receipt and approval time but has no dedicated completion-time field. Do not treat a member's claim, checkout visit, or selected plan as payment proof. No extra review grace or price-expiry rule is configured here.
 
 ## Verification recorded November 25, 2026
 

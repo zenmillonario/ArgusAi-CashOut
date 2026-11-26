@@ -41,12 +41,15 @@ ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,192}$")
 PLAN_CATALOG = (
     {"id": "monthly", "label": "1 month", "membership_label": "Monthly",
      "amount_cents": 9900, "currency": "USD", "term_months": 1,
+     "regular_amount_cents": 19900, "savings_cents": 10000, "offer_label": "Current offer",
      "manual_payment_url": "https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/SGEVW3GCMZ2X4WSWREYY2RF2"},
     {"id": "six_months", "label": "6 months", "membership_label": "SixMonths",
      "amount_cents": 49900, "currency": "USD", "term_months": 6,
+     "regular_amount_cents": 99900, "savings_cents": 50000, "offer_label": "Current offer",
      "manual_payment_url": "https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/FEYSOTOHEO6HE6N4ONWO4F7C"},
     {"id": "lifetime", "label": "Lifetime", "membership_label": "Lifetime",
      "amount_cents": 89900, "currency": "USD", "term_months": None,
+     "regular_amount_cents": 249900, "savings_cents": 160000, "offer_label": "Current offer",
      "manual_payment_url": "https://checkout.square.site/merchant/VMNWS6K9Y9SN5/checkout/7YFX27AOC4IUYZ5DXP4W3VBL"},
 )
 PLANS = {plan["id"]: plan for plan in PLAN_CATALOG}

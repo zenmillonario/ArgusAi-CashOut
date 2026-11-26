@@ -11,17 +11,19 @@ import hashlib
 import hmac
 from html.parser import HTMLParser
 import json
+import logging
 import math
 import os
 import re
 import time
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 try:
     from .membership import active_membership, MEMBERSHIP_REQUIRED
     from .kalshi_settlements import NautilusSettlementService
+    from .nautilus_session_notices import NautilusSessionNotices, canonical_run_id
     from .nautilus_practice import (
         PracticeError, buy_contracts, close_position, create_account,
         reset_account, to_money_units,
@@ -29,6 +31,7 @@ try:
 except ImportError:  # Existing deployment imports server.py as a top-level module.
     from membership import active_membership, MEMBERSHIP_REQUIRED
     from kalshi_settlements import NautilusSettlementService
+    from nautilus_session_notices import NautilusSessionNotices, canonical_run_id
     from nautilus_practice import (
         PracticeError, buy_contracts, close_position, create_account,
         reset_account, to_money_units,
@@ -43,6 +46,7 @@ MAX_QUOTE_AGE = 3.0
 MAX_CLOCK_SKEW = 2.0
 FEE_POLICY = "fees-excluded"
 SCALAR = object()
+logger = logging.getLogger(__name__)
 
 
 def _fields(names, **nested):
@@ -484,9 +488,32 @@ def _duplicate(document, body, fingerprint):
     return False
 
 
-def create_nautilus_router(db, settlement_service=None):
+def create_nautilus_router(db, settlement_service=None, on_session_started=None):
     router = APIRouter(prefix="/api/nautilus", tags=["Nautilus PAPER"])
     settlements = settlement_service or NautilusSettlementService(db)
+    session_notices = NautilusSessionNotices(db)
+
+    async def announce_accepted_run(document):
+        try:
+            notice = await session_notices.record(document, snapshot_state(document))
+        except Exception:
+            # The accepted market packet must remain available when the shared
+            # inbox is temporarily unavailable. A fresh publisher retry repairs
+            # the missing notice using the already-accepted stored identity.
+            logger.warning("Could not persist a PAPER session notice; a fresh publisher retry may recover it.")
+            return
+        if notice is not None and on_session_started is not None:
+            try:
+                await on_session_started(notice)
+            except Exception:
+                # Durable shared history is the fallback. Never rebroadcast a
+                # duplicate run because delivery to an online client failed.
+                logger.warning("Live PAPER session announcement unavailable; shared notice is saved.")
+
+    @router.get("/announcements")
+    async def get_announcements(request: Request, limit: int = Query(20, ge=1, le=50)):
+        await _member(request, db)
+        return {"announcements": await session_notices.recent(limit)}
 
     @router.get("/bots/{asset}")
     async def get_bot(asset: str, request: Request):
@@ -504,14 +531,18 @@ def create_nautilus_router(db, settlement_service=None):
         if not supplied or len(supplied) > 512 or not hmac.compare_digest(supplied.encode(), expected.encode()):
             _error(401, "The publisher credential is invalid.")
         asset = _asset(asset)
-        packet = sanitize_snapshot(await _json_body(request, MAX_PACKET_BYTES), asset)
+        source = await _json_body(request, MAX_PACKET_BYTES)
+        packet = sanitize_snapshot(source, asset)
+        session_run_id = canonical_run_id(source["run"].get("run_id"))
         now, source_at = time.time(), packet["server_now"]
         existing = await db.nautilus_snapshots.find_one({"_id": asset})
         if existing and source_at <= existing["sourceAt"]:
             if source_at == existing["sourceAt"]:
+                await announce_accepted_run(existing)
                 return {"accepted": False, "asset": asset, "receivedAt": _iso(existing["receivedAt"])}
             _error(409, "An older source snapshot cannot replace the current one.")
-        document = {"_id": asset, "snapshot": packet, "sourceAt": source_at, "receivedAt": now}
+        document = {"_id": asset, "snapshot": packet, "sourceAt": source_at,
+                    "receivedAt": now, "sessionRunId": session_run_id}
         if existing:
             result = await db.nautilus_snapshots.replace_one({"_id": asset, "sourceAt": existing["sourceAt"]}, document)
             if result.matched_count != 1:
@@ -523,6 +554,7 @@ def create_nautilus_router(db, settlement_service=None):
                 if getattr(error, "code", None) == 11000:
                     _error(409, "A source snapshot arrived concurrently. Publish the next native packet.")
                 raise
+        await announce_accepted_run(document)
         return {"accepted": True, "asset": asset, "receivedAt": _iso(now)}
 
     @router.get("/chat/{asset}")

@@ -4,13 +4,13 @@
 
 ## Approved membership options
 
-| Display label | Billing plan ID | USD price | Access from a new paid approval |
-| --- | --- | ---: | --- |
-| 1 month | `monthly` | $99 once | One calendar month |
-| 6 months | `six_months` | $499 once | Six calendar months |
-| Lifetime | `lifetime` | $899 once | Lifetime, without an expiry date |
+| Display label | Billing plan ID | Regular USD price | Current discounted price | Savings | Access from a new paid approval |
+| --- | --- | ---: | ---: | ---: | --- |
+| 1 month | `monthly` | $199 | $99 once | $100 | One calendar month |
+| 6 months | `six_months` | $999 | $499 once | $500 | Six calendar months |
+| Lifetime | `lifetime` | $2,499 | $899 once | $1,600 | Lifetime, without an expiry date |
 
-All three are **one-time purchases with no automatic renewal**. The internal ID `monthly` means one month of access, not a recurring charge. A member who wants another term makes a new purchase. The paid offers add no recurring trial, discount, tax assumption, or refund policy. The separately approved free practice event has a fixed cutoff described in the member launch plan. The owner confirmed the purchase terms; the live Square Dashboard settings have not been independently inspected.
+All three are **one-time purchases with no automatic renewal**. The internal ID `monthly` means one month of access, not a recurring charge. A member who wants another term makes a new purchase. The owner clarified that the supplied Square links already charge the discounted amounts above; the regular prices are reference prices, not an additional charge. The catalog exposes `regular_amount_cents` and derived `savings_cents` for display while retaining `amount_cents` as the actual purchase amount. No coupon, automatic repricing, tax assumption, or refund policy is added. The separately approved free practice event has its own fixed cutoff; the owner has not specified an expiry for these discounts. Live Square Dashboard settings have not been independently inspected.
 
 ## The selected member journey
 

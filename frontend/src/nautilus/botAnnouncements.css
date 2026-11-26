@@ -1,0 +1,19 @@
+.cashout-run-banner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; max-width: 1640px; margin: 12px auto 0; padding: 14px 20px; border: 1px solid #3d7667; border-radius: 10px; background: #102f29; color: #def7ee; }
+.cashout-run-banner [role="status"] { display: flex; flex-direction: column; gap: 4px; }
+.cashout-run-banner strong { font-size: 14px; }
+.cashout-run-banner span { font-size: 12px; }
+.cashout-run-banner-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cashout-run-banner button, .cashout-run-history button { min-height: 40px; padding: 8px 12px; border: 1px solid #3d7667; border-radius: 7px; font-size: 12px; background: #153f35; color: #def7ee; }
+.cashout-run-banner .cashout-run-dismiss { background: transparent; }
+.cashout-run-banner button:focus-visible, .cashout-run-history button:focus-visible { outline: 2px solid #60e8ba; outline-offset: 3px; }
+.cashout-run-history { margin: 20px 0 26px; }
+.cashout-run-history h3 { font-size: 18px; margin: 0 0 7px; }
+.cashout-run-history > p { color: #aac1ce; font-size: 12px; margin: 0 0 14px; }
+.cashout-run-history .cashout-inbox-list { max-height: 420px; overflow-y: auto; }
+.cashout-light .cashout-run-banner { background: #e2f5ed; color: #173c31; }
+.cashout-light .cashout-run-history > p { color: #426170; }
+@media(max-width:700px) {
+  .cashout-run-banner { margin: 8px 10px 0; padding: 12px; }
+  .cashout-run-banner-actions { width: 100%; }
+  .cashout-run-banner button, .cashout-run-history button { min-height: 44px; }
+}

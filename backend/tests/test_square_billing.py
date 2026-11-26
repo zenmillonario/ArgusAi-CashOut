@@ -309,6 +309,11 @@ class SquareBillingTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(plans["automatic_activation_available"])
         self.assertFalse(plans["recurring"])
         self.assertEqual([p["amount_cents"] for p in plans["plans"]], [9900, 49900, 89900])
+        self.assertEqual([p["regular_amount_cents"] for p in plans["plans"]], [19900, 99900, 249900])
+        self.assertEqual([p["savings_cents"] for p in plans["plans"]], [10000, 50000, 160000])
+        self.assertEqual([p["offer_label"] for p in plans["plans"]], ["Current offer"] * 3)
+        self.assertEqual([p["manual_payment_url"].rsplit("/", 1)[-1] for p in plans["plans"]],
+                         ["SGEVW3GCMZ2X4WSWREYY2RF2", "FEYSOTOHEO6HE6N4ONWO4F7C", "7YFX27AOC4IUYZ5DXP4W3VBL"])
         response = await self.client.post("/api/billing/checkout", headers=self.member_headers,
             json={"plan_id": "monthly", "idempotency_key": str(uuid.uuid4())})
         self.assertEqual(response.status_code, 503)
@@ -388,6 +393,9 @@ class SquareBillingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.provider.links), 1)
         self.assertEqual(saved["user_id"], "member")
         self.assertEqual(saved["amount_cents"], 9900)
+        self.assertEqual(saved["request_body"]["order"]["line_items"][0]["base_price_money"],
+                         {"amount": 9900, "currency": "USD"})
+        self.assertNotIn("discounts", saved["request_body"]["order"])
         self.assertEqual(saved["request_body"]["order"]["reference_id"], saved["checkout_id"])
         self.assertLessEqual(len(saved["checkout_id"]), 40)
         self.assertNotIn("learner@example.test", str(saved["request_body"]))

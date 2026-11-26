@@ -328,6 +328,9 @@ async def lifespan(app: FastAPI):
         await db.nautilus_chat.create_index(
             [("asset", 1), ("createdAt", -1)], name="nautilus_chat_asset_created_at"
         )
+        await db.nautilus_chat.create_index(
+            [("kind", 1), ("createdAt", -1)], name="nautilus_chat_kind_created_at"
+        )
         logger.info("Ensured messages timestamp index exists")
     except Exception as e:
         logger.warning(f"Could not create index: {e}")
@@ -5020,7 +5023,14 @@ except ImportError:
     from nautilus_api import create_nautilus_router
     from kalshi_settlements import NautilusSettlementService
 nautilus_settlement_service = NautilusSettlementService(db)
-app.include_router(create_nautilus_router(db, settlement_service=nautilus_settlement_service))
+
+async def broadcast_bot_session_started(notice):
+    # Shared in-app event only. Existing access/session checks run before each
+    # socket delivery; Stocks remains the sole device-push channel.
+    await manager.broadcast(json.dumps({"type": "bot_session_started", "notice": notice}))
+
+app.include_router(create_nautilus_router(db, settlement_service=nautilus_settlement_service,
+                                         on_session_started=broadcast_bot_session_started))
 
 # Configure logging
 logging.basicConfig(

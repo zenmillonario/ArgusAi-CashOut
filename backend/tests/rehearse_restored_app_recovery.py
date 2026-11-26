@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 import hashlib
 import importlib
+import importlib.util
 import json
 import logging
 import os
@@ -211,6 +212,23 @@ async def seed_synthetic(db):
          "createdAt": (now - timedelta(seconds=index)).isoformat(timespec="milliseconds") + "Z"}
         for asset in ("BTC", "ETH") for index in range(60)
     ])
+    # Only this empty synthetic database exercises shared run-notice inserts.
+    # Independent service instances compete on Mongo's actual unique _id.
+    spec = importlib.util.spec_from_file_location("rehearsal_notices", BACKEND / "nautilus_session_notices.py")
+    notices = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(notices)
+    from datetime import timezone
+    for number in range(3):
+        run_id = f"PAPER_SYNTHETIC_{number}_SOL"
+        packet = {"_id": "SOL", "sessionRunId": run_id,
+                  "receivedAt": (now - timedelta(seconds=3-number)).replace(tzinfo=timezone.utc).timestamp(),
+                  "snapshot": {"mode": "PAPER_ONLY", "readonly": True, "asset": {"symbol": "SOL"},
+                               "run": {"run_id": run_id, "fresh": True, "stopped": False, "review": False}}}
+        attempts = await asyncio.gather(*(notices.NautilusSessionNotices(db).record(packet, "live") for _ in range(8)))
+        require(sum(item is not None for item in attempts) == 1,
+                "Concurrent session notices were not deduplicated by real MongoDB")
+        require(await notices.NautilusSessionNotices(db).record(packet, "live") is None,
+                "A fresh service instance repeated a durable session notice")
     return {"member_id": "rehearsal-member", "admin_id": "rehearsal-admin"}
 
 
@@ -228,19 +246,39 @@ async def verify_synthetic_chat_query(db):
         "sort": {"createdAt": -1}, "limit": 50,
     }, verbosity="executionStats")
 
-    def uses_index(node):
+    def uses_index(node, wanted=name):
         if isinstance(node, dict):
-            return node.get("indexName") == name or any(uses_index(value) for value in node.values())
-        return isinstance(node, list) and any(uses_index(value) for value in node)
+            return node.get("indexName") == wanted or any(uses_index(value, wanted) for value in node.values())
+        return isinstance(node, list) and any(uses_index(value, wanted) for value in node)
 
     require(uses_index(plan.get("queryPlanner", {}).get("winningPlan", {})),
             "The ordinary room query did not use the expected startup index")
     statistics = plan.get("executionStats", {})
     require(statistics.get("nReturned") == 50, "The explained room query returned an unexpected number of messages")
+    notice_index = "nautilus_chat_kind_created_at"
+    index = (await db.nautilus_chat.index_information()).get(notice_index)
+    require(index is not None and index.get("key") == [("kind", 1), ("createdAt", -1)]
+            and not index.get("unique", False), "The shared-notice history index is unavailable or incorrect")
+    from nautilus_session_notices import NautilusSessionNotices
+    history = await NautilusSessionNotices(db).recent(20)
+    require(len(history) == 3 and all(row["tab"] == "bot-SOL" and "sourceRunId" not in row for row in history),
+            "Shared notice history exposed private fields or lost a synthetic run")
+    notice_plan = await db.command("explain", {
+        "find": "nautilus_chat", "filter": {"kind": "bot_session_started"},
+        "sort": {"createdAt": -1}, "limit": 20,
+    }, verbosity="executionStats")
+    require(uses_index(notice_plan.get("queryPlanner", {}).get("winningPlan", {}), notice_index),
+            "The shared notice history query did not use the expected index")
+    notice_stats = notice_plan.get("executionStats", {})
+    require(notice_stats.get("nReturned") == 3, "Shared notice query returned an unexpected number of rows")
     return {"result": "PASS", "index": name, "non_unique": True,
             "fixture_rooms": 2, "fixture_messages": 120, "returned_messages": statistics["nReturned"],
             "keys_examined": statistics.get("totalKeysExamined"),
-            "documents_examined": statistics.get("totalDocsExamined")}
+            "documents_examined": statistics.get("totalDocsExamined"),
+            "shared_notices": {"index": notice_index, "returned": 3,
+                               "concurrent_attempts_per_run": 8, "durable_restart_dedup": "PASS",
+                               "keys_examined": notice_stats.get("totalKeysExamined"),
+                               "documents_examined": notice_stats.get("totalDocsExamined")}}
 
 
 async def selected_accounts(db, selection, *, require_missing_credential=True):

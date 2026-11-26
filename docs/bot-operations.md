@@ -15,12 +15,12 @@ The five bot PAPER ledgers remain separate from each other and from member pract
 
 ## Source verified November 25, 2026
 
-The latest five-asset package located for this review was `TACHYOS_CLEAN_ROOM_0.0.10.10_BOUNDED_DEPTH_FIVE_ASSET_PAPER.zip`. Its launchers and read-only API source were inspected privately; its engine strategy source was not copied into this app repository.
+The source package for this review was `TACHYOS_CLEAN_ROOM_0.0.10.10_BOUNDED_DEPTH_FIVE_ASSET_PAPER.zip`. The owner's subsequent 12-hour request is prepared in a separate private **0.0.10.11** package, retaining the original six-hour launcher and adding a twelve-hour launcher. Its engine strategy source is not copied into this public app repository.
 
 The source confirms:
 
-- `05_START_FIVE_ASSET_PAPER_6H.cmd` starts five separate `START_CONNECTED_PAPER.py` processes, each with an explicit asset, port, and output folder.
-- The current engine identity is `0.0.10.10_PAPER_ONLY`.
+- `05_START_FIVE_ASSET_PAPER_12H.cmd` starts five separate `START_CONNECTED_PAPER.py` processes for 720 minutes, each with an explicit asset, port, and output folder. `05_START_FIVE_ASSET_PAPER_6H.cmd` remains available for 360-minute sessions.
+- The updated engine identity is `0.0.10.11_PAPER_ONLY`; the previous package remains `0.0.10.10_PAPER_ONLY` and does not accept 720 minutes.
 - The dashboard protocol remains `ui_build=0.0.8.4`, with `ui_protocol: 1`. The dashboard build and engine version are separate identifiers.
 - The native endpoint is `GET /api/nautilus?ui_build=0.0.8.4`. It binds only to `127.0.0.1` and exposes read-only PAPER telemetry.
 - The adapter supplies `mode: "PAPER_ONLY"`, `readonly: true`, the actual asset symbol, source timestamps, run flags, chart data, positions, and trades expected by the app's display contract.
@@ -41,23 +41,23 @@ Equivalent explicit modes are `py -3 scripts\publish_nautilus.py --check-local` 
 
 Complete the coordinated app release and access checks first. The prior live application does not become a five-bot app merely because its database tier changed.
 
-### 1. Start the existing Windows package
+### 1. Start the complete Windows package
 
-Use a complete, separately extracted package folder. The inspected package's sequence is:
+Use the complete, separately extracted 0.0.10.11 package folder for twelve-hour sessions. Do not copy a new launcher into an older package. Its sequence is:
 
 1. Run `03_VERIFY_PACKAGE.cmd`.
 2. If its required dependencies are missing, use `04_INSTALL_PUBLIC_FEEDS.cmd`, then verify again.
-3. Run `05_START_FIVE_ASSET_PAPER_6H.cmd` after verification passes.
+3. Run `05_START_FIVE_ASSET_PAPER_12H.cmd` after verification passes, or choose the retained `05_START_FIVE_ASSET_PAPER_6H.cmd` for a shorter session.
 
 The five-asset launcher performs its own validation before starting these processes:
 
 | Asset | Native port | Launcher command inside the package |
 | --- | ---: | --- |
-| BTC | 8787 | `py -3 START_CONNECTED_PAPER.py --asset BTC --minutes 360 --port 8787 --output paper_runs\BTC` |
-| ETH | 8788 | `py -3 START_CONNECTED_PAPER.py --asset ETH --minutes 360 --port 8788 --output paper_runs\ETH` |
-| SOL | 8789 | `py -3 START_CONNECTED_PAPER.py --asset SOL --minutes 360 --port 8789 --output paper_runs\SOL` |
-| XRP | 8790 | `py -3 START_CONNECTED_PAPER.py --asset XRP --minutes 360 --port 8790 --output paper_runs\XRP` |
-| DOGE | 8791 | `py -3 START_CONNECTED_PAPER.py --asset DOGE --minutes 360 --port 8791 --output paper_runs\DOGE` |
+| BTC | 8787 | `py -3 START_CONNECTED_PAPER.py --asset BTC --minutes 720 --port 8787 --output paper_runs\BTC` |
+| ETH | 8788 | `py -3 START_CONNECTED_PAPER.py --asset ETH --minutes 720 --port 8788 --output paper_runs\ETH` |
+| SOL | 8789 | `py -3 START_CONNECTED_PAPER.py --asset SOL --minutes 720 --port 8789 --output paper_runs\SOL` |
+| XRP | 8790 | `py -3 START_CONNECTED_PAPER.py --asset XRP --minutes 720 --port 8790 --output paper_runs\XRP` |
+| DOGE | 8791 | `py -3 START_CONNECTED_PAPER.py --asset DOGE --minutes 720 --port 8791 --output paper_runs\DOGE` |
 
 These commands are recorded to explain the launcher; use the verified launcher so its validation step is retained. The similarly named `05_START_PUBLIC_PAPER_6H.cmd` is BTC-only. The older `07_OPEN_NAUTILUS.cmd` also opens only BTC and carries an older UI identifier; use the URLs printed by the running five-asset engines for their local cockpits.
 
@@ -96,11 +96,27 @@ The app separately enforces source and quote freshness before allowing practice 
 
 Keep the Windows computer powered, connected to the internet, and awake. Keep all five engine processes and the publisher running. A browser window is a viewer and is not required to keep those processes alive. Members can close their own browsers without stopping the bots.
 
-**The inspected package is a six-hour runner, not a 24/7 service.** `START_CONNECTED_PAPER.py` enforces a 1–360 minute duration and shuts down its read-only HTTP listener when the session finishes. The publisher does not restart an engine. For an event using this package, plan attended six-hour runs and a new validated launch after normal completion. Preserve finished runs using `06_COMPARE_FIVE_ASSET_RUNS.cmd` and `08_PACKAGE_FIVE_ASSET_REVIEWS.cmd`.
+**The updated package supports attended runs of 1–720 minutes.** The twelve-hour launcher selects 720 minutes, while the retained six-hour launcher selects 360. Each engine uses its normal deadline and shutdown path, closes its read-only HTTP listener, and saves the finished session. The publisher does not restart an engine.
+
+Use **about 8 a.m. and 8 p.m. America/New_York** as the operator's review/relaunch windows:
+
+1. Let the five engines finish and confirm their saved receipts. Do not start a second set on the same ports while the prior set is still running.
+2. Preserve and inspect the completed runs using `06_COMPARE_FIVE_ASSET_RUNS.cmd` and `08_PACKAGE_FIVE_ASSET_REVIEWS.cmd`. Review missing sources, gaps, positions, outcomes, and discrepancies before proceeding. The review packager now hashes large capture files in chunks, without loading an entire twelve-hour file into memory.
+3. Start the next validated twelve-hour session, check the five local feeds, and confirm fresh room states in the app. One continuous publisher can wait through this gap; it never fills missing data with fabricated prices.
+
+The review creates a short gap, so these are approximate operator times, not an automatic 8:00 schedule or a promise of uninterrupted 24/7 operation. A new bot run has its own PAPER ledger; member practice balances and history stay in CashOutAI and are not reset by this handoff. High-frequency display buffers are bounded, but full-session audit/candle history and on-disk captures grow with session length. Check the Windows computer's actual memory, disk use, and source continuity during the first full twelve-hour run.
 
 Continuous unattended operation requires a separate supervised runner with tested restart behavior, source recovery, run-history retention, and graceful shutdown. It has not been installed or implemented by this app release. Do not add an endless restart loop and present that as preserved trading-state continuity. A dedicated always-on host can be considered later; no additional hosting service or charge is introduced here.
 
 If one bot or the publisher stops, the website can remain online for accounts and community use. The corresponding feed becomes delayed/offline and new practice fills pause. Member practice state remains in the backend; official settlement is resolved independently of a bot's new-session chart. Restarting a bot does not reset a member's $100 account.
+
+### In-app notices when a run is observed
+
+After the backend accepts the first fresh, active PAPER snapshot of a new asset/run identity, it saves one shared room announcement. It then sends a `bot_session_started` event through the existing authenticated WebSocket connections. The app groups recently received rooms into one dismissible banner with direct room buttons. **Notifications → Bot session history** keeps dated shared notices, and the room chat retains the announcement. A past notice does not claim the feed is still live; the room's current source status remains authoritative.
+
+The notice is keyed by the exact asset and canonical run ID. MongoDB's unique document ID deduplicates restarts and concurrent submissions; a bounded cache avoids an extra notice lookup on every heartbeat. Exact retries can repair a failed insert using the already-accepted snapshot identity. A repeated heartbeat, a stale/review/replay packet, or the clock reaching eight does not announce a run. The first fresh run observed after this feature is enabled can produce a notice even if that engine started earlier.
+
+These are in-app notices only. No email, WhatsApp message, or device push is sent for a bot run; **device push remains Stocks-only**. The shared history is one record per asset/run, with no per-member fanout. It is authenticated and bounded to 1–50 notices per request. The frontend refreshes it on entry/visibility and once per visible minute as a connection fallback, grouping only recent notices and keeping older history dated. A grouped banner does not replace a live feed health check.
 
 ## Load and cost boundaries
 
@@ -109,6 +125,8 @@ One shared publication path avoids starting a bot or opening a provider stream f
 The app currently polls the visible asset and assets with open member practice positions approximately every three seconds after each response. Hidden pages stop polling. Chat has its own five-second visible-page interval; practice positions refresh every fifteen seconds. These controls reduce unnecessary work, but no measured public-event capacity or global provider spending cap is claimed.
 
 Before increasing audience size, observe actual packet size, backend response time, database operations, and transfer use. A future shared in-process cache or changed-snapshot/delta transport can reduce repeat work while preserving the source timestamps. Keep provider licensing and quote limits under the separate [quote and launch plan](realtime-quotes-and-launch.md).
+
+The twelve-hour compatibility fixture used the actual native converter with 720 displayed candles, 720 EMA points, 4,500 quote samples, 48 targets, and 40 commands for each asset. All five packets passed the current app sanitizer; sizes were 738,066–742,621 bytes before compression. This non-economic fixture contained no positions or trades, so it does not prove a production session can never reach the 4 MiB packet limit. At the default one-round-per-second bridge cadence, five packets of this size would represent about 3.7 MB/s of input before compression. Use the first controlled Windows session to measure actual payloads and transfer; twelve-hour compatibility is not a public-audience load test or a spending guarantee.
 
 ### Initial event measurements
 
@@ -128,7 +146,7 @@ Use the following as proposed review thresholds for the first event, not configu
 
 The FMP adapter already shares concurrent same-symbol requests inside one process and caches successful quotes for five seconds, with a two-second failure cache. Those controls are not a global daily budget. The new Stocks workspace's ten-symbol watchlist does not create ten FMP streams; legacy Favorites has no equivalent ten-symbol limit. Room polling pauses when hidden, but separate community/session fallback requests still exist. Monitor actual totals before describing an event size as supported.
 
-The release adds a non-unique `nautilus_chat_asset_created_at` index for the existing room filter and newest-message sort. Its query-plan verification uses synthetic room messages on the disposable real MongoDB CI instance. No production chat index or member record is changed while the release remains a draft.
+The release adds non-unique `nautilus_chat_asset_created_at` and `nautilus_chat_kind_created_at` indexes for the room filter/newest-message sort and shared announcement history. The disposable real MongoDB CI rehearsal checks the query plans, repeated startup, and actual concurrent/durable notice deduplication using synthetic records. No production chat index or member record is changed while the release remains a draft.
 
 ## Troubleshooting
 
@@ -145,6 +163,6 @@ The release adds a non-unique `nautilus_chat_asset_created_at` index for the exi
 
 ## Verification boundary
 
-The inspected private engine source supplied the exact Windows launcher, six-hour limit, ports, protocol, and endpoint behavior above. No engine, strategy replay, public feed, real trade, or live venue request was run for this review.
+The private engine source supplied the exact Windows launchers, twelve-hour duration path, ports, protocol, and endpoint behavior above. The updated duration, shutdown, retention, and twelve-hour timestamp-range export received offline checks. Neither an actual twelve-hour endurance run nor Windows double-click execution is established by those checks. No public feed or real venue trade was run for this preparation.
 
-The publisher correction was verified with isolated responses for explicit acceptance, unchanged packets, malformed/mismatched acknowledgements, and unsuccessful HTTP statuses. The Windows companion adds eight checks for local-only behavior, bounded identity reads, hidden-key handling, cancellation, and prevention of echoed fallback. All 23 Nautilus API/publisher tests pass. Existing HTTPS/redirect and router checks remain in [test_nautilus_api.py](../backend/tests/test_nautilus_api.py). Actual Windows double-click execution, Windows-to-Render publication, current five-bot payload acceptance, and mobile/TV viewing of live data still require the controlled deployed check.
+The publisher correction was verified with isolated responses for explicit acceptance, unchanged packets, malformed/mismatched acknowledgements, and unsuccessful HTTP statuses. The Windows companion adds eight checks for local-only behavior, bounded identity reads, hidden-key handling, cancellation, and prevention of echoed fallback. The 23 existing Nautilus API/publisher tests and 15 new session-notice tests pass. The combined app suite passed 249 backend tests, 74 JavaScript model tests, and a CI production build. The private twelve-hour package separately passed 685 Python tests and its JavaScript gates from a clean ZIP extraction. Existing HTTPS/redirect and router checks remain in [test_nautilus_api.py](../backend/tests/test_nautilus_api.py). Actual Windows double-click execution, Windows-to-Render publication, current five-bot payload acceptance, and mobile/TV viewing of live data still require the controlled deployed check.

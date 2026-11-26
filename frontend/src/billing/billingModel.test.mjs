@@ -20,12 +20,13 @@ const memoryStorage = () => {
 };
 const deferred = () => { let resolve; let reject; const promise = new Promise((res, rej) => { resolve = res; reject = rej; }); return { promise, resolve, reject }; };
 
-test('new catalog keeps exact supplied fixed terms without reinterpreting legacy plans', () => {
-  assert.deepEqual(MEMBERSHIP_PLANS.map(({ id, registrationLabel, amount_cents, term_months }) => ({ id, registrationLabel, amount_cents, term_months })), [
-    { id: 'monthly', registrationLabel: 'Monthly', amount_cents: 9900, term_months: 1 },
-    { id: 'six_months', registrationLabel: 'SixMonths', amount_cents: 49900, term_months: 6 },
-    { id: 'lifetime', registrationLabel: 'Lifetime', amount_cents: 89900, term_months: null },
+test('catalog keeps current offer amounts separate from regular prices and fixed terms', () => {
+  assert.deepEqual(MEMBERSHIP_PLANS.map(({ id, registrationLabel, amount_cents, regular_amount_cents, savings_cents, term_months }) => ({ id, registrationLabel, amount_cents, regular_amount_cents, savings_cents, term_months })), [
+    { id: 'monthly', registrationLabel: 'Monthly', amount_cents: 9900, regular_amount_cents: 19900, savings_cents: 10000, term_months: 1 },
+    { id: 'six_months', registrationLabel: 'SixMonths', amount_cents: 49900, regular_amount_cents: 99900, savings_cents: 50000, term_months: 6 },
+    { id: 'lifetime', registrationLabel: 'Lifetime', amount_cents: 89900, regular_amount_cents: 249900, savings_cents: 160000, term_months: null },
   ]);
+  assert.deepEqual(MEMBERSHIP_PLANS.map(plan => plan.offer_label), ['Current offer', 'Current offer', 'Current offer']);
   assert.equal(membershipPlan('Yearly'), null);
   assert.equal(membershipPlan('Trial'), null);
   assert.equal(moneyFromCents(49900), '$499.00');
@@ -35,6 +36,15 @@ test('new catalog keeps exact supplied fixed terms without reinterpreting legacy
   assert.throws(() => normalizePlansResponse(publicPlans({ recurring: true })));
   assert.equal(normalizePlansResponse(publicPlans({ environment: 'sandbox' })).automatic_activation_available, false);
   assert.equal(normalizePlansResponse(publicPlans({ environment: null })).automatic_checkout_available, false);
+});
+
+test('regular-price metadata agrees with the fallback and never changes the purchase amount', () => {
+  const previousResponse = publicPlans({ plans: MEMBERSHIP_PLANS.map(({ regular_amount_cents, savings_cents, offer_label, ...plan }) => plan) });
+  assert.deepEqual(normalizePlansResponse(previousResponse).plans, MEMBERSHIP_PLANS);
+  assert.deepEqual(normalizePlansResponse(publicPlans()).plans, MEMBERSHIP_PLANS);
+  for (const change of [{ regular_amount_cents: 9900 }, { regular_amount_cents: '19900' }, { savings_cents: 100 }, { savings_cents: null }, { offer_label: 'Ends tonight' }]) {
+    assert.throws(() => normalizePlansResponse(publicPlans({ plans: MEMBERSHIP_PLANS.map((plan, index) => index === 0 ? { ...plan, ...change } : plan) })), /pricing needs to be refreshed/);
+  }
 });
 
 test('marketing and return queries only choose navigation, accepting known plan IDs', () => {
