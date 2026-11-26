@@ -1,6 +1,6 @@
 # Database backup and existing-account recovery runbook
 
-**Status, November 25, 2026:** The owner completed payment setup and upgraded the existing cluster to **Flex**. Atlas reports `IDLE`, backups are enabled, and the restarted production backend reports `healthy` / `connected`. The backup page currently lists **zero completed snapshots** and estimates its first snapshot for November 26; a usable backup and isolated restore remain unverified. One owner-approved plain email reached the Inbox; account recovery through a reset link remains a separate verification step. This runbook describes the minimum work before deploying the feature release.
+**Status, November 26, 2026:** The first Atlas Flex snapshot completed at `2026-11-26T22:04:00Z`. An owner-approved native restore into a separate temporary M10 completed successfully at `2026-11-26T22:40:42Z`. Read-only comparisons found matching application collection counts, stable record identities, and complete semantic document fingerprints; index names and key patterns also matched. Pure evaluation of the release membership helper preserved existing approval/access decisions. See section 10 for the evidence scope. The member-facing release remains a draft: the matching real-account recovery journey and deployed integration checks are still pending.
 
 ## 1. Retain one consistent, restorable backup
 
@@ -16,7 +16,7 @@ Keep the completed backup in a durable, private, access-controlled destination o
 
 Restore into an **empty, isolated MongoDB target**. Use a MongoDB 8 target compatible with the source major version and feature compatibility version (FCV); check the provider's destination restrictions before a native restore. Never restore over production or use `--drop` against production. Use [Atlas snapshot restore guidance](https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-snapshot/) or [mongorestore](https://www.mongodb.com/docs/database-tools/mongorestore/) for the selected backup format. Commands must be prepared for the actual environment; this runbook does not claim any backup command has been tested.
 
-A downloaded Atlas snapshot contains **raw database data files**, not a BSON dump. `mongorestore` cannot read that archive directly. Preserve the archive and its checksum, start a working copy with a compatible isolated `mongod --dbpath`, then make a local-only logical copy into a `cashout_rehearsal_*` database for the guarded launcher below. Compare that copy with the raw restored baseline before exercising it. Retain the launcher's refusal of the original production database name. See [restoring a locally downloaded snapshot](https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-local-file/). For a managed restore, use the actual Flex restore selector/API to verify an eligible separate target; no additional target or charge has been approved or provisioned by this runbook.
+A downloaded Atlas snapshot contains **raw database data files**, not a BSON dump. `mongorestore` cannot read that archive directly. Preserve the archive and its checksum, start a working copy with a compatible isolated `mongod --dbpath`, then make a local-only logical copy into a `cashout_rehearsal_*` database for the guarded launcher below. Compare that copy with the raw restored baseline before exercising it. Retain the launcher's refusal of the original production database name. See [restoring a locally downloaded snapshot](https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-local-file/). For a managed restore, use the actual Flex restore selector/API to verify an eligible separate target and obtain approval for any additional recurring charge. Section 10 records the owner-approved temporary M10 used for the November 26 native-restore check.
 
 Before starting the app, compare the captured backup state with the restored copy:
 
@@ -116,13 +116,13 @@ This rehearsal does **not** complete the backup, restore, and restored-data comp
 
 ## 7. Atlas inspection and completed upgrade — November 25, 2026
 
-### Current verified state
+### Verified state at the November 25 checkpoint
 
 After the owner completed payment setup and the upgrade, the Atlas integration reports **Flex**, `IDLE`, unpaused, AWS `US_EAST_1`, and MongoDB `8.0.39-patch-a3d00565977`. The existing cluster's connection hostname is unchanged. The dashboard shows **Backups ON** and **zero completed snapshots**. Its estimated next snapshot label is **`11/26/26 - 05:01 PM`**; that label did not explicitly state a timezone, so do not convert it to a promised Eastern deadline. Verify completion from the actual snapshot list.
 
 The existing Render backend was restarted after the upgrade. Render's event history confirms the restart at **5:16 p.m. Eastern on November 25**, its application startup completed at `2026-11-25T22:16:32Z`, and a subsequent HTTPS health request returned `200` with `healthy` / `connected`. It still runs the unchanged production commit `5702460a275cda067dba510dc4ba4432f1051359`; the feature release remains a draft.
 
-The upgrade is complete. **Do not retry it or request the same cost approval again.** A successful tier change and enabled backup schedule do not prove that the first backup is complete or restorable. The next database step is a completed snapshot and an isolated restore/recovery rehearsal.
+The upgrade is complete. **Do not retry it or request the same cost approval again.** At this November 25 checkpoint, the next database step was a completed snapshot and an isolated restore/recovery rehearsal. The successful November 26 native restore is recorded in section 10; the matching application recovery journey remains separate.
 
 ### Historical inspection before the upgrade
 
@@ -178,6 +178,27 @@ The passing run verifies:
 
 The real run exposed a harness compatibility error: pinned PyMongo creates stream sockets with the close-on-exec flag, which the original guard rejected before connecting. The guard now accounts for that flag while retaining its destination, port, family, and protocol restrictions. UDP, raw, IPv6, external destinations, and unapproved ports remain rejected. The earlier workflow expression error was also corrected before this passing run. No production application behavior changed for these fixes.
 
-**This is not a production-backup restore.** No member data was copied into the runner. The run does not prove Atlas backup integrity, restoration of the actual member database, browser reset-link completion, or live email/feed/push integration. The first completed Flex snapshot and the real-data comparisons in sections 1–5 remain required before the member-facing authentication release.
+**This is not a production-backup restore.** No member data was copied into the runner. The run does not prove Atlas backup integrity, restoration of the actual member database, browser reset-link completion, or live email/feed/push integration. The native snapshot and real-data comparison portions were subsequently verified on November 26 (section 10). The matching real-account application recovery journey and deployed checks remain required before the member-facing authentication release.
 
 The subsequent chat-index refinement extends synthetic CI with 60 BTC and 60 ETH room messages, the ordinary latest-50 query, an unhinted execution-statistics plan, and a second application startup. Synthetic messages are inserted only under `--seed-synthetic` into an explicitly empty rehearsal database. Restored-copy mode inserts none. The latest run outcome is recorded in the release PR; the earlier passing run linked above predates this additional query-plan check.
+
+
+## 10. Completed native Atlas restore and record comparison — November 26, 2026
+
+The first Flex snapshot completed at **5:04 p.m. America/New_York** (`2026-11-26T22:04:00Z`), using MongoDB 8.0.39. The owner approved a temporary M10 replica set in the source AWS region at the displayed **$0.08/hour**, plus applicable extras. It was provisioned with compute autoscaling disabled and its own backups disabled. The production cluster was never used as the restore destination.
+
+Atlas accepted the native restore at `2026-11-26T22:39:05Z` and reported successful completion at `2026-11-26T22:40:42Z`, naming the separate rehearsal target. The original source snapshot remains the durable recovery source.
+
+### Verified evidence
+
+- The six application collections were present in the restored database. Every compared record had the same stable database key and semantic comparison fingerprint as the read-only source baseline; there were no missing, extra, or changed records in that comparison.
+- Normalization covered every value in every compared document. Scalar types were retained, numeric leaves were converted to strings before hashing, object keys were sorted, and array order was retained. This avoids the fractional-number truncation of a raw hashed-index fingerprint. The fixture checks distinguished fractional value changes, nested fractional changes, null from missing, and excessive nesting. These are **64-bit semantic comparison fingerprints**, not a cryptographic archive checksum or proof of byte-for-byte BSON equality.
+- All reported index names and ordered key patterns matched. The integration did not expose complete collection options or every index option; those were not independently compared.
+- The actual `membership.py` helper from application revision `1d41dcd5685e6541bb7b4fc5281e24654c5e3a88` was evaluated against access-only projections of all restored accounts. Existing approved accounts retained legacy access, rejected accounts remained inactive, and the input projections were unchanged. Existing administrator flags were preserved separately from role labels.
+- Detailed counts, timing, and aggregate results are retained in the owner's private verification record. No member documents, addresses, credentials, sessions, or backup archive were added to this repository or GitHub Actions.
+
+### Remaining boundary
+
+This check did not run `server.py` against the restored M10, perform a real-member password reset, authenticate a saved session, open a recovery email link in the compiled frontend, or test deployed approval/email/feed/push behavior. The local-only recovery launcher deliberately rejects managed Atlas targets; it was not relaxed or bypassed. Its passing synthetic MongoDB rehearsal remains separate evidence. A compatible private runtime or explicitly guarded managed-target rehearsal is still required for the matching real-account recovery journey.
+
+The temporary M10 was terminated after these checks. The Atlas project inventory confirmed only the original Flex cluster remained at `2026-11-26T22:57:35Z`, with the source cluster `IDLE`; the source snapshot was then visibly rechecked and retained. The temporary target therefore does not remain as an ongoing deployment. Actual metered charges have not yet been reconciled to an invoice.
