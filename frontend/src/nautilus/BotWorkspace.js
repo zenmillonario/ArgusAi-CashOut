@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { deriveContractClock } from './contractClock.mjs';
 import './nautilus.css';
 
 const ASSETS = {
@@ -46,13 +47,15 @@ function FeedBadge({ mode, updatedAt, status }) {
   return <span className={`nw-feed-badge nw-feed-${mode || 'offline'}`} title={updatedAt ? `Source updated ${clock(updatedAt)}` : 'Waiting for a source update'}><span className="nw-status-dot" />{labels[mode] || status || 'Feed offline'}</span>;
 }
 
-function QuoteInstrument({ side, quotes }) {
-  // The adapted view model removes expired quotes. Never fall back to native marks.
+function QuoteInstrument({ side, quotes, status, observedAt }) {
+  // Retained values are read-only observations, never practice execution marks.
   const quote = quotes?.[side.toLowerCase()] || {};
   const ask = cents(quote.ask), bid = cents(quote.bid);
-  return <div className={`nw-quote-instrument nw-quote-instrument-${side.toLowerCase()}`} role="group" aria-label={`${side} contract quotes`}>
+  const retained = status === 'delayed' || status === 'offline';
+  const note = retained ? `Last verified quote${valid(observedAt) ? ` at ${clock(observedAt)} ET` : ''}. ${status === 'offline' ? 'Feed offline.' : 'Waiting for a current quote.'} Practice waits for a fresh quote.` : status === 'recorded' ? 'Recorded contract quotes.' : status === 'unavailable' ? 'Waiting for verified contract quotes.' : 'Current contract quotes.';
+  return <div className={`nw-quote-instrument nw-quote-instrument-${side.toLowerCase()} ${retained ? 'nw-quote-retained' : ''}`} role="group" aria-label={`${side} ${retained ? 'last verified' : 'contract'} quotes`} title={note}>
     <span className="nw-quote-side">{side}</span>
-    <dl><div><dt>Ask</dt><dd className={ask.length > 4 ? 'nw-quote-value-long' : undefined}>{ask}</dd></div><div><dt>Bid</dt><dd className={bid.length > 4 ? 'nw-quote-value-long' : undefined}>{bid}</dd></div></dl>
+    <dl><div><dt>{retained ? 'Last ask' : 'Ask'}</dt><dd className={ask.length > 4 ? 'nw-quote-value-long' : undefined}>{ask}</dd></div><div><dt>{retained ? 'Last bid' : 'Bid'}</dt><dd className={bid.length > 4 ? 'nw-quote-value-long' : undefined}>{bid}</dd></div></dl>
   </div>;
 }
 
@@ -173,6 +176,9 @@ function PracticeBox({ asset, snapshot, practice = {}, selection, onBuyPractice,
   const panelRef = useRef(null);
   const quotes = snapshot?.quotes || {};
   const quote = quotes[side.toLowerCase()] || {};
+  const displayQuotes = snapshot?.displayQuotes || quotes;
+  const displayQuote = displayQuotes[side.toLowerCase()] || {};
+  const retainedQuote = ['delayed', 'offline'].includes(snapshot?.displayQuoteStatus);
   const positions = (practice.positions || []).filter(position => position.asset === asset && position.quantity > 0);
   const results = (practice.results || []).filter(result => result.asset === asset).slice(-3).reverse();
   const needsSettlement = position => {
@@ -230,11 +236,11 @@ function PracticeBox({ asset, snapshot, practice = {}, selection, onBuyPractice,
     <div className="nw-practice-balance"><div><span className="nw-eyebrow">Practice equity</span><strong>{currency(practice.equity)}</strong></div><span className={`nw-balance-return ${valid(practice.equity) && practice.equity < 100 ? 'nw-negative' : 'nw-positive'}`}>{valid(practice.equity) ? signedCash(practice.equity - 100) : 'Unpriced'}</span></div>
     <div className="nw-practice-cash"><span>Available cash <b>{currency(practice.cash)}</b></span><span>Realized <b className={practice.realizedPnl < 0 ? 'nw-negative' : ''}>{signedCash(practice.realizedPnl)}</b></span></div>
     <div className="nw-side-selector" role="group" aria-label="Choose practice side">
-      {['YES', 'NO'].map(value => <button type="button" key={value} className={`nw-side-option nw-side-option-${value.toLowerCase()} ${side === value ? 'is-active' : ''}`} aria-pressed={side === value} onClick={() => { setSide(value); setActionError(''); }}><span>{value}</span><strong>{cents(quotes[value.toLowerCase()]?.ask)}</strong><small>ask</small></button>)}
+      {['YES', 'NO'].map(value => <button type="button" key={value} className={`nw-side-option nw-side-option-${value.toLowerCase()} ${side === value ? 'is-active' : ''}`} aria-pressed={side === value} onClick={() => { setSide(value); setActionError(''); }}><span>{value}</span><strong>{cents(displayQuotes[value.toLowerCase()]?.ask)}</strong><small>{retainedQuote ? 'last ask' : 'ask'}</small></button>)}
     </div>
     <label className="nw-field-label" htmlFor={`practice-budget-${asset}`}>Practice budget <span>{budgetAssumption}</span></label>
     <div className="nw-budget-row"><div className="nw-money-field"><span>$</span><input id={`practice-budget-${asset}`} aria-label="Practice budget in dollars" type="number" min="0.01" step="0.01" inputMode="decimal" value={budget} onChange={event => { setBudget(event.target.value); setActionError(''); }} /></div><div className="nw-contract-count"><strong>{valid(purchase.quantity) ? purchase.quantity.toLocaleString() : '—'}</strong><span>contracts</span></div></div>
-    <div className="nw-practice-cost"><span>Total <b>{currency(purchase.totalCost)}</b></span><span>Fee <b>{currency(fee)}</b></span><span>Exit bid <b>{cents(quote.bid)}</b></span></div>
+    <div className="nw-practice-cost"><span>Total <b>{currency(purchase.totalCost)}</b></span><span>Fee <b>{currency(fee)}</b></span><span>{retainedQuote ? 'Last bid' : 'Exit bid'} <b>{cents(displayQuote.bid)}</b></span></div>
     <button type="button" className={`nw-practice-buy nw-buy-${side.toLowerCase()}`} disabled={!canBuy} onClick={() => runAction(() => onBuyPractice({ asset, contractId: snapshot.contract.id, side, budget: amount }), `${side} practice position opened.`)}><span>{busy ? 'Updating practice…' : `Practice ${side}`}</span><Icon name="arrow" size={18} /></button>
     {disabledReason && <p className="nw-practice-hint">{disabledReason}</p>}
     <p className="nw-fee-note">{practice.feeLabel || 'Practice fees are configured separately.'}</p>
@@ -389,6 +395,8 @@ export default function BotWorkspace({
   const isFull = fullscreen || nativeFullscreen || focusMode;
   const mode = snapshot.mode || 'offline';
   const normalizedPractice = Object.keys(practice).length ? practice : (account || {});
+  const contractClock = deriveContractClock(snapshot, now);
+  const ticking = contractClock.kind === 'countdown' && !contractClock.ended;
 
   useEffect(() => {
     const update = () => setNativeFullscreen(document.fullscreenElement === workspaceRef.current);
@@ -398,10 +406,11 @@ export default function BotWorkspace({
     return () => { document.removeEventListener('fullscreenchange', update); window.removeEventListener('keydown', escape); };
   }, []);
   useEffect(() => {
-    if (mode !== 'live') return undefined;
+    if (!ticking) return undefined;
+    setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [mode]);
+  }, [ticking, snapshot.contract?.id, snapshot.contract?.closeTime]);
   useEffect(() => { setSelectedTrade(null); setPracticeSelection(null); setLookingGlassInfo([]); chartRef.current?.toLive(); }, [asset]);
   useEffect(() => {
     if (!focusMode) return undefined;
@@ -433,10 +442,9 @@ export default function BotWorkspace({
       chartRef.current.canvas?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     }
   };
-  const end = timestamp(snapshot.contract?.closeTime);
-  const remaining = mode === 'live' && Number.isFinite(end) ? Math.max(0, Math.floor((end - now) / 1000)) : snapshot.contract?.remainingSeconds;
-  const timeLeft = valid(remaining) ? `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(Math.floor(remaining % 60)).padStart(2, '0')}` : clock(snapshot.contract?.closeTime);
-  const timeLabel = valid(remaining) ? 'Time remaining' : 'Contract close · ET';
+  const remaining = contractClock.remainingSeconds;
+  const timeLeft = valid(remaining) ? `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(Math.floor(remaining % 60)).padStart(2, '0')}` : valid(contractClock.closeTime) ? clock(contractClock.closeTime) : '—';
+  const timeLabel = contractClock.ended ? 'Contract ended' : valid(remaining) ? contractClock.kind === 'recorded' ? 'Recorded time left' : 'Time remaining' : 'Contract close · ET';
   const closePeriod = !valid(remaining) ? timeLeft.match(/\s+(AM|PM)$/)?.[1] : null;
   const clockValue = closePeriod ? timeLeft.replace(/\s+(AM|PM)$/, '') : timeLeft;
   const native = snapshot.native;
@@ -452,9 +460,9 @@ export default function BotWorkspace({
       <section className="nw-panel nw-chart-panel" aria-label={`${asset} Nautilus`}>
         <div className="nw-flight-deck" aria-label={`${asset} market and contract prices`}>
           <div className="nw-price-instrument"><span className="nw-eyebrow">{mode === 'live' || !valid(latestPrice) ? 'Underlying price' : 'Snapshot price'}</span><div className={`nw-market-price ${priceLabel.length > 10 ? 'nw-market-price-long' : ''}`}>{priceLabel}<span className="nw-market-pair">{asset}</span></div><div className="nw-target-value"><span>Contract target</span><strong>{price(snapshot.contract?.target ?? native?.market?.target)}</strong></div></div>
-          <QuoteInstrument side="YES" quotes={snapshot.quotes} />
-          <QuoteInstrument side="NO" quotes={snapshot.quotes} />
-          <div className={`nw-countdown nw-clock-instrument ${valid(remaining) && remaining <= 60 ? 'nw-clock-urgent' : ''}`}><span className="nw-eyebrow">{timeLabel}</span><strong className={closePeriod ? 'nw-clock-close' : undefined}>{clockValue}{closePeriod && <small> {closePeriod}</small>}</strong><span className="nw-clock-caption">15-minute contract</span></div>
+          <QuoteInstrument side="YES" quotes={snapshot.displayQuotes || snapshot.quotes} status={snapshot.displayQuoteStatus} observedAt={snapshot.displayQuoteObservedAt} />
+          <QuoteInstrument side="NO" quotes={snapshot.displayQuotes || snapshot.quotes} status={snapshot.displayQuoteStatus} observedAt={snapshot.displayQuoteObservedAt} />
+          <div className={`nw-countdown nw-clock-instrument ${valid(remaining) && remaining <= 60 && !contractClock.ended ? 'nw-clock-urgent' : ''}`}><span className="nw-eyebrow">{timeLabel}</span><strong className={closePeriod ? 'nw-clock-close' : undefined}>{clockValue}{closePeriod && <small> {closePeriod}</small>}</strong><span className="nw-clock-caption">{contractClock.ended ? 'Awaiting next contract' : '15-minute contract'}</span></div>
         </div>
         <div className="nw-chart-controls"><div className="nw-chart-legend"><span><i className="nw-legend-ema9" />NAEVYR <b>9</b></span><span><i className="nw-legend-ema30" />THAERYON <b>30</b></span><span className="nw-route-legend"><i className="nw-legend-route" />Looking Glass</span></div><div className="nw-range-controls" role="group" aria-label="Chart history range">{[1, 2, 3].map(count => <button type="button" key={count} onClick={() => setSpan(count)} className={span === count ? 'is-active' : ''} aria-pressed={span === count} title={`${count} contract${count > 1 ? 's' : ''} · ${count * 15} minutes`}>{count}<span>{count === 1 ? ' contract' : ' contracts'}</span></button>)}</div></div>
         <NautilusCanvas native={native} span={span} television={television} asset={asset} onSelectTrade={inspectTrade} onLookingGlassInfo={setLookingGlassInfo} chartRef={chartRef} />

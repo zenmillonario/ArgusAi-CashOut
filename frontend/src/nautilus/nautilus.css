@@ -556,6 +556,7 @@
 .nw-quote-instrument dl { display: grid; grid-template-columns: 1fr 1fr; flex: 1; min-width: 0; gap: 10px; }
 .nw-quote-instrument dl > div { min-width: 0; }
 .nw-quote-instrument dt { color: #b7d2da; text-transform: uppercase; font-size: 9px; font-weight: 650; letter-spacing: .8px; }
+.nw-quote-instrument.nw-quote-retained dt { color: #e9c68d; letter-spacing: .4px; }
 .nw-quote-instrument dd { color: var(--quote-color); font-size: clamp(24px, 1.85vw, 35px); font-weight: 800; line-height: 1.2; letter-spacing: -.8px; margin-top: 2px; white-space: nowrap; text-shadow: 0 0 12px #b4ffe411; }
 .nw-cockpit .nw-quote-instrument dd.nw-quote-value-long { font-size: clamp(19px, 1.45vw, 28px); letter-spacing: -.65px; }
 .nw-clock-instrument { display: flex; flex-direction: column; justify-content: center; text-align: center; border-top-color: #d7a64f; background: linear-gradient(145deg, #363b30, #18232b); }
