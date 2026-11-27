@@ -13,26 +13,33 @@ const PublicProfile = ({ userId, onClose, isDarkTheme, currentUser }) => {
   const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
   useEffect(() => {
-    fetchPublicProfile();
-  }, [userId]);
-
-  const fetchPublicProfile = async () => {
-    try {
-      const response = await axios.get(`${API}/users/${userId}/profile`);
-      setProfile(response.data);
-      setFollowerCount(response.data.follower_count || 0);
-      setFollowingCount(response.data.following_count || 0);
-      
-      // Check if current user is following this user
-      if (currentUser && response.data.followers) {
-        setIsFollowing(response.data.followers.includes(currentUser.id));
+    let cancelled = false;
+    const fetchPublicProfile = async () => {
+      setLoading(true);
+      setProfile(null);
+      setIsFollowing(false);
+      try {
+        const [response, followStatus] = await Promise.all([
+          axios.get(`${API}/users/${userId}/profile`),
+          currentUser && currentUser.id !== userId
+            ? axios.get(`${API}/users/${currentUser.id}/follow-status/${userId}`)
+            : Promise.resolve({ data: { is_following: false } })
+        ]);
+        if (cancelled) return;
+        setProfile(response.data);
+        setFollowerCount(response.data.follower_count || 0);
+        setFollowingCount(response.data.following_count || 0);
+        setIsFollowing(followStatus.data.is_following === true);
+      } catch (error) {
+        if (!cancelled) console.error('Error fetching public profile:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching public profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    fetchPublicProfile();
+    return () => { cancelled = true; };
+  }, [userId, currentUser?.id, API]);
 
   const handleFollow = async () => {
     if (!currentUser || followLoading) return;

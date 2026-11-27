@@ -1,0 +1,290 @@
+name: CashOutAI synthetic recovery and browser checks
+
+# This checks the reviewed release branch using wholly synthetic accounts.
+# It never connects to Atlas, deploys the app, or verifies a production backup.
+'on':
+  push:
+    branches:
+      - codex/cashoutai-square-launch-2026-11-25
+    paths:
+      - .github/workflows/cashout-recovery-rehearsal.yml
+      - backend/**
+      - frontend/**
+      - scripts/test_recovery_browser.py
+      - scripts/test_sensitive_landing_browser.py
+      - scripts/test_legacy_worker_browser.py
+      - scripts/private_recovery/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cashout-recovery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-recovery:
+    name: Real MongoDB and compiled frontend, synthetic accounts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      PIP_CONFIG_FILE: /dev/null
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Prepare the private rehearsal directory
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/cashout-recovery"
+          printf 'REHEARSAL_DIR=%s\n' "$RUNNER_TEMP/cashout-recovery" >> "$GITHUB_ENV"
+          printf 'PLAYWRIGHT_BROWSERS_PATH=%s\n' "$RUNNER_TEMP/cashout-recovery/browsers" >> "$GITHUB_ENV"
+
+      - name: Check out the triggering commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up the pinned Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.16.0'
+
+      - name: Install the required application dependencies at repository pins
+        run: |
+          umask 077
+          mkdir -p "$REHEARSAL_DIR"
+          python -m venv "$REHEARSAL_DIR/venv"
+          "$REHEARSAL_DIR/venv/bin/python" -m pip install \
+            --no-input --only-binary=:all: --index-url https://pypi.org/simple \
+            --constraint backend/requirements.txt \
+            aiohttp bcrypt fastapi httpx limits motor pydantic pymongo \
+            python-dotenv python-multipart requests resend slowapi starlette \
+            pytest playwright uvicorn h11 websockets
+          "$REHEARSAL_DIR/venv/bin/python" -m pip check
+
+      - name: Run the backend unit regression suites
+        run: |
+          # unittest discovers only TestCase suites. The older pytest-only
+          # live-API test file must never be executed against any real account.
+          "$REHEARSAL_DIR/venv/bin/python" -m unittest discover \
+            -s backend/tests -p 'test_*.py'
+
+      - name: Install the locked frontend and browser dependencies
+        run: |
+          npm install --global yarn@1.22.22 --ignore-scripts --no-audit --no-fund
+          yarn --cwd frontend install --frozen-lockfile --non-interactive
+          "$REHEARSAL_DIR/venv/bin/python" -m playwright install --with-deps chromium
+
+      - name: Compile the exact frontend for the private same-origin preview
+        env:
+          REACT_APP_BACKEND_URL: ''
+          PUBLIC_URL: ''
+          GENERATE_SOURCEMAP: 'false'
+          CI: 'true'
+        run: yarn --cwd frontend build
+
+      - name: Check frontend session, worker and feature model contracts
+        run: node --test frontend/src/*.test.mjs frontend/src/*/*.test.mjs
+
+      - name: Verify sensitive landing privacy in the compiled browser UI
+        timeout-minutes: 5
+        run: |
+          "$REHEARSAL_DIR/venv/bin/python" scripts/test_sensitive_landing_browser.py \
+            --frontend-build "$GITHUB_WORKSPACE/frontend/build"
+
+      - name: Verify legacy worker retirement in a real browser lifecycle
+        timeout-minutes: 5
+        run: |
+          "$REHEARSAL_DIR/venv/bin/python" scripts/test_legacy_worker_browser.py
+
+      - name: Download and verify the official MongoDB 8.0.38 binary
+        run: |
+          umask 077
+          curl --fail --silent --show-error --location --proto '=https' \
+            --connect-timeout 15 --max-time 120 --retry 2 \
+            --output "$REHEARSAL_DIR/mongodb.tgz" \
+            https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2404-8.0.38.tgz
+          printf '%s  %s\n' \
+            '2885d4382bd47b96bfaf3edc7dec0ef44463e3e2a79479f584d20deb6182cda9' \
+            "$REHEARSAL_DIR/mongodb.tgz" | sha256sum --check --status
+          mkdir -p "$REHEARSAL_DIR/mongodb" "$REHEARSAL_DIR/db"
+          tar --extract --gzip --file "$REHEARSAL_DIR/mongodb.tgz" \
+            --directory "$REHEARSAL_DIR/mongodb" --strip-components=1 \
+            --no-same-owner --no-same-permissions
+          "$REHEARSAL_DIR/mongodb/bin/mongod" --version
+
+      - name: Start an isolated standalone MongoDB
+        run: |
+          # This small fixture needs only the minimum WiredTiger cache.
+          # There is no replica set, published service, Atlas URI, or cloud key.
+          "$REHEARSAL_DIR/mongodb/bin/mongod" \
+            --dbpath "$REHEARSAL_DIR/db" \
+            --bind_ip 127.0.0.1 --port 27217 --nounixsocket \
+            --wiredTigerCacheSizeGB 0.25 \
+            --setParameter diagnosticDataCollectionEnabled=false \
+            --logpath "$REHEARSAL_DIR/mongod.log" \
+            --pidfilepath "$REHEARSAL_DIR/mongod.pid" --fork
+          "$REHEARSAL_DIR/venv/bin/python" - <<'PY'
+          from pymongo import MongoClient
+          with MongoClient("mongodb://127.0.0.1:27217/?directConnection=true",
+                           serverSelectionTimeoutMS=5000) as client:
+              hello = client.admin.command("hello")
+              version = client.admin.command("buildInfo")["version"]
+              assert version == "8.0.38"
+              assert "setName" not in hello and hello.get("msg") != "isdbgrid"
+              print({"mongo_version": version, "standalone": True, "synthetic_only": True})
+          PY
+
+      - name: Check refusal and browser boundaries
+        run: |
+          "$REHEARSAL_DIR/venv/bin/python" \
+            backend/tests/rehearse_restored_app_recovery.py --self-test
+
+      - name: Exercise the actual app against real MongoDB with synthetic accounts
+        run: |
+          "$REHEARSAL_DIR/venv/bin/python" \
+            backend/tests/rehearse_restored_app_recovery.py \
+            --mode exercise --mongo-port 27217 \
+            --database cashout_rehearsal_github_actions --seed-synthetic
+
+      - name: Complete recovery and replace sessions through the compiled browser UI
+        timeout-minutes: 5
+        run: |
+          umask 077
+          "$REHEARSAL_DIR/venv/bin/python" scripts/test_recovery_browser.py \
+            --frontend-build "$GITHUB_WORKSPACE/frontend/build" \
+            --mongo-port 27217 --http-port 4185
+
+      - name: Record the evidence boundary
+        run: |
+          printf '%s\n' \
+            'The actual application recovery rehearsal passed on MongoDB 8.0.38 using wholly synthetic accounts.' \
+            'The matching compiled frontend completed its captured reset link, rejected reuse, retained login after reload, and replaced the first browser session after a second sign-in.' \
+            'This is synthetic browser evidence only. It does not verify restored member recovery, production deployment, real email delivery, or live providers.' \
+            'No database files, captured reset links, operator details, or runtime logs are uploaded as artifacts.' \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop the temporary MongoDB process
+        if: always()
+        run: |
+          if [[ -n "${REHEARSAL_DIR:-}" && -x "$REHEARSAL_DIR/mongodb/bin/mongod" && -f "$REHEARSAL_DIR/mongod.pid" ]]; then
+            "$REHEARSAL_DIR/mongodb/bin/mongod" --shutdown \
+              --dbpath "$REHEARSAL_DIR/db" >/dev/null 2>&1 || true
+          fi
+          # The browser runner reaps its preview and removes its private state
+          # in finally, including on SIGTERM. Runner-local Mongo data is also
+          # removed; none of it is uploaded as an artifact.
+          if [[ "${REHEARSAL_DIR:-}" == "$RUNNER_TEMP/cashout-recovery" ]]; then
+            rm -rf -- "$REHEARSAL_DIR/db"
+          fi
+
+  private-image-preflight:
+    name: Build private runtime and exercise only synthetic data
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the triggering commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Build the exact private Linux amd64 image without secrets
+        run: |
+          docker build --platform linux/amd64 --pull \
+            --file scripts/private_recovery/Dockerfile \
+            --build-arg "CASHOUT_SOURCE_REVISION=$GITHUB_SHA" \
+            --tag cashout-private-recovery:ci .
+
+      - name: Check current SDK task metadata and retained-result boundaries
+        run: |
+          docker run --rm --network none --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=128m \
+            --entrypoint /opt/cashout-workflow/bin/python \
+            cashout-private-recovery:ci -m unittest discover \
+            -s scripts/private_recovery -p 'test_workflow_contract.py'
+
+      - name: Check snapshot refusal and synthetic preflight contracts without network
+        run: |
+          docker run --rm --network none --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=128m \
+            --entrypoint /opt/cashout-app/bin/python \
+            cashout-private-recovery:ci -m unittest discover \
+            -s scripts/private_recovery -p 'test_restored*.py'
+          docker run --rm --network none --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=128m \
+            --entrypoint /opt/cashout-app/bin/python \
+            cashout-private-recovery:ci -m unittest discover \
+            -s scripts/private_recovery -p 'test_preflight_contract.py'
+
+      - name: Check storage diagnostic privacy and cleanup contracts without network
+        run: |
+          docker run --rm --network none --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=128m \
+            --entrypoint /opt/cashout-app/bin/python \
+            cashout-private-recovery:ci -m unittest discover \
+            -s scripts/private_recovery -p 'test_private_storage.py'
+
+      - name: Inspect actual task-local filesystems without snapshot inputs or network
+        timeout-minutes: 2
+        run: |
+          # Deliberately choose a parent default other than /tmp, on a separate
+          # filesystem. The child must measure the wrapper's actual selection.
+          docker run --name cashout-storage-inspection --rm --network none \
+            --cpus 2 --memory 4g --read-only --env TMPDIR=/var/tmp \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=64m \
+            --tmpfs /var/tmp:rw,nosuid,nodev,mode=1777,size=32m \
+            --entrypoint /opt/cashout-workflow/bin/python \
+            cashout-private-recovery:ci -c \
+            'import json; from scripts.private_recovery.workflow import inspect_private_storage; result = inspect_private_storage.func(None); rows = {row["label"]: row for row in result["candidates"]}; assert rows["var_tmp"]["same_filesystem_as_default"] and not rows["tmp"]["same_filesystem_as_default"]; print(json.dumps(result, sort_keys=True))'
+
+      - name: Restore a generated native snapshot and exercise the restored-copy helpers
+        timeout-minutes: 16
+        run: |
+          # Generate the raw snapshot from empty local MongoDB instances inside
+          # this container. No Atlas URL, receipt, account, or credential enters.
+          docker run --name cashout-native-integration --rm --network none \
+            --cpus 2 --memory 4g --shm-size 512m --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=2g \
+            --entrypoint /opt/cashout-app/bin/python \
+            cashout-private-recovery:ci \
+            /app/scripts/private_recovery/test_native_restore_integration.py
+
+      - name: Run the actual synthetic task entry with MongoDB and the compiled browser
+        timeout-minutes: 12
+        run: |
+          # Invoking the SDK task's local function validates this exact image
+          # and wrapper. It does not register or run a paid Render task.
+          # Numeric loopback works with Docker's external network disabled.
+          docker run --name cashout-private-preflight --rm --network none \
+            --cpus 2 --memory 4g --shm-size 512m --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=1g \
+            --entrypoint /opt/cashout-workflow/bin/python \
+            cashout-private-recovery:ci -c \
+            'import json; from scripts.private_recovery.workflow import synthetic_preflight; print(json.dumps(synthetic_preflight.func(None), sort_keys=True))'
+
+      - name: Record the image evidence boundary
+        run: |
+          printf '%s\n' \
+            'The private Docker image built and passed its actual synthetic task, MongoDB, and compiled-browser preflight with external networking disabled.' \
+            'The image also passed snapshot-input refusal and aggregate-result privacy checks.' \
+            'The inputless storage diagnostic passed its privacy and cleanup contracts and inspected only filesystem metadata with external networking disabled.' \
+            'A generated native snapshot passed safe extraction, typed BSON and index preservation, verified logical copies, and the actual restored-copy API and browser helpers on synthetic identities.' \
+            'This is synthetic CI evidence only. No snapshot link, real account selection, provider credentials, production data, or Render task was used.' \
+            'No container, database, reset-link, browser, or runtime-log artifacts are uploaded.' \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop any remaining synthetic container
+        if: always()
+        run: docker rm --force cashout-private-preflight cashout-native-integration cashout-storage-inspection >/dev/null 2>&1 || true

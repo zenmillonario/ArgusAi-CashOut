@@ -2,9 +2,34 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
+        <meta name="referrer" content="no-referrer" />
+        <script>
+            // Keep credential landings private before any remote script can
+            // start. React consumes the original URL token and removes it;
+            // only this immutable boolean survives for the document lifetime.
+            (function () {
+                var privateLanding = true;
+                try {
+                    var query = new URLSearchParams(window.location.search);
+                    privateLanding = query.has('reset_token') || query.has('event_token') ||
+                        (window.location.pathname === '/reset-password' && query.has('token'));
+                } catch (_) { /* Unknown URL support keeps remote scripts off. */ }
+                Object.defineProperty(window, '__CASHOUTAI_PRIVATE_LANDING__', { value: privateLanding });
+                if (privateLanding) {
+                    // The compiled app and its same-origin chunks still run.
+                    // This also blocks later remote script injection after
+                    // the address bar has been cleaned or inputs are filled.
+                    var policy = document.createElement('meta');
+                    policy.httpEquiv = 'Content-Security-Policy';
+                    policy.content = "script-src 'self' 'unsafe-inline'";
+                    document.head.appendChild(policy);
+                }
+            })();
+        </script>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#000000" />
-        <meta name="description" content="A product of emergent.sh" />
+        <meta name="description" content="Practice with the CashOutAI bot rooms, study market moves, and learn with your trading community." />
+        <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet" />
@@ -21,15 +46,21 @@
         work correctly both with client-side routing and a non-root public URL.
         Learn how to configure a non-root public URL by running `npm run build`.
         -->
-        <title>Emergent | Fullstack App</title>
+        <title>CashOutAI | Practice &amp; Trading Community</title>
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
-        <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
+        <script>
+            if (!window.__CASHOUTAI_PRIVATE_LANDING__) {
+                var emergentScript = document.createElement('script');
+                emergentScript.src = 'https://assets.emergent.sh/scripts/emergent-main.js';
+                document.head.appendChild(emergentScript);
+            }
+        </script>
         <!--
         These two scripts have been added for the Visual Edits, please do not edit or remove them
         -->
         <script>
             // Only load visual edit scripts when inside an iframe and visual edits are enabled
-            if (window.self !== window.top) {
+            if (!window.__CASHOUTAI_PRIVATE_LANDING__ && window.self !== window.top) {
                 // Load debug monitor script
                 var debugMonitorScript = document.createElement('script');
                 debugMonitorScript.src = 'https://assets.emergent.sh/scripts/debug-monitor.js';
@@ -107,6 +138,7 @@
             </p>
         </a>
         <script>
+            if (!window.__CASHOUTAI_PRIVATE_LANDING__) {
             !(function (t, e) {
                 var o, n, p, r;
                 e.__SV ||
@@ -176,6 +208,7 @@
                     capturePerformance: false,
                 },
             });
+            }
         </script>
     </body>
 </html>

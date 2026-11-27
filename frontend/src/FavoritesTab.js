@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { formatPrice } from './utils';
+import QuoteObservation from './QuoteObservation';
+import { sessionHeaders } from './sessionAuth.mjs';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
@@ -9,17 +11,25 @@ const FavoritesTab = ({
   favorites, 
   addToFavorites, 
   removeFromFavorites, 
-  isDarkTheme 
+  isDarkTheme,
+  currentUser
 }) => {
   const [newFavorite, setNewFavorite] = useState('');
   const [stockPrices, setStockPrices] = useState({});
   const [loading, setLoading] = useState(false);
+  const mounted = useRef(true);
+  const quoteRevision = useRef(0);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; quoteRevision.current += 1; };
+  }, []);
 
   // Fetch real stock prices for favorites
   const fetchStockPrice = async (symbol) => {
     try {
-      const response = await axios.get(`${API}/stock/${symbol}`);
-      return response.data.price;
+      const response = await axios.get(`${API}/stock/${encodeURIComponent(symbol)}`, { headers: sessionHeaders(currentUser) });
+      return response.data;
     } catch (error) {
       console.error(`Error fetching price for ${symbol}:`, error);
       return null;
@@ -28,25 +38,28 @@ const FavoritesTab = ({
 
   // Load prices for all favorites
   useEffect(() => {
+    let cancelled = false;
+    const revision = ++quoteRevision.current;
     const loadPrices = async () => {
-      if (favorites.length === 0) return;
+      if (favorites.length === 0) { setStockPrices({}); setLoading(false); return; }
       
       setLoading(true);
       const prices = {};
       
       for (const symbol of favorites) {
-        const price = await fetchStockPrice(symbol);
-        if (price) {
-          prices[symbol] = price;
-        }
+        if (cancelled) return;
+        prices[symbol] = await fetchStockPrice(symbol);
       }
       
-      setStockPrices(prices);
-      setLoading(false);
+      if (!cancelled && mounted.current && revision === quoteRevision.current) {
+        setStockPrices(prices);
+        setLoading(false);
+      }
     };
 
     loadPrices();
-  }, [favorites]);
+    return () => { cancelled = true; };
+  }, [favorites, currentUser?.id, currentUser?.active_session_id]);
 
   const handleAddFavorite = (e) => {
     e.preventDefault();
@@ -57,13 +70,10 @@ const FavoritesTab = ({
   };
 
   const refreshPrice = async (symbol) => {
-    const price = await fetchStockPrice(symbol);
-    if (price) {
-      setStockPrices(prev => ({
-        ...prev,
-        [symbol]: price
-      }));
-    }
+    const revision = quoteRevision.current;
+    const quote = await fetchStockPrice(symbol);
+    if (!mounted.current || revision !== quoteRevision.current) return;
+    setStockPrices(prev => ({ ...prev, [symbol]: quote || (prev[symbol] ? { ...prev[symbol], refreshUnavailable: true } : null) }));
   };
 
   return (
@@ -125,9 +135,9 @@ const FavoritesTab = ({
                     <div className={`text-sm ${isDarkTheme ? 'text-gray-300' : 'text-gray-600'}`}>
                       {loading ? (
                         'Loading...'
-                      ) : stockPrices[symbol] ? (
+                      ) : stockPrices[symbol]?.price ? (
                         <>
-                          ${formatPrice(stockPrices[symbol])}
+                          ${formatPrice(stockPrices[symbol].price)}
                           <button
                             onClick={() => refreshPrice(symbol)}
                             className="ml-2 text-xs hover:text-blue-500"
@@ -135,9 +145,10 @@ const FavoritesTab = ({
                           >
                             🔄
                           </button>
+                          <QuoteObservation quote={stockPrices[symbol]} unavailable={stockPrices[symbol].refreshUnavailable} />
                         </>
                       ) : (
-                        'Price unavailable'
+                        <span>Price unavailable <button type="button" onClick={() => refreshPrice(symbol)} className="underline ml-1">Retry</button></span>
                       )}
                     </div>
                   </div>

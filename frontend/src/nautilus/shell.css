@@ -1,0 +1,29 @@
+.cashout-content-width { max-width: 1920px; width: 100%; }
+.cashout-bot-content { padding: 0 30px 24px; background: #080f15; }
+.cashout-existing-tab-label { margin-left: 5px; font-size: 10px; }
+.cashout-bot-tabs { color: #d8e8ed; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #080f15; border-bottom: 1px solid #1b2d37; padding: 18px 0 0; }
+.cashout-tabs-caption { display: flex; align-items: center; gap: 8px; color: #698d9e; font-size: 9px; letter-spacing: 1.8px; font-weight: 650; margin-bottom: 13px; }
+.cashout-tabs-orbit { width: 9px; height: 9px; border: 2px solid #60d8b0; border-radius: 50%; box-shadow: 0 0 10px #60d8b020; }
+.cashout-tabs-paper { letter-spacing: 1px; margin-left: 3px; color: #719c95; padding: 1px 4px; border: 1px solid #26433e; border-radius: 3px; font-size: 7px; }
+.cashout-tab-scroll { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: thin; scrollbar-color: #294b5b transparent; }
+.cashout-asset-tab { display: flex; align-items: center; gap: 11px; flex: 1 0 130px; min-width: 0; border: 1px solid #20313d; border-bottom: 0; background: #0c1720; border-radius: 9px 9px 0 0; color: #8ca6b4; padding: 12px 16px 14px; text-align: left; font-size: 14px; font-weight: 600; cursor: pointer; position: relative; transition: color .15s,background .15s; }
+.cashout-asset-tab:hover { background: #12222d; color: #d4e8ec; }
+.cashout-asset-tab.active { color: #e2f6f3; background: linear-gradient(140deg,#143b3b50,#101e2850); border-color: #345857; }
+.cashout-asset-tab.active::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px; background: #64ddc3; box-shadow: 0 -2px 14px #64ddc330; }
+.cashout-asset-tab:focus-visible { outline: 2px solid #70dacd; outline-offset: -3px; }
+.cashout-asset-tab small { display: block; color: #688996; font-size: 9px; margin-top: 1px; font-weight: 400; letter-spacing: .1px; }
+.cashout-asset-symbol { display: flex; align-items: center; justify-content: center; width: 30px; height: 32px; flex-shrink: 0; color: #97acb6; font: 26px/1 Georgia,serif; }
+.asset-btc { color: #e4b971; }.asset-eth { color: #a6a1e1; }.asset-sol { color: #80d4be; }.asset-xrp { color: #a5bac9; }.asset-doge { color: #d5bf7f; }.asset-stocks { color: #a9b5ef; }
+.cashout-stocks-tab.active { border-color: #59668a; background: linear-gradient(140deg,#343e6450,#101e2850); }
+.cashout-stocks-tab.active::after { background: #a4b0ee; box-shadow: 0 -2px 14px #a4b0ee22; }
+.cashout-tab-arrow { margin-left: auto; font-weight: 400; color: #436472; font-size: 17px; }
+.cashout-asset-tab.active .cashout-tab-arrow { color: #78b7ac; }
+.cashout-room-shell { width: 100%; min-width: 0; background: #080f15; }
+.cashout-room-shell:fullscreen { padding: 12px 26px; overflow: auto; }
+.cashout-room-expanded { position: fixed; inset: 0; z-index: 10000; padding: 12px 26px; overflow-y: auto; }
+.cashout-room-notice { display: flex; justify-content: space-between; align-items: center; color: #e6bd83; border: 1px solid #674d2d; background: #291e15; padding: 10px 14px; border-radius: 8px; margin-top: 12px; font-size: 12px; }
+.cashout-room-notice button { color: inherit; border: 0; background: transparent; font-size: 20px; margin-left: 12px; cursor: pointer; }
+@media(min-width:1800px) { .cashout-bot-content { padding: 0 42px 30px; }.cashout-asset-tab { padding: 15px 22px 17px; font-size: 17px; }.cashout-asset-tab small { font-size: 11px; }.cashout-tabs-caption { font-size: 11px; } }
+@media(max-width:900px) { .cashout-bot-content { padding: 0 15px 24px; }.cashout-asset-tab { flex-basis: 105px; padding: 11px 10px; gap: 6px; }.cashout-tab-scroll { gap: 6px; }.cashout-tab-arrow { display: none; }.cashout-existing-tab-label { display: none; } }
+@media(max-width:540px) { .cashout-bot-content { padding: 0 10px 20px; }.cashout-bot-tabs { padding-top: 14px; }.cashout-tabs-caption { margin-left: 3px; margin-bottom: 10px; }.cashout-asset-tab { flex: 0 0 84px; padding: 10px 8px 12px; font-size: 12px; gap: 5px; }.cashout-asset-tab small { display: none; }.cashout-asset-symbol { font-size: 22px; width: 21px; height: 24px; }.cashout-room-expanded,.cashout-room-shell:fullscreen { padding: 0 8px; } }
+@media(prefers-reduced-motion:reduce) { .cashout-asset-tab { transition: none; } }

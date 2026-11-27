@@ -1,240 +1,155 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import peacockVideo from './assets/peacock-animation.mp4';
+import peacockPoster from './assets/peacock-poster.webp';
+import './LoadingScreen.css';
 
-const LoadingScreen = ({ onComplete, isDarkTheme }) => {
-  const [isVisible, setIsVisible] = useState(true);
-  const [dots, setDots] = useState('');
+const INTRO_MS = 6500;
+const EXIT_MS = 240;
+const RAIN_CHARACTERS = '01アイウエオカキクケコサシスセソタチツテト';
+const prefersStill = () => typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+
+function makeRain() {
+  const width = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  const count = Math.min(48, Math.max(16, Math.ceil(width / 32)));
+  return Array.from({ length: count }, (_, index) => {
+    const duration = 15 + Math.random() * 9;
+    return {
+      text: Array.from({ length: 26 + Math.floor(Math.random() * 19) }, () => RAIN_CHARACTERS[Math.floor(Math.random() * RAIN_CHARACTERS.length)]).join('\n'),
+      left: `${((index + 0.5) / count) * 100}%`, duration: `${duration}s`,
+      delay: `${-duration * ((index + 0.4) / count)}s`,
+      opacity: 0.25 + Math.random() * 0.4, blue: index % 3 === 0,
+    };
+  });
+}
+
+/** Decorative introduction only. App.js owns account checks and the next route. */
+export default function LoadingScreen({ onComplete, isDarkTheme }) {
+  const [rain] = useState(makeRain);
+  const [reducedMotion, setReducedMotion] = useState(prefersStill);
+  const [visiblePage, setVisiblePage] = useState(() => typeof document === 'undefined' || !document.hidden);
+  const [leaving, setLeaving] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
+  const videoRef = useRef(null);
   const onCompleteRef = useRef(onComplete);
+  const motionRef = useRef(reducedMotion);
+  const mountedRef = useRef(false);
+  const closingRef = useRef(false);
+  const completedRef = useRef(false);
+  const startedRef = useRef(null);
+  const introTimer = useRef(null);
+  const exitTimer = useRef(null);
   onCompleteRef.current = onComplete;
+  motionRef.current = reducedMotion;
 
-  // Matrix code characters
-  const matrixChars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
-
-  // Generate matrix columns - bidirectional (top to bottom and bottom to top)
-  const generateMatrixColumns = () => {
-    const topToBottomColumns = [];
-    const bottomToTopColumns = [];
-    const columnCount = Math.floor(window.innerWidth / 20);
-    
-    for (let i = 0; i < columnCount; i++) {
-      const columnHeight = Math.floor(Math.random() * 40) + 30; // Increased from 25+15 to 40+30 for much longer columns
-      
-      // Generate characters for column
-      const column = [];
-      for (let j = 0; j < columnHeight; j++) {
-        column.push({
-          char: matrixChars[Math.floor(Math.random() * matrixChars.length)],
-          opacity: Math.random() * 0.8 + 0.2,
-          delay: Math.random() * 0.5 // Reduced delay for more synchronized appearance
-        });
-      }
-      
-      // Randomly assign to top-to-bottom or bottom-to-top
-      if (Math.random() > 0.5) {
-        topToBottomColumns.push({
-          chars: column,
-          left: i * 20,
-          animationDelay: Math.random() * 2 // Reduced to 2 seconds for better overlap
-        });
-      } else {
-        bottomToTopColumns.push({
-          chars: column,
-          left: i * 20,
-          animationDelay: Math.random() * 2 // Reduced to 2 seconds for better overlap
-        });
-      }
-    }
-    
-    return { topToBottom: topToBottomColumns, bottomToTop: bottomToTopColumns };
-  };
-
-  const [matrixColumns] = useState(() => generateMatrixColumns());
+  const finish = useCallback(() => {
+    if (!mountedRef.current || closingRef.current || completedRef.current) return;
+    closingRef.current = true;
+    clearTimeout(introTimer.current);
+    setLeaving(true);
+    videoRef.current?.pause();
+    exitTimer.current = setTimeout(() => {
+      if (!mountedRef.current || completedRef.current) return;
+      completedRef.current = true;
+      if (typeof onCompleteRef.current === 'function') onCompleteRef.current();
+    }, motionRef.current ? 0 : EXIT_MS);
+  }, []);
 
   useEffect(() => {
-    // Matrix code rain animation duration: 8 seconds
-    const timeout = setTimeout(() => {
-      setIsVisible(false);
-      setTimeout(() => {
-        onCompleteRef.current();
-      }, 500);
-    }, 8000);
-
-    // Animated dots for loading effect
-    const dotInterval = setInterval(() => {
-      setDots(prev => prev.length >= 3 ? '' : prev + '.');
-    }, 500);
-
+    mountedRef.current = true;
+    if (startedRef.current === null) startedRef.current = performance.now();
     return () => {
-      clearTimeout(timeout);
-      clearInterval(dotInterval);
+      mountedRef.current = false;
+      clearTimeout(introTimer.current);
+      clearTimeout(exitTimer.current);
     };
   }, []);
 
-  // Early return AFTER all hooks are called
-  if (!isVisible) {
-    return null;
-  }
+  useEffect(() => {
+    const preference = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const updateMotion = () => setReducedMotion(Boolean(preference?.matches));
+    const updateVisibility = () => setVisiblePage(!document.hidden);
+    const key = event => { if (event.key === 'Escape') finish(); };
+    if (preference?.addEventListener) preference.addEventListener('change', updateMotion);
+    else preference?.addListener?.(updateMotion);
+    document.addEventListener('visibilitychange', updateVisibility);
+    window.addEventListener('keydown', key);
+    return () => {
+      if (preference?.removeEventListener) preference.removeEventListener('change', updateMotion);
+      else preference?.removeListener?.(updateMotion);
+      document.removeEventListener('visibilitychange', updateVisibility);
+      window.removeEventListener('keydown', key);
+    };
+  }, [finish]);
 
-  return (
-    <div 
-      className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-500 overflow-hidden ${
-        isVisible ? 'opacity-100' : 'opacity-0'
-      } ${isDarkTheme ? 'bg-black' : 'bg-gray-900'}`}
-    >
-      {/* Matrix Code Rain Background - Bidirectional */}
-      <div className="absolute inset-0">
-        {/* Top to Bottom Rain */}
-        {matrixColumns.topToBottom.map((column, columnIndex) => (
-          <div
-            key={`ttb-${columnIndex}`}
-            className="absolute top-0 flex flex-col text-green-400 font-mono text-sm leading-tight matrix-column-down"
-            style={{
-              left: `${column.left}px`,
-              animationDelay: `${column.animationDelay}s`
-            }}
-          >
-            {column.chars.map((item, charIndex) => (
-              <span
-                key={charIndex}
-                className="block"
-                style={{
-                  opacity: item.opacity,
-                  animationDelay: `${item.delay}s`,
-                  color: charIndex === 0 ? '#00ff00' : `rgba(0, 255, 0, ${item.opacity})`
-                }}
-              >
-                {item.char}
-              </span>
-            ))}
-          </div>
-        ))}
-        
-        {/* Bottom to Top Rain */}
-        {matrixColumns.bottomToTop.map((column, columnIndex) => (
-          <div
-            key={`btt-${columnIndex}`}
-            className="absolute bottom-0 flex flex-col-reverse text-blue-400 font-mono text-sm leading-tight matrix-column-up"
-            style={{
-              left: `${column.left}px`,
-              animationDelay: `${column.animationDelay}s`
-            }}
-          >
-            {column.chars.map((item, charIndex) => (
-              <span
-                key={charIndex}
-                className="block"
-                style={{
-                  opacity: item.opacity,
-                  animationDelay: `${item.delay}s`,
-                  color: charIndex === 0 ? '#0088ff' : `rgba(0, 136, 255, ${item.opacity})`
-                }}
-              >
-                {item.char}
-              </span>
-            ))}
-          </div>
-        ))}
+  useEffect(() => {
+    if (closingRef.current) return undefined;
+    const remaining = Math.max(0, INTRO_MS - (performance.now() - startedRef.current));
+    introTimer.current = setTimeout(finish, reducedMotion ? Math.min(1200, remaining) : remaining);
+    return () => clearTimeout(introTimer.current);
+  }, [finish, reducedMotion]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return undefined;
+    let disposed = false;
+    if (reducedMotion || !visiblePage || leaving || videoFailed) video.pause();
+    else {
+      video.muted = true;
+      const playback = video.play();
+      playback?.catch(() => { if (!disposed && mountedRef.current) setVideoReady(false); });
+    }
+    return () => { disposed = true; video.pause(); };
+  }, [reducedMotion, visiblePage, leaving, videoFailed]);
+
+  return <main className={`cashout-startup${leaving ? ' is-exiting' : ''}${reducedMotion || !visiblePage ? ' is-still' : ''}`}
+    data-theme={isDarkTheme ? 'dark' : 'light'} aria-labelledby="cashout-startup-title">
+    <div className="cashout-startup-rain" aria-hidden="true">{rain.map((column, index) =>
+      <span key={index} className={column.blue ? 'is-blue' : ''} style={{
+        left: column.left, animationDuration: column.duration, animationDelay: column.delay, opacity: column.opacity,
+      }}>{column.text}</span>)}</div>
+    <div className="cashout-startup-atmosphere" aria-hidden="true" />
+
+    <header className="cashout-startup-header">
+      <span className="cashout-startup-origin"><span aria-hidden="true">✦</span> ZENMILLIONAIRES</span>
+      <span className="cashout-startup-edition">A NEW PERSPECTIVE</span>
+    </header>
+
+    <div className="cashout-startup-composition">
+      <div className="cashout-startup-art" aria-hidden="true">
+        <div className="cashout-startup-orbit" />
+        <div className="cashout-startup-orbit is-inner" />
+        <div className="cashout-startup-media">
+          <img src={peacockPoster} alt="" width="480" height="360" draggable="false" />
+          {!reducedMotion && !videoFailed && <video ref={videoRef} autoPlay loop muted playsInline preload="metadata"
+            className={videoReady ? 'is-ready' : ''} poster={peacockPoster}
+            onPlaying={() => setVideoReady(true)} onWaiting={() => setVideoReady(false)}
+            onStalled={() => setVideoReady(false)} onError={() => { setVideoReady(false); setVideoFailed(true); }}
+            disablePictureInPicture tabIndex={-1}>
+            <source src={peacockVideo} type="video/mp4" />
+          </video>}
+          <div className="cashout-startup-media-shade" />
+        </div>
+        <span className="cashout-startup-corner is-top" />
+        <span className="cashout-startup-corner is-bottom" />
       </div>
 
-      {/* Main Logo Container with Neon Border */}
-      <div className="relative z-10 flex flex-col items-center justify-center">
-        {/* Neon Border Container */}
-        <div className="relative p-6">
-          {/* Animated Neon Border */}
-          <div 
-            className="absolute inset-0 rounded-lg border-4 border-transparent"
-            style={{
-              background: 'linear-gradient(45deg, #00ff00, #0088ff, #ff00ff, #ffff00, #00ff00) border-box',
-              WebkitMask: 'linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)',
-              WebkitMaskComposite: 'subtract',
-              mask: 'linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)',
-              maskComposite: 'subtract',
-              animation: 'neonRotate 2s linear infinite'
-            }}
-          />
-          
-          {/* Inner Glow */}
-          <div className="absolute inset-2 rounded-lg bg-gradient-to-r from-green-400/20 to-blue-400/20 blur-lg" />
-          
-          {/* Peacock Animation Video */}
-          <div className="relative w-48 h-32 flex items-center justify-center bg-black/80 rounded-lg backdrop-blur-sm overflow-hidden">
-            {/* Fallback content - always visible behind video */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center h-full w-full">
-              <div className="text-5xl mb-2 animate-pulse">🦚</div>
-              <div className="text-xl font-bold text-green-400 tracking-wider">
-                ARGUS AI
-              </div>
-              <div className="text-sm text-green-300">
-                CashOut Trading Platform
-              </div>
-            </div>
-            {/* Video overlays fallback when it plays */}
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="auto"
-              className="absolute inset-0 w-full h-full object-cover rounded-lg z-10"
-              style={{ filter: 'brightness(1.2) contrast(1.1)' }}
-              onError={(e) => {
-                console.log('Video error, hiding video element');
-                e.target.style.display = 'none';
-              }}
-            >
-              <source src={peacockVideo} type="video/mp4" />
-            </video>
-          </div>
+      <section className="cashout-startup-welcome">
+        <p className="cashout-startup-eyebrow"><span aria-hidden="true" /> SEE THE MARKET DIFFERENTLY</p>
+        <h1 id="cashout-startup-title">CashOut<span>AI</span></h1>
+        <p className="cashout-startup-description">Your perspective. Your practice.<br />Your next move.</p>
+        <div className="cashout-startup-actions">
+          <button type="button" onClick={finish} disabled={leaving} className="cashout-startup-enter">
+            Enter CashOutAI <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+          <p>Intro ends automatically · Continue any time</p>
         </div>
-
-        {/* Loading Text */}
-        <div className="mt-8 text-center">
-          <div className="text-lg font-semibold text-green-400 mb-2">
-            Initializing Trading Platform{dots}
-          </div>
-          <div className="text-sm text-green-300/70">
-            Connecting to market data streams
-          </div>
-        </div>
-      </div>
-
-      {/* CSS Animations */}
-      <style jsx>{`
-        @keyframes matrixFallDown {
-          0% { transform: translateY(-150vh); opacity: 0; }
-          2% { opacity: 1; }
-          98% { opacity: 1; }
-          100% { transform: translateY(150vh); opacity: 0; }
-        }
-        
-        @keyframes matrixFallUp {
-          0% { transform: translateY(150vh); opacity: 0; }
-          2% { opacity: 1; }
-          98% { opacity: 1; }
-          100% { transform: translateY(-150vh); opacity: 0; }
-        }
-        
-        @keyframes neonRotate {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        
-        @keyframes pulse {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 1; }
-        }
-        
-        /* Ensure continuous rain for the full duration with longer columns and better timing */
-        .matrix-column-down {
-          animation: matrixFallDown 5s linear infinite !important;
-        }
-        
-        .matrix-column-up {
-          animation: matrixFallUp 5s linear infinite !important;
-        }
-      `}</style>
+      </section>
     </div>
-  );
-};
 
-export default LoadingScreen;
+    <footer className="cashout-startup-footer">
+      <span>OBSERVE <i aria-hidden="true" /> PRACTICE <i aria-hidden="true" /> REVIEW</span>
+      <span className="cashout-startup-signature">CASHOUTAI <b aria-hidden="true">/</b> ZENMILLIONAIRES</span>
+    </footer>
+  </main>;
+}

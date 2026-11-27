@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const AchievementsTab = ({ currentUser, isDarkTheme }) => {
-  const [achievements, setAchievements] = useState({ earned: [], available: [] });
+  const [achievements, setAchievements] = useState({ earned: [], available: [], total_available: 0 });
   const [loading, setLoading] = useState(true);
 
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -15,13 +15,23 @@ const AchievementsTab = ({ currentUser, isDarkTheme }) => {
   const fetchAchievements = async () => {
     try {
       const response = await axios.get(`${API}/users/${currentUser.id}/achievements`);
-      setAchievements(response.data);
+      // Keep earned badges and XP; old referral descriptions must not advertise
+      // the cash-prize experiment that is excluded from this release.
+      const present = achievement => achievement.id === 'referral_master' || achievement.cash_prize_eligible
+        ? { ...achievement, icon: '🤝', description: achievement.id === 'referral_master' ? 'Welcome a new member to the community.' : 'A community achievement recognized with XP.' }
+        : achievement;
+      const earned = (Array.isArray(response.data.earned) ? response.data.earned : []).map(present);
+      const available = (Array.isArray(response.data.available) ? response.data.available : []).map(present);
+      setAchievements({ earned, available, total_available: earned.length + available.length });
     } catch (error) {
       console.error('Error fetching achievements:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  const completion = achievements.total_available > 0
+    ? Math.min(100, Math.round(achievements.earned.length / achievements.total_available * 100)) : 0;
 
   if (loading) {
     return (
@@ -46,6 +56,8 @@ const AchievementsTab = ({ currentUser, isDarkTheme }) => {
           </div>
         </div>
 
+        <p className={`text-sm mb-6 ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>Build your community record with XP, levels, and badges. Your earned achievements stay with your account.</p>
+
         {/* Progress Overview */}
         <div className={`p-4 rounded-lg mb-6 ${
           isDarkTheme ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
@@ -55,7 +67,7 @@ const AchievementsTab = ({ currentUser, isDarkTheme }) => {
               Achievement Progress
             </span>
             <span className={`text-sm ${isDarkTheme ? 'text-gray-400' : 'text-gray-600'}`}>
-              {Math.round((achievements.earned.length / achievements.total_available) * 100)}% Complete
+              {completion}% Complete
             </span>
           </div>
           <div className={`w-full h-3 rounded-full ${
@@ -63,7 +75,7 @@ const AchievementsTab = ({ currentUser, isDarkTheme }) => {
           }`}>
             <div 
               className="h-3 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full transition-all duration-300"
-              style={{ width: `${(achievements.earned.length / achievements.total_available) * 100}%` }}
+              style={{ width: `${completion}%` }}
             ></div>
           </div>
         </div>

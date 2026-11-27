@@ -1,0 +1,21 @@
+# Match the already-passing synthetic recovery CI without changing live deps.
+-c ../../backend/requirements.txt
+aiohttp
+bcrypt
+fastapi
+h11
+httpx
+limits
+motor
+playwright
+pydantic
+pymongo
+pytest
+python-dotenv
+python-multipart
+requests
+resend
+slowapi
+starlette
+uvicorn
+websockets

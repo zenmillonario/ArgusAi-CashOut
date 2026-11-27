@@ -1,6 +1,7 @@
-// Firebase integration for ArgusAI CashOut notifications
 import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
+import { sameSession, sessionHeaders } from './sessionAuth.mjs';
+import { normalizeStockAlertPayload, webPushCapability } from './stockNotifications.mjs';
 
 // Firebase client config (public keys — safe to include in client code)
 // These must match the config in firebase-messaging-sw.js
@@ -16,286 +17,172 @@ const firebaseConfig = {
 // VAPID key for push notifications
 const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY || "BCFwFhta05moYQ1dkY6Q1YjWCkGoOOCopnT19IwCzMP62X7RTKIPXUSV4ZQvWAq93QNJKUpV_1yjt42htBcfLvg";
 
-// Mobile browser detection
-const isMobileBrowser = () => {
-  const userAgent = navigator.userAgent.toLowerCase();
-  const mobileKeywords = ['android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone', 'mobile'];
-  return mobileKeywords.some(keyword => userAgent.includes(keyword));
-};
+const result = (ok, status, message) => ({ ok, status, message });
+const stale = () => result(false, 'off', 'This login has changed.');
+const API_URL = `${(process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '')}/api`;
 
-// Check if Firebase messaging is supported
-const isFirebaseSupported = () => {
-  if (isMobileBrowser()) {
-    console.log('[FCM] Disabled on mobile browsers for compatibility');
-    return false;
-  }
-  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
-};
-
-// Initialize Firebase app
-let app = null;
-try {
-  app = initializeApp(firebaseConfig);
-  console.log('[FCM] Firebase app initialized');
-} catch (error) {
-  console.error('[FCM] Firebase app init failed:', error.message);
+async function contextForSession(session) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${session.id}\0${session.active_session_id}`));
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Initialize messaging only if supported and app was created
-let messaging = null;
-if (app && isFirebaseSupported()) {
-  try {
-    messaging = getMessaging(app);
-    console.log('[FCM] Firebase messaging initialized');
-  } catch (error) {
-    console.warn('[FCM] Messaging initialization failed:', error.message);
-    messaging = null;
-  }
-}
+const waitForActiveWorker = registration => new Promise((resolve, reject) => {
+  // After a deployment an older worker may still be active while the stock-only
+  // worker installs. Wait for that update before sending its settings protocol.
+  const worker = registration.installing || registration.waiting || registration.active;
+  if (worker && (worker.state === 'activated' || (!registration.installing && !registration.waiting && registration.active))) { resolve(registration); return; }
+  if (!worker) { reject(new Error('No notification worker is available.')); return; }
+  const timer = setTimeout(() => { worker.removeEventListener('statechange', changed); reject(new Error('The notification worker did not become ready.')); }, 12000);
+  const changed = () => {
+    if (worker.state === 'activated') { clearTimeout(timer); worker.removeEventListener('statechange', changed); resolve(registration); }
+    else if (worker.state === 'redundant') { clearTimeout(timer); worker.removeEventListener('statechange', changed); reject(new Error('The notification worker could not start.')); }
+  };
+  worker.addEventListener('statechange', changed);
+  changed();
+});
 
-// Wait for service worker to become active
-const waitForSWActive = (registration) => {
-  return new Promise((resolve) => {
-    if (registration.active) {
-      resolve(registration);
-      return;
-    }
-    const sw = registration.installing || registration.waiting;
-    if (sw) {
-      sw.addEventListener('statechange', () => {
-        if (sw.state === 'activated') {
-          resolve(registration);
-        }
-      });
-    } else {
-      resolve(registration);
-    }
+// Acknowledgements prevent the UI from claiming push is ready before the worker
+// has persisted its stock-only setting. No credentials are sent to the worker.
+function messageWorker(registration, message) {
+  return new Promise((resolve, reject) => {
+    const worker = registration?.active;
+    if (!worker) { reject(new Error('The notification worker is not active.')); return; }
+    const channel = new MessageChannel();
+    const timer = setTimeout(() => { channel.port1.close(); reject(new Error('The notification worker did not respond.')); }, 7000);
+    channel.port1.onmessage = event => {
+      clearTimeout(timer); channel.port1.close();
+      if (event.data?.ok) resolve(event.data);
+      else reject(new Error('The notification setting could not be saved on this browser.'));
+    };
+    worker.postMessage(message, [channel.port2]);
   });
-};
+}
 
-class NotificationService {
+export class NotificationService {
   constructor() {
+    this.session = null;
+    this.context = null;
     this.token = null;
-    this.isSupported = messaging !== null;
-    this.messaging = messaging;
+    this.registration = null;
+    this.messaging = null;
+    this.unsubscribe = null;
+    this.stocksEnabled = false;
+    this.generation = 0;
   }
 
-  async requestPermission() {
-    if (!this.isSupported) return false;
-    try {
-      const permission = await Notification.requestPermission();
-      console.log('[FCM] Notification permission:', permission);
-      return permission === 'granted';
-    } catch (error) {
-      console.error('[FCM] Error requesting permission:', error);
-      return false;
-    }
-  }
-
-  async registerServiceWorker() {
-    if (!this.isSupported) return false;
-    try {
-      // Unregister stale service workers to ensure the latest version is used
-      const existingRegistrations = await navigator.serviceWorker.getRegistrations();
-      for (const reg of existingRegistrations) {
-        if (reg.active && reg.active.scriptURL.includes('firebase-messaging-sw.js')) {
-          await reg.update();
-        }
-      }
-      
-      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-      console.log('[FCM] Service Worker registered, scope:', registration.scope);
-      
-      // Wait for SW to be active before returning
-      await waitForSWActive(registration);
-      console.log('[FCM] Service Worker is active');
-      return registration;
-    } catch (error) {
-      console.error('[FCM] Service Worker registration failed:', error);
-      return false;
-    }
-  }
-
-  async getNotificationToken() {
-    if (!this.isSupported) return null;
-
-    try {
-      const registration = await this.registerServiceWorker();
-      if (!registration) return null;
-
-      const hasPermission = await this.requestPermission();
-      if (!hasPermission) return null;
-
-      if (!this.messaging) {
-        console.warn('[FCM] Messaging not available');
-        return null;
-      }
-      
-      if (!VAPID_KEY) {
-        console.error('[FCM] VAPID key is missing — check REACT_APP_FIREBASE_VAPID_KEY');
-        return null;
-      }
-
-      const token = await getToken(this.messaging, {
-        vapidKey: VAPID_KEY,
-        serviceWorkerRegistration: registration
-      });
-
-      if (token) {
-        console.log('[FCM] Token obtained:', token.substring(0, 20) + '...');
-        this.token = token;
-        return token;
-      } else {
-        console.warn('[FCM] No registration token available');
-        return null;
-      }
-    } catch (error) {
-      console.error('[FCM] Error getting token:', error);
-      return null;
-    }
-  }
-
-  async sendTokenToBackend(token, userId) {
-    try {
-      const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-      const API_URL = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
-      const response = await fetch(`${API_URL}/fcm/register-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, user_id: userId })
-      });
-
-      if (response.ok) {
-        console.log('[FCM] Token registered with backend');
-        return true;
-      } else {
-        const errText = await response.text();
-        console.error('[FCM] Failed to register token:', errText);
-        return false;
-      }
-    } catch (error) {
-      console.error('[FCM] Error sending token to backend:', error);
-      return false;
-    }
-  }
-
-  async initializeForUser(userId) {
-    if (!this.isSupported) {
-      console.log('[FCM] Push notifications not supported in this browser');
-      return false;
-    }
-
-    try {
-      const token = await this.getNotificationToken();
-      if (!token) return false;
-
-      const success = await this.sendTokenToBackend(token, userId);
-      if (!success) return false;
-
-      this.setupForegroundListener();
-      console.log('[FCM] Notifications initialized for user:', userId);
-      return true;
-    } catch (error) {
-      console.error('[FCM] Error initializing notifications:', error);
-      return false;
-    }
-  }
-
-  setupForegroundListener() {
-    if (!this.messaging) return;
-    
-    onMessage(this.messaging, (payload) => {
-      console.log('[FCM] Foreground message received:', payload);
-
-      this.playNotificationSound();
-
-      if (Notification.permission === 'granted') {
-        const notification = new Notification(
-          payload.notification?.title || 'ArgusAI CashOut',
-          {
-            body: payload.notification?.body || 'New notification',
-            icon: '/icon-192x192.png',
-            badge: '/badge-72x72.png',
-            tag: 'argusai-notification',
-            renotify: true,
-            requireInteraction: true,
-            data: payload.data
-          }
-        );
-
-        notification.onclick = () => {
-          window.focus();
-          notification.close();
-        };
-
-        setTimeout(() => notification.close(), 5000);
-      }
+  getCapability() {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return webPushCapability();
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return webPushCapability({
+      secure: window.isSecureContext === true,
+      serviceWorker: 'serviceWorker' in navigator,
+      pushManager: 'PushManager' in window,
+      notification: 'Notification' in window,
+      permission: 'Notification' in window ? Notification.permission : 'default',
+      isIos,
+      standalone: Boolean(navigator.standalone || window.matchMedia?.('(display-mode: standalone)').matches),
     });
   }
 
-  playNotificationSound() {
+  get isSupported() { return this.getCapability().ok; }
+
+  // Call directly in the button handler, before any network await. iOS requires
+  // the permission request itself to happen during the user's click gesture.
+  requestPermissionForStocks() {
+    const capability = this.getCapability();
+    if (!capability.ok) return Promise.resolve(capability);
+    if (Notification.permission === 'granted') return Promise.resolve(result(true, 'ready', 'Stock notification permission is allowed.'));
     try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      
-      const createBeep = (frequency, duration, delay = 0) => {
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            oscillator.frequency.value = frequency;
-            oscillator.type = 'sine';
-            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + duration);
-            setTimeout(resolve, duration * 1000);
-          }, delay);
-        });
-      };
-      
-      createBeep(800, 0.15).then(() => createBeep(600, 0.15));
-    } catch (error) {
-      console.log('[FCM] Could not play notification sound:', error);
+      const permission = Notification.requestPermission();
+      return Promise.resolve(permission).then(value => value === 'granted'
+        ? result(true, 'ready', 'Stock notification permission is allowed.')
+        : result(false, value === 'denied' ? 'permission-denied' : 'off', value === 'denied' ? 'Notifications are blocked in this browser. You can change this in browser settings.' : 'Stock notifications remain off.'));
+    } catch (_) { return Promise.resolve(result(false, 'error', 'The browser could not request notification permission.')); }
+  }
+
+  async initializeForUser(userId, sessionId, { stocksEnabled = false } = {}) {
+    const session = { id: userId, active_session_id: sessionId };
+    if (!userId || !sessionId) return stale();
+    if (this.session && !sameSession(this.session, session)) this.clearSession(this.session);
+    this.session = session;
+    const generation = ++this.generation;
+    const current = () => generation === this.generation && sameSession(this.session, session);
+    this.unsubscribe?.(); this.unsubscribe = null;
+    this.stocksEnabled = stocksEnabled === true;
+    if (!this.stocksEnabled) {
+      await this.disableStockNotifications(session);
+      return result(true, 'off', 'Stock push notifications are off.');
+    }
+    const capability = this.getCapability();
+    if (!capability.ok) return capability;
+    // A saved preference never opens a browser permission prompt automatically.
+    if (Notification.permission !== 'granted') return result(false, 'permission-needed', 'Choose Enable stock alerts to allow notifications on this browser.');
+    try {
+      if (!await isSupported()) return result(false, 'unsupported', 'Firebase messaging is unavailable in this browser. The stock feed still works.');
+      if (!current()) return stale();
+      if (!this.messaging) this.messaging = getMessaging(initializeApp(firebaseConfig));
+      const registration = await waitForActiveWorker(await navigator.serviceWorker.register('/firebase-messaging-sw.js'));
+      if (!current()) return stale();
+      this.registration = registration;
+      const context = await contextForSession(session);
+      if (!current()) return stale();
+      this.context = context;
+      const token = await getToken(this.messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
+      if (!current()) return stale();
+      if (!token) throw new Error('No notification token is available.');
+      const response = await fetch(`${API_URL}/fcm/register-token`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...sessionHeaders(session) },
+        body: JSON.stringify({ token, user_id: userId }),
+      });
+      if (!current()) return stale();
+      if (!response.ok) throw new Error('Notification registration was rejected.');
+      await messageWorker(registration, { type: 'STOCK_PUSH_SET_CONTEXT', context, enabled: true });
+      if (!current()) {
+        // A later login has a different context; the worker clears only this one.
+        await messageWorker(registration, { type: 'STOCK_PUSH_CLEAR_CONTEXT', context }).catch(() => {});
+        return stale();
+      }
+      this.token = token;
+      this.unsubscribe = onMessage(this.messaging, payload => {
+        if (!current() || !this.stocksEnabled) return;
+        const alert = normalizeStockAlertPayload(payload);
+        if (!alert || alert.notification_context !== this.context) return;
+        window.dispatchEvent(new CustomEvent('cashoutai:stock-alert', { detail: alert }));
+        // The same worker handles foreground and background dedup, including when
+        // several tabs share this permitted login.
+        messageWorker(registration, { type: 'STOCK_PUSH_DISPLAY', payload }).catch(() => {});
+      });
+      return result(true, 'enabled', 'Stock alerts are enabled for this login and browser.');
+    } catch (_) {
+      if (!current()) return stale();
+      this.stocksEnabled = false;
+      this.unsubscribe?.(); this.unsubscribe = null;
+      const context = this.context;
+      if (context && this.registration) await messageWorker(this.registration, { type: 'STOCK_PUSH_CLEAR_CONTEXT', context }).catch(() => {});
+      return result(false, 'error', 'Stock notifications could not be connected. You can still read alerts here and try again.');
     }
   }
 
-  async testNotification() {
-    if (this.token) {
-      try {
-        const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-        const API_URL = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
-        const response = await fetch(`${API_URL}/fcm/test-notification`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: this.token })
-        });
+  async disableStockNotifications(session = this.session) {
+    if (session && this.session && !sameSession(this.session, session)) return stale();
+    ++this.generation;
+    this.stocksEnabled = false;
+    this.unsubscribe?.(); this.unsubscribe = null;
+    try {
+      const context = this.context || (session?.id && session?.active_session_id && typeof crypto !== 'undefined' && crypto.subtle ? await contextForSession(session) : null);
+      const registration = this.registration || (typeof navigator !== 'undefined' && 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js') : null);
+      if (context && registration?.active) await messageWorker(registration, { type: 'STOCK_PUSH_CLEAR_CONTEXT', context });
+    } catch (_) { return result(false, 'error', 'The account setting is off. Reload this browser to finish clearing its notification setting.'); }
+    return result(true, 'off', 'Stock push notifications are off.');
+  }
 
-        if (response.ok) {
-          console.log('[FCM] Test notification sent');
-          return true;
-        } else {
-          console.error('[FCM] Test notification failed');
-          return false;
-        }
-      } catch (error) {
-        console.error('[FCM] Error sending test notification:', error);
-        return false;
-      }
-    }
-    console.warn('[FCM] No token available for test notification');
-    return false;
+  clearSession(session) {
+    if (this.session && !sameSession(this.session, session)) return;
+    this.disableStockNotifications(session).catch(() => {});
+    this.session = null; this.context = null; this.token = null;
   }
 }
 
 const notificationService = new NotificationService();
-
 export default notificationService;
 
-export const {
-  initializeForUser,
-  testNotification,
-  playNotificationSound,
-  requestPermission
-} = notificationService;
