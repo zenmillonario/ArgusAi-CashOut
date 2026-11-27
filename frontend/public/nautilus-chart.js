@@ -6,13 +6,14 @@
 const NAUTILUS_RESONANCE_ARCHIVE_LIMIT=96;
 class NautilusChart {
   static BUILD_ID='0.0.8.4';
-  static DISPLAY_REVISION='NAUTILUS_PHYSICAL_LEG_GUIDE_0070';
+  static DISPLAY_REVISION='CASHOUT_NAUTILUS_COCKPIT_20261127';
   constructor(canvas, tooltip, onSelect) {
     this._listeners=[];this.destroyed=false;
     this.canvas=canvas; this.ctx=canvas.getContext('2d'); this.tooltip=tooltip;
     this.onSelect=onSelect; this.data=null; this.follow=true; this.end=null;
     this.fontScale=1; this.touches=new Map(); this.pinch=null; this.span=7200; this.fitTarget=false; this.manualY=null; this.manualDockY=null; this.dockRange=null; this.selected=null;
     this.showLookingGlass=true; this.reviewMode=false; this.viewportSpan=null;
+    this.showLookingGlassInfo=true; this.onLookingGlassInfo=null; this.lookingGlassInfoKey=null;
     this.pointer=null; this.drag=null; this.markers=[]; this.ratio=.88; this.raf=0;
     // History and forecast have explicit, separate time scales. The dock starts
     // at the original 30% split, gains spare price-label space, and stays 15 minutes.
@@ -55,7 +56,7 @@ class NautilusChart {
     if(this.raf)cancelAnimationFrame(this.raf);
     if(this.pulseTimer!==null)clearTimeout(this.pulseTimer);
     for(const [target,type,handler,options] of this._listeners)target.removeEventListener(type,handler,options);
-    this._listeners=[];this.raf=0;this.pulseTimer=null;this.data=null;
+    this._listeners=[];this.raf=0;this.pulseTimer=null;this.data=null;this.onLookingGlassInfo=null;
   }
   saveSpan(){try{localStorage.setItem('nautilus.span',String(this.span));}catch(e){}}
   viewSpan(){return this.viewportSpan??this.span;}
@@ -178,6 +179,7 @@ class NautilusChart {
     const runKey=this.runKey(data);
     if(runKey===null||(this.forecastRunKey!==null&&this.forecastRunKey!==runKey)){
       this.forecastArchive.clear();this.featuredArchive.clear();this.lastFeaturedForecast=null;
+      this.lookingGlassInfoKey=null;
       this.lastObservedRange=null;
       this.dockRange=null;this.manualDockY=null;this.pinnedForecastRange=null;this.inspectionForecastRange=null;
       this.lastForecast=null;this.pinnedForecast=null;this.pinnedForecastWindow=null;
@@ -1260,22 +1262,27 @@ class NautilusChart {
       if(guide.projectedPoints.length)
         captions.push(['PULSING DASH = CONDITIONAL · NOT A TRADE SIGNAL',88,'#a3bed2',8]);
     }
-    // Draw this plate after the paths and before the text. A steep conditional
-    // line may pass underneath, but cannot obscure source/status provenance.
-    c.save();
-    const visibleCaptions=captions.filter(([,offset])=>offset<=this.dockPlotTop()-this.top-6);
-    const captionWidth=Math.min(Math.max(0,this.forecastW-8),Math.max(0,...visibleCaptions.map(([text,, ,size])=>{
-      c.font=`${size*this.fontScale}px "Segoe UI",sans-serif`;
-      const measured=c.measureText(text)?.width;
-      return Number.isFinite(measured)?measured:text.length*size*this.fontScale*.6;
-    }))+8),captionHeight=Math.max(0,Math.min(this.dockPlotTop()-this.top-2,(visibleCaptions.at(-1)?.[1]||0)+6));
-    // Keep the compact source plate away from the live anchor. The plotting
-    // transform itself never moves down to make room for this annotation.
-    const anchorY=this.dockY(view.paths?.[0]?.points?.[0]?.btc);
-    const captionTop=Number.isFinite(anchorY)&&anchorY<this.top+captionHeight+24?
-      Math.max(this.top,this.mainBottom-captionHeight-58):this.top;
-    c.fillStyle='#07151ef2';c.fillRect(this.dockLeft+4,captionTop+2,captionWidth,captionHeight);c.restore();
-    for(const [text,offset,color,size]of visibleCaptions)this.text(text,this.dockLeft+8,captionTop+offset,color,size);
+    // Embedded rooms render the same provenance in an accessible disclosure
+    // outside the canvas. Emit only changed text, not every animation frame.
+    const information=captions.map(([text])=>text),informationKey=JSON.stringify([this.data?.asset?.symbol??null,information]);
+    if(typeof this.onLookingGlassInfo==='function'&&informationKey!==this.lookingGlassInfoKey){
+      this.lookingGlassInfoKey=informationKey;
+      this.onLookingGlassInfo(information);
+    }
+    if(this.showLookingGlassInfo!==false){
+      c.save();
+      const visibleCaptions=captions.filter(([,offset])=>offset<=this.dockPlotTop()-this.top-6);
+      const captionWidth=Math.min(Math.max(0,this.forecastW-8),Math.max(0,...visibleCaptions.map(([text,, ,size])=>{
+        c.font=`${size*this.fontScale}px "Segoe UI",sans-serif`;
+        const measured=c.measureText(text)?.width;
+        return Number.isFinite(measured)?measured:text.length*size*this.fontScale*.6;
+      }))+8),captionHeight=Math.max(0,Math.min(this.dockPlotTop()-this.top-2,(visibleCaptions.at(-1)?.[1]||0)+6));
+      const anchorY=this.dockY(view.paths?.[0]?.points?.[0]?.btc);
+      const captionTop=Number.isFinite(anchorY)&&anchorY<this.top+captionHeight+24?
+        Math.max(this.top,this.mainBottom-captionHeight-58):this.top;
+      c.fillStyle='#07151ef2';c.fillRect(this.dockLeft+4,captionTop+2,captionWidth,captionHeight);c.restore();
+      for(const [text,offset,color,size]of visibleCaptions)this.text(text,this.dockLeft+8,captionTop+offset,color,size);
+    }
     c.restore();
     if(this.focusVisual){
       // Explicit rollover boundary: decorative pulse only, never a trading signal.

@@ -1,0 +1,51 @@
+name: CashOutAI frontend checks
+
+'on':
+  push:
+    branches:
+      - 'codex/cashoutai-cockpit-*'
+    paths:
+      - '.github/workflows/cashout-frontend.yml'
+      - 'frontend/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cashout-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend build and existing model checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the triggering commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Use the production Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.16.0'
+
+      - name: Install the existing locked frontend
+        run: |
+          npm install --global yarn@1.22.22 --ignore-scripts --no-audit --no-fund
+          yarn --cwd frontend install --frozen-lockfile --non-interactive
+
+      - name: Validate the native chart and frontend models
+        run: |
+          node --check frontend/public/nautilus-chart.js
+          node --test frontend/src/*.test.mjs frontend/src/*/*.test.mjs
+
+      - name: Compile the production frontend
+        env:
+          CI: 'true'
+          REACT_APP_BACKEND_URL: ''
+          PUBLIC_URL: ''
+          GENERATE_SOURCEMAP: 'false'
+        run: yarn --cwd frontend build

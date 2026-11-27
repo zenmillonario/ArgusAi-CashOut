@@ -9,7 +9,7 @@ export function loadNautilusChart() {
   if (window.NautilusChart) return Promise.resolve();
   if (!chartScriptPromise) chartScriptPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `${process.env.PUBLIC_URL || ''}/nautilus-chart.js`;
+    script.src = `${process.env.PUBLIC_URL || ''}/nautilus-chart.js?view=cockpit-20261127`;
     script.onload = () => { window.dispatchEvent(new Event('nautilus:ready')); resolve(); };
     script.onerror = () => { chartScriptPromise = null; script.remove(); reject(new Error('The Nautilus chart could not load.')); };
     document.head.appendChild(script);
