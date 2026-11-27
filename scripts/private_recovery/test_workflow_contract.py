@@ -115,6 +115,7 @@ class WorkflowContractTests(unittest.TestCase):
             ("configuration", "SNAPSHOT_ARCHIVE_URL_MISMATCH"),
             ("configuration", "PRIVATE_PARENT_DIRECTORY_REFUSED"),
             ("restored_rehearsal", "INSUFFICIENT_PRIVATE_DISK"),
+            ("restored_rehearsal", "INSUFFICIENT_PRIVATE_EXPANSION_DISK"),
             ("restored_rehearsal", "SNAPSHOT_DOWNLOAD_HTTP_FAILED"),
             ("restored_rehearsal", "SOURCE_FCV_REFUSED"),
             ("restored_rehearsal", "ELIGIBLE_RESTORED_ACCOUNTS_UNAVAILABLE"),

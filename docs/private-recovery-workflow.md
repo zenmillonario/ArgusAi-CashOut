@@ -65,6 +65,8 @@ Keep the archive filename timestamp's provenance separate from the Dashboard's d
 
 Leave all snapshot material absent for `synthetic_preflight`. Do not attach production environment groups, database connection strings, email credentials, Firebase credentials, or payment secrets. Remove snapshot configuration after the restored task reaches its terminal result.
 
+Storage is checked in stages. Before download, require free space for the declared maximum archive plus a 64 MiB reserve. After download, the bounded gzip/tar preflight measures the complete expansion without writing extracted files. Before extraction, require free space for four times that measured expansion plus the same reserve. The downloaded archive already occupies disk at the second check and is not counted twice. The declared archive and expansion limits still apply; insufficient space is a refusal before the next storage stage.
+
 ## Execution sequence
 
 1. Review and pin the exact prepared source revision. Create only the separate workflow described above. Verify both task definitions have the declared compute, timeout, and zero-retry settings.

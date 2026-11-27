@@ -253,7 +253,7 @@ def download_archive(plan, path, session, deadline):
 
 
 def preflight_tar(archive, maximum, member_limit):
-    """Bound gzip expansion and tar extension headers before tarfile parses them."""
+    """Bound and measure every expanded byte before tarfile parses the archive."""
     consumed = 0
     members = 0
     with gzip.open(archive, "rb") as stream:
@@ -268,7 +268,7 @@ def preflight_tar(archive, maximum, member_limit):
                 while True:
                     padding = stream.read(CHUNK)
                     if not padding:
-                        return
+                        return consumed
                     consumed += len(padding)
                     require(consumed <= maximum and not padding.strip(b"\0"), "ARCHIVE_TRAILER_REFUSED")
             info = tarfile.TarInfo.frombuf(header, "utf-8", "surrogateescape")
@@ -289,6 +289,7 @@ def preflight_tar(archive, maximum, member_limit):
                 if extension:
                     extension_data.extend(part)
             require(not extension or b"GNU.sparse" not in extension_data, "ARCHIVE_SPARSE_REFUSED")
+    return consumed
 
 
 def safe_member_path(root, name):
@@ -303,7 +304,12 @@ def safe_member_path(root, name):
 
 def extract_archive(archive, root, plan):
     maximum = plan.receipt["expanded_max_bytes"]
-    preflight_tar(archive, maximum, plan.receipt["member_limit"])
+    expanded_bytes = preflight_tar(archive, maximum, plan.receipt["member_limit"])
+    # The downloaded archive already occupies disk. Reserve extraction and
+    # Mongo copy space from the free bytes still available, without counting
+    # either the archive again or unused room beneath the declared hard cap.
+    require(shutil.disk_usage(root.parent).free >= 4 * expanded_bytes + 64 * CHUNK,
+            "INSUFFICIENT_PRIVATE_EXPANSION_DISK")
     root.mkdir(mode=0o700)
     files = set()
     size = 0
@@ -591,7 +597,7 @@ def execute(plan, root):
     logging.disable(logging.CRITICAL)
     environment = child_environment(root)
     (root / "tmp").mkdir(mode=0o700)
-    required_space = plan.receipt["archive_max_bytes"] + 4 * plan.receipt["expanded_max_bytes"] + 64 * CHUNK
+    required_space = plan.receipt["archive_max_bytes"] + 64 * CHUNK
     require(shutil.disk_usage(root).free >= required_space, "INSUFFICIENT_PRIVATE_DISK")
     boundary = NetworkBoundary(plan.receipt["download_host"], resolve_public_addresses(plan.receipt["download_host"]))
     sys.addaudithook(boundary)

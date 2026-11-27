@@ -250,6 +250,94 @@ class RestoredRecoveryTests(unittest.TestCase):
                 with self.assertRaises(runner.Refusal):
                     runner.download_archive(plan(), Path(temporary) / "archive", FakeSession(response), runner.time.monotonic() + 10)
 
+    def test_download_reserve_is_checked_before_dns_or_download(self):
+        value = {**receipt(), "expanded_max_bytes": 2 * runner.GIB}
+        selected = runner.Plan.from_environment(environment(value), NOW)
+        required = value["archive_max_bytes"] + 64 * runner.CHUNK
+        for free in (required - 1, required):
+            with self.subTest(free=free), tempfile.TemporaryDirectory() as temporary, \
+                    patch.object(runner.shutil, "disk_usage", return_value=SimpleNamespace(free=free)) as usage, \
+                    patch.object(runner, "resolve_public_addresses", side_effect=RuntimeError("synthetic-stop-before-dns")) as resolve, \
+                    patch.object(runner.sys, "addaudithook") as audit, \
+                    patch.object(runner, "download_archive") as download, \
+                    patch.object(runner.logging, "disable"):
+                root = Path(temporary)
+                expected = runner.Refusal if free < required else RuntimeError
+                code = "INSUFFICIENT_PRIVATE_DISK" if free < required else "synthetic-stop-before-dns"
+                with self.assertRaisesRegex(expected, "^" + code + "$"):
+                    runner.execute(selected, root)
+                usage.assert_called_once_with(root)
+                self.assertEqual(resolve.call_count, int(free == required))
+                audit.assert_not_called()
+                download.assert_not_called()
+                self.assertFalse((root / "snapshot.tar.gz").exists())
+                self.assertFalse((root / "raw").exists())
+
+    def test_preflight_measures_headers_member_padding_and_entire_zero_trailer(self):
+        pieces = []
+        for name, payload in (("data/WiredTiger", b"x"), ("data/WiredTiger.wt", b"y" * 513)):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            pieces.extend((info.tobuf(format=tarfile.USTAR_FORMAT), payload,
+                           b"\0" * (-len(payload) % 512)))
+        members = b"".join(pieces)
+        self.assertEqual(len(members), 2560)  # Two headers and 512/1024-byte padded payloads.
+        for trailer in (b"", b"\0" * 2560):
+            raw = members + trailer
+            with self.subTest(trailer_bytes=len(trailer)), tempfile.TemporaryDirectory() as temporary:
+                archive = Path(temporary) / "measured.tar.gz"
+                archive.write_bytes(gzip.compress(raw))
+                self.assertEqual(runner.preflight_tar(archive, len(raw), 2), len(raw))
+                with self.assertRaises(runner.Refusal):
+                    runner.preflight_tar(archive, len(raw) - 1, 2)
+
+    def test_insufficient_measured_reserve_refuses_before_extraction_directory_or_writes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "fixture.tar.gz"
+            write_tar(archive)
+            original = archive.read_bytes()
+            expanded = len(gzip.decompress(original))
+            required = 4 * expanded + 64 * runner.CHUNK
+            with patch.object(runner.shutil, "disk_usage", return_value=SimpleNamespace(free=required - 1)) as usage, \
+                    patch.object(runner.tarfile, "open") as extract:
+                with self.assertRaisesRegex(runner.Refusal, "^INSUFFICIENT_PRIVATE_EXPANSION_DISK$"):
+                    runner.extract_archive(archive, root / "raw", plan())
+                usage.assert_called_once_with(root)
+                extract.assert_not_called()
+            self.assertEqual(list(root.iterdir()), [archive])
+            self.assertEqual(archive.read_bytes(), original)
+
+    def test_exact_measured_reserve_admits_large_declared_cap_without_recounting_archive(self):
+        value = {**receipt(), "archive_max_bytes": runner.GIB, "expanded_max_bytes": 2 * runner.GIB}
+        selected = runner.Plan.from_environment(environment(value), NOW)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "fixture.tar.gz"
+            write_tar(archive)
+            expanded = len(gzip.decompress(archive.read_bytes()))
+            required = 4 * expanded + 64 * runner.CHUNK
+            self.assertLess(required, value["archive_max_bytes"])
+            self.assertLess(required, value["expanded_max_bytes"])
+            with patch.object(runner.shutil, "disk_usage", return_value=SimpleNamespace(free=required)) as usage:
+                dbpath = runner.extract_archive(archive, root / "raw", selected)
+                usage.assert_called_once_with(root)
+            self.assertEqual((dbpath / "WiredTiger").read_bytes(), b"synthetic marker")
+            self.assertEqual((dbpath / "WiredTiger.wt").read_bytes(), b"synthetic table")
+
+    def test_declared_expansion_cap_is_enforced_before_disk_admission_or_extraction(self):
+        selected = runner.Plan.from_environment(environment({**receipt(), "expanded_max_bytes": 512}), NOW)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "fixture.tar.gz"
+            write_tar(archive)
+            with patch.object(runner.shutil, "disk_usage") as usage, patch.object(runner.tarfile, "open") as extract:
+                with self.assertRaises(runner.Refusal):
+                    runner.extract_archive(archive, root / "raw", selected)
+                usage.assert_not_called()
+                extract.assert_not_called()
+            self.assertFalse((root / "raw").exists())
+
     def test_safe_archive_extracts_regular_files_privately(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
