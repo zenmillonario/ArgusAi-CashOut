@@ -130,6 +130,33 @@ The CashOutAI Team
 </html>"""
         return await self.send_email(admin_email, subject, plain_body, html_body)
 
+    async def send_event_registration_notification(
+        self, admin_email: str, user_data: dict
+    ) -> bool:
+        """Inform the admin of a saved free-event signup, not a paid approval."""
+        subject = "CashOutAI — New Free Event Participant"
+        fields = {
+            "Username": user_data.get("username") or "Not provided",
+            "Email": user_data.get("email") or "Not provided",
+            "Access": "Free Event Access",
+            "Expires": "Monday, November 30, 2026 at 11:59 PM Eastern",
+            "Payment": "Not required",
+            "Status at signup": "Awaiting email verification",
+        }
+        plain_details = "\n".join(f"{label}: {value}" for label, value in fields.items())
+        html_details = "".join(
+            f"<li><strong>{label}:</strong> {escape(str(value), quote=True)}</li>"
+            for label, value in fields.items()
+        )
+        note = ("The participant receives a separate verification link. Eligible event access is activated "
+                "automatically after email verification; no administrator approval is needed. "
+                "This notice does not confirm verification or a payment.")
+        plain = f"New free event signup\n\n{plain_details}\n\n{note}\n\nOpen Admin: {self.APP_URL}"
+        html = (f'<!doctype html><html lang="en"><body style="font-family:Arial,sans-serif;line-height:1.6">'
+                f'<h1>New Free Event Participant</h1><ul>{html_details}</ul><p>{note}</p>'
+                f'<p><a href="{self.APP_URL}">Open Admin</a></p></body></html>')
+        return await self.send_email(admin_email, subject, plain, html)
+
     async def send_trial_registration_notification(
         self,
         admin_email: str,

@@ -54,12 +54,18 @@ class PracticeEventTests(unittest.IsolatedAsyncioTestCase):
         self.environment = patch.dict(os.environ, {
             "PRACTICE_EVENT_ENABLED": "true", "PRACTICE_EVENT_STARTS_AT": "2026-11-25T00:00:00Z",
             "FRONTEND_URL": "https://event.example.test",
+            "ADMIN_EMAIL": "admin@example.test",
         })
         self.environment.start()
         self.addCleanup(self.environment.stop)
         self.db.users = EventCollection(self.db.users.rows)
         self.db.practice_event_limits = EventCollection()
         self.captured = []
+        self.admin_notices = []
+
+        async def capture_admin(recipient, data):
+            self.admin_notices.append((recipient, deepcopy(data)))
+            return True
         self.outcome = {"status": "sent", "provider_message_id": "synthetic-event-email"}
 
         async def capture(*args, **kwargs):
@@ -76,7 +82,8 @@ class PracticeEventTests(unittest.IsolatedAsyncioTestCase):
                       send_password_reset_confirmation=noop, process_login_rewards_async=noop,
                       get_level_from_xp=lambda _: 1,
                       hash_password=lambda password: hashlib.sha256(password.encode()).hexdigest(),
-                      email_service=SimpleNamespace(send_email=capture, send_registration_notification=noop))
+                      email_service=SimpleNamespace(send_email=capture, send_registration_notification=noop,
+                                                    send_event_registration_notification=capture_admin))
         self.n["manager"].send_session_invalidation = noop
         test = self
 
@@ -166,8 +173,12 @@ class PracticeEventTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.json()["status"], "pending")
         user_id = result.json()["id"]
         self.assertFalse(self.captured)
+        self.assertEqual(self.admin_notices, [("admin@example.test", {
+            "username": "new-learner", "email": "new@example.test",
+        })])
         token = await self.verification("new@example.test")
         self.assertEqual((await self.confirm(token)).status_code, 200)
+        self.assertEqual(len(self.admin_notices), 1)
         saved = await self.db.users.find_one({"id": user_id})
         self.assertTrue(active_membership(saved, self.clock))
         login = await self.client.post("/api/users/login", json={"username": "new-learner", "password": "good-password"})
@@ -194,6 +205,7 @@ class PracticeEventTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sum(response.status_code == 200 for response in results), 1)
         self.assertTrue(all(response.status_code in (200, 409) for response in results))
         self.assertEqual(sum(row.get("email") == "new@example.test" for row in self.db.users.rows), 1)
+        self.assertEqual(len(self.admin_notices), 1)
 
     async def test_existing_registration_is_never_recreated(self):
         original = await self.user()
@@ -203,6 +215,7 @@ class PracticeEventTests(unittest.IsolatedAsyncioTestCase):
         })
         self.assertEqual(result.status_code, 409)
         self.assertEqual(await self.user(), original)
+        self.assertEqual(self.admin_notices, [])
 
     async def test_profile_identity_updates_keep_normalized_registration_keys_current(self):
         await self.enroll()

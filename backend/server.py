@@ -2123,6 +2123,17 @@ async def register_user(request: Request, user_data: UserCreate, background_task
             raise HTTPException(409, detail="An account already uses this username or email. Sign in or recover your existing account.") from None
         raise
     
+    # Event signup is informational: the account is committed, but verification
+    # is still pending. Never route it into the paid approval notification.
+    if event_enrollment and email_service:
+        admin_email = os.getenv("ADMIN_EMAIL")
+        if admin_email:
+            background_tasks.add_task(
+                email_service.send_event_registration_notification,
+                admin_email,
+                {"username": username, "email": email},
+            )
+
     # Handle referral if provided
     if referral_code:
         background_tasks.add_task(handle_referral_signup, user.id, referral_code)

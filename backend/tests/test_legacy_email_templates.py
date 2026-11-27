@@ -132,6 +132,24 @@ class LegacyEmailTemplateTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("manual review", part)
         self.assertNotIn("<img", message["html"])
 
+    async def test_event_admin_notice_is_informational_and_escapes_member_fields(self):
+        service = self.service()
+        self.assertTrue(await service.send_event_registration_notification("admin@example.test", {
+            "username": "<img src=x>", "email": "member@example.test",
+            "password_hash": "must-not-leak", "practice_event_token_hash": "must-not-leak",
+        }))
+        self.assertEqual(len(self.sent), 1)
+        message = self.sent[0]
+        self.assertEqual(message["to"], ["admin@example.test"])
+        self.assertEqual(message["subject"], "CashOutAI — New Free Event Participant")
+        self.assertNotIn("<img", message["html"])
+        self.assertIn("&lt;img", message["html"])
+        for part in (message["text"], message["html"]):
+            self.assertIn("11:59 PM Eastern", part)
+            self.assertIn("Awaiting email verification", part)
+            self.assertIn("no administrator approval is needed", part)
+            self.assertNotIn("must-not-leak", part)
+
     async def test_account_decisions_keep_existing_identity_without_feature_or_rejection_guesses(self):
         for approved in (False, True):
             with self.subTest(approved=approved):
