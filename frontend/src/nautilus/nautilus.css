@@ -507,3 +507,231 @@
   .nw-strip-track { animation: none !important; transform: none !important; will-change: auto !important; }
   .nw-strip-copy { display: none; }
 }
+
+/* Compact room navigation and a chart-first instrument deck. The native canvas
+   receives real height here; metric cards never consume its minimum space. */
+.cashout-bot-tabs.cashout-bot-tabs-compact { display: flex; align-items: center; gap: 12px; padding: 4px 0; min-height: 52px; background: transparent; border-bottom-color: #225363; }
+.cashout-bot-tabs-compact, .cashout-bot-tabs-compact * { box-sizing: border-box; }
+.cashout-bot-tabs-compact .cashout-tabs-caption { flex: 0 0 auto; margin: 0; color: #86b9c8; font-size: 9px; letter-spacing: 1.3px; }
+.cashout-bot-tabs-compact .cashout-tabs-orbit { width: 7px; height: 7px; border-color: #3de0e9; box-shadow: 0 0 9px #19daea40; }
+.cashout-bot-tabs-compact .cashout-tab-scroll { flex: 1; min-width: 0; gap: 6px; }
+.cashout-bot-tabs.cashout-bot-tabs-compact .cashout-asset-tab { flex: 1 0 100px; min-height: 44px; height: 44px; padding: 5px 12px; gap: 9px; border: 1px solid #245061; border-radius: 7px; color: #a5c6d1; background: linear-gradient(180deg, #123747, #09212e); box-shadow: inset 0 1px #b0eaff0a, 0 2px 4px #0003; font-size: 13px; font-weight: 750; }
+.cashout-bot-tabs.cashout-bot-tabs-compact .cashout-asset-tab:hover { color: #f0fcff; border-color: #49a4b7; background: linear-gradient(180deg, #194858, #0d2e3c); }
+.cashout-bot-tabs.cashout-bot-tabs-compact .cashout-asset-tab.active { color: #f0ffff; border-color: #37cbdb; background: linear-gradient(160deg, #175363, #0a2a38); box-shadow: inset 0 1px #83f8ff44, 0 0 13px #00cfe318; }
+.cashout-bot-tabs-compact .cashout-asset-tab.active::after { left: 12px; right: 12px; bottom: 0; background: #4ce6f2; box-shadow: 0 -1px 10px #2be7f077; }
+.cashout-bot-tabs.cashout-bot-tabs-compact .cashout-asset-tab > span:nth-child(2) { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.cashout-bot-tabs.cashout-bot-tabs-compact .cashout-asset-tab small { display: inline; margin: 0; font-size: 10px; color: #8bb0be; font-weight: 500; }
+.cashout-bot-tabs.cashout-bot-tabs-compact .cashout-asset-symbol { width: 25px; height: 28px; font-size: 24px; }
+.cashout-bot-tabs-compact .asset-stocks > svg { width: 22px; height: 22px; }
+
+.nw-workspace.nw-cockpit { --nw-bg: #04141f; --nw-panel: #092432; --nw-border: #28566b; --nw-text: #effbff; --nw-muted: #9abfcd; --nw-soft: #7096a7; --nw-green: #55edc5; --nw-red: #ff939b; --nw-cyan: #3ce3f0; --nw-amber: #ffc166; --nw-radius: 11px; background: radial-gradient(ellipse at 42% 0%, #0b34442e, transparent 65%), var(--nw-bg); }
+.nw-cockpit .nw-workspace-toolbar { min-height: 52px; gap: 12px; padding: 6px 0; }
+.nw-cockpit .nw-room-title { gap: 10px; }
+.nw-cockpit .nw-asset-mark { width: 35px; height: 35px; border-radius: 9px; font-size: 25px; background: linear-gradient(145deg, #12394a, #081b29); border-color: #326274; box-shadow: inset 0 1px #a3efff24, 0 3px 8px #0003; }
+.nw-cockpit .nw-title-line { gap: 9px; }
+.nw-cockpit .nw-title-line h2 { font-size: 19px; font-weight: 750; letter-spacing: -.5px; }
+.nw-cockpit .nw-room-title p { font-size: 8px; letter-spacing: 1.5px; margin-top: 1px; color: #80c0ce; }
+.nw-cockpit .nw-toolbar-actions { gap: 6px; }
+.nw-cockpit .nw-toolbar-actions .nw-feed-badge { display: inline-flex; margin-right: 5px; font-size: 11px; font-weight: 650; }
+.nw-cockpit .nw-feed-live { color: #70f0cc; }
+.nw-cockpit .nw-feed-stale, .nw-cockpit .nw-feed-replay { color: #eac17a; }
+.nw-cockpit .nw-status-dot { width: 6px; height: 6px; }
+.nw-cockpit .nw-button { min-height: 35px; background: linear-gradient(180deg, #173c4c, #0b2534); border-color: #386274; color: #c1e6ef; box-shadow: inset 0 1px #d0f6ff12, 0 2px 5px #0002; }
+.nw-cockpit .nw-button:hover { background: #1c4b5a; border-color: #66bfd1; }
+.nw-cockpit .nw-fullscreen-button, .nw-cockpit .nw-tv-button.is-active { color: #b0fbff; background: linear-gradient(180deg, #14505b, #103540); border-color: #3b8e9c; }
+.nw-cockpit .nw-layout { grid-template-columns: minmax(0, 1fr) 308px; grid-template-rows: auto 40px auto; align-items: start; gap: 10px; }
+.nw-cockpit .nw-panel { background: linear-gradient(150deg, #0d2d3c, #071c2a); border-color: var(--nw-border); box-shadow: inset 0 1px #d0f6ff0c, 0 5px 14px #0003; }
+.nw-cockpit .nw-chart-panel { min-height: 0; background: #061b29; border-color: #28859a; box-shadow: inset 0 1px #69ecfa40, 0 0 0 1px #083748, 0 8px 24px #0004, 0 0 24px #00b8d20c; }
+.nw-flight-deck { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(120px, .8fr); gap: 7px; padding: 9px; background: linear-gradient(180deg, #0e3442, #071f2e); }
+.nw-price-instrument, .nw-quote-instrument, .nw-clock-instrument { min-width: 0; border: 1px solid #2a6070; border-radius: 7px; padding: 8px 11px; background: linear-gradient(150deg, #0d3443, #061d2c); box-shadow: inset 0 1px #a9efff17, inset 0 -8px 16px #020e171c, 0 2px 5px #0003; }
+.nw-price-instrument { border-top-color: #4fe0c1; }
+.nw-cockpit .nw-eyebrow { color: #9fc7d3; font-size: 10px; font-weight: 600; letter-spacing: .25px; }
+.nw-cockpit .nw-market-price { color: #83ffe0; font-size: clamp(30px, 2.3vw, 44px); font-weight: 800; line-height: 1.12; letter-spacing: -1.15px; margin-top: 2px; white-space: nowrap; text-shadow: 0 0 18px #37e4c62c; }
+.nw-cockpit .nw-market-pair { color: #8ab6c4; font-size: 9px; font-weight: 650; margin-left: 6px; letter-spacing: .4px; }
+.nw-target-value { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 7px; margin-top: 4px; font-size: 10px; color: #86b6c6; line-height: 1.25; }
+.nw-target-value strong { color: #def3fa; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.nw-quote-instrument { --quote-color: #63f1ca; display: flex; align-items: center; gap: 10px; border-top-color: #36a98e; }
+.nw-quote-instrument-no { --quote-color: #ffc36d; border-top-color: #a47f43; background: linear-gradient(150deg, #263a3a, #101f2b); }
+.nw-quote-side { color: var(--quote-color); font-weight: 800; font-size: 13px; letter-spacing: .7px; }
+.nw-quote-instrument dl { display: grid; grid-template-columns: 1fr 1fr; flex: 1; min-width: 0; gap: 10px; }
+.nw-quote-instrument dl > div { min-width: 0; }
+.nw-quote-instrument dt { color: #b7d2da; text-transform: uppercase; font-size: 9px; font-weight: 650; letter-spacing: .8px; }
+.nw-quote-instrument dd { color: var(--quote-color); font-size: clamp(24px, 1.85vw, 35px); font-weight: 800; line-height: 1.2; letter-spacing: -.8px; margin-top: 2px; white-space: nowrap; text-shadow: 0 0 12px #b4ffe411; }
+.nw-cockpit .nw-quote-instrument dd.nw-quote-value-long { font-size: clamp(19px, 1.45vw, 28px); letter-spacing: -.65px; }
+.nw-clock-instrument { display: flex; flex-direction: column; justify-content: center; text-align: center; border-top-color: #d7a64f; background: linear-gradient(145deg, #363b30, #18232b); }
+.nw-clock-instrument > strong { display: block; color: var(--nw-amber); font-size: clamp(32px, 2.65vw, 49px); font-weight: 800; line-height: 1.05; letter-spacing: .4px; margin-top: 3px; white-space: nowrap; text-shadow: 0 0 18px #ffad4d33; }
+.nw-cockpit .nw-clock-instrument > strong.nw-clock-close, .nw-cockpit.nw-tv .nw-clock-instrument > strong.nw-clock-close { font-size: clamp(29px, 2.2vw, 42px); letter-spacing: -.4px; }
+.nw-clock-close > small { font-size: 11px; font-weight: 650; letter-spacing: .2px; color: #e6c791; }
+.nw-clock-caption { color: #c4ae83; font-size: 9px; letter-spacing: .3px; margin-top: 4px; }
+.nw-clock-urgent { border-color: #d9974a; box-shadow: inset 0 1px #ffdcab30, 0 0 12px #ffad4518; }
+.nw-cockpit .nw-chart-controls { min-height: 35px; padding: 3px 12px 5px; gap: 8px; border-bottom: 1px solid #205366; background: #0a2735; }
+.nw-cockpit .nw-chart-legend { gap: 13px; color: #a7cfda; font-size: 10px; }
+.nw-cockpit .nw-chart-legend b { color: #84aebb; }
+.nw-cockpit .nw-chart-legend i { width: 14px; height: 3px; box-shadow: 0 0 6px currentColor; }
+.nw-cockpit .nw-range-controls { border-color: #2b586c; background: #051b2a; }
+.nw-cockpit .nw-range-controls button { min-height: 26px; color: #9fc6d4; font-weight: 600; padding: 3px 9px; }
+.nw-cockpit .nw-range-controls button.is-active { background: #1a5664; color: #e1ffff; box-shadow: inset 0 1px #80e9f22b; }
+.nw-cockpit .nw-chart-host { min-height: clamp(400px, calc(100vh - 370px), 650px); min-height: clamp(400px, calc(100svh - 370px), 650px); flex: 1 0 auto; background: radial-gradient(ellipse at 45% 0%, #0c405030, transparent 70%), #061a28; }
+.nw-cockpit .nw-chart-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; min-height: 38px; padding: 0; gap: 0; border-top-color: #245468; background: #092432; }
+.nw-cockpit .nw-chart-footer > .nw-chart-footer-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; min-height: 38px; padding: 2px 12px; gap: 10px; }
+.nw-chart-footer-status { display: inline-flex; align-items: center; gap: 6px; color: #9ac3d0; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
+.nw-cockpit .nw-chart-footer button { min-height: 32px; color: #b1dbe5; font-size: 10px; padding: 3px; }
+.nw-looking-glass-details { min-width: 0; }
+.nw-looking-glass-details > summary { display: flex; align-items: center; gap: 7px; min-height: 38px; padding: 4px 12px; color: #a7dbe7; font-size: 10px; font-weight: 600; cursor: pointer; list-style: none; }
+.nw-looking-glass-details > summary::-webkit-details-marker { display: none; }
+.nw-looking-glass-details > summary::marker { content: ''; }
+.nw-looking-glass-details > summary:focus-visible { outline: 2px solid var(--nw-cyan); outline-offset: -3px; border-radius: 5px; }
+.nw-looking-glass-details > summary:hover { color: #e1fbff; background: #103546; }
+.nw-looking-glass-details > summary > svg:last-child { transition: transform .15s; margin-left: 2px; }
+.nw-looking-glass-details[open] > summary > svg:last-child { transform: rotate(180deg); }
+.nw-looking-glass-body { padding: 2px 13px 13px; font-size: 11px; line-height: 1.6; color: #94bdcc; overflow-wrap: anywhere; }
+.nw-looking-glass-body p + p { margin-top: 7px; }
+.nw-looking-glass-body ul { display: grid; gap: 5px; list-style: none; padding: 9px 0 0; margin: 8px 0 0; border-top: 1px solid #285064; color: #c7e4ec; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; }
+.nw-cockpit .nw-sidebar { gap: 10px; }
+.nw-cockpit .nw-panel-heading { padding: 11px 13px 8px; }
+.nw-cockpit .nw-panel-heading h3 { font-size: 13px; font-weight: 700; color: #daedf3; }
+.nw-cockpit .nw-panel-heading h3 > svg { color: #6fcddd; }
+.nw-cockpit .nw-mini-label { color: #86adbe; }
+.nw-cockpit .nw-waiting-position { padding: 3px 13px 13px; gap: 9px; }
+.nw-cockpit .nw-waiting-position strong { color: #bfdae5; font-weight: 650; }
+.nw-cockpit .nw-waiting-position p { color: #8db2c0; line-height: 1.5; }
+.nw-cockpit .nw-practice-panel { border-color: #347e82; background: linear-gradient(145deg, #0d343b, #08222f); }
+.nw-cockpit .nw-practice-balance strong { font-weight: 750; color: #f1ffff; }
+.nw-cockpit .nw-side-option { min-height: 44px; background: #0b2d3b; border-color: #3d6575; }
+.nw-cockpit .nw-side-option-yes.is-active { background: linear-gradient(150deg, #185345, #113c38); border-color: #59c9a4; color: #8dffe0; }
+.nw-cockpit .nw-side-option-no.is-active { background: linear-gradient(150deg, #59452d, #302b27); border-color: #bb8a49; color: #ffcf8b; }
+.nw-cockpit .nw-side-option > strong { font-size: 18px; font-weight: 750; }
+.nw-cockpit .nw-practice-buy { min-height: 44px; background: linear-gradient(180deg, #8af3d2, #55d7b5); border-color: #8ff4d7; box-shadow: inset 0 1px #efffffa8, 0 3px 9px #0003; font-size: 13px; }
+.nw-cockpit .nw-practice-buy.nw-buy-no { color: #382711; background: linear-gradient(180deg, #ffce87, #e3aa57); border-color: #ffd79d; }
+.nw-cockpit .nw-practice-cash, .nw-cockpit .nw-practice-cost { color: #91b9c4; }
+.nw-cockpit .nw-field-label { color: #c4e1e9; }
+.nw-cockpit .nw-money-field { background: #061c29; border-color: #427285; }
+.nw-cockpit .nw-trade-table-head { color: #8bb7c7; border-color: #285668; }
+.nw-cockpit .nw-trade-row { color: #c8e0e9; border-color: #1f4356; }
+.nw-cockpit .nw-trade-row small { color: #92b4c3; }
+.nw-cockpit .nw-chat-strip { min-height: 40px; height: 40px; border-color: #2b5c70; background: linear-gradient(110deg, #123b4a, #092532); }
+.nw-cockpit .nw-strip-label strong, .nw-cockpit .nw-strip-message > span { color: #bddce7; }
+.nw-cockpit .nw-strip-message b { color: #83d4dd; }
+.nw-cockpit .nw-strip-open { color: #9ecedb; }
+.nw-cockpit .nw-entry-guide { border-color: #28576a; background: linear-gradient(145deg, #0c2b3a, #071e2c); }
+.nw-cockpit .nw-workspace-foot { padding-top: 8px; color: #7d9faf; }
+.nw-cockpit.nw-tv .nw-layout { grid-template-columns: minmax(0, 1fr) 340px; }
+.nw-cockpit.nw-tv .nw-market-price { font-size: clamp(34px, 2.7vw, 51px); }
+.nw-cockpit.nw-tv .nw-quote-instrument dd:not(.nw-quote-value-long) { font-size: clamp(27px, 2.1vw, 40px); }
+.nw-cockpit.nw-tv .nw-clock-instrument > strong { font-size: clamp(37px, 2.9vw, 54px); }
+.nw-cockpit.nw-is-fullscreen .nw-layout { min-height: 0; }
+.nw-cockpit.nw-is-fullscreen .nw-chart-host { min-height: clamp(430px, calc(100vh - 230px), 950px); min-height: clamp(430px, calc(100svh - 230px), 950px); }
+
+@media (min-width: 1600px) {
+  .nw-cockpit .nw-layout { grid-template-columns: minmax(0, 1fr) 340px; }
+  .nw-cockpit .nw-panel-heading h3 { font-size: 14px; }
+  .nw-cockpit .nw-chart-legend { font-size: 11px; }
+  .nw-cockpit .nw-quote-side { font-size: 15px; }
+  .nw-cockpit .nw-flight-deck { gap: 9px; padding: 10px; }
+  .nw-cockpit.nw-tv .nw-layout { grid-template-columns: minmax(0, 1fr) 370px; }
+}
+@media (max-width: 1279px) {
+  .cashout-bot-tabs.cashout-bot-tabs-compact .cashout-asset-tab small { display: none; }
+  .nw-cockpit .nw-market-pair { display: none; }
+}
+@media (min-width: 1181px) and (max-width: 1439px) {
+  .nw-cockpit .nw-quote-instrument { flex-direction: column; align-items: stretch; gap: 2px; }
+  .nw-cockpit .nw-quote-side { font-size: 11px; }
+  .nw-cockpit .nw-quote-instrument dd { font-size: 28px; }
+  .nw-cockpit .nw-quote-instrument dd.nw-quote-value-long { font-size: 23px; }
+}
+@media (max-width: 1180px) {
+  .nw-cockpit .nw-layout, .nw-cockpit.nw-tv .nw-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 40px auto auto; grid-template-areas: "chart" "chat" "sidebar" "guide"; }
+  .nw-cockpit .nw-sidebar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr); grid-template-areas: "position practice trades"; align-items: start; }
+  .nw-cockpit .nw-position-panel { grid-area: position; }
+  .nw-cockpit .nw-practice-panel { grid-area: practice; }
+  .nw-cockpit .nw-trades-panel { grid-area: trades; }
+  .nw-cockpit .nw-chart-host { min-height: clamp(390px, calc(100vh - 400px), 600px); min-height: clamp(390px, calc(100svh - 400px), 600px); }
+  .nw-cockpit .nw-flight-deck { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr) minmax(120px, .8fr); }
+  .nw-cockpit .nw-market-price { font-size: 35px; }
+  .nw-cockpit .nw-quote-instrument dd { font-size: 29px; }
+  .nw-cockpit .nw-quote-instrument dd.nw-quote-value-long { font-size: 24px; }
+  .nw-cockpit .nw-clock-instrument > strong { font-size: 39px; }
+  .nw-cockpit .nw-button { min-height: 40px; }
+  .nw-cockpit .nw-range-controls button { min-height: 32px; padding-left: 11px; padding-right: 11px; }
+  .nw-cockpit .nw-route-legend { display: flex !important; }
+  .nw-cockpit .nw-chart-footer button, .nw-cockpit .nw-looking-glass-details > summary { min-height: 40px; }
+}
+@media (max-width: 820px) {
+  .cashout-bot-tabs-compact .cashout-tabs-caption { display: none; }
+  .cashout-bot-tabs.cashout-bot-tabs-compact .cashout-asset-tab { flex-basis: 85px; padding: 5px 9px; gap: 6px; font-size: 12px; }
+  .nw-cockpit .nw-flight-deck { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr) minmax(115px, .85fr); gap: 5px; padding: 7px; }
+  .nw-price-instrument, .nw-quote-instrument, .nw-clock-instrument { padding: 8px; }
+  .nw-cockpit .nw-market-price { font-size: 28px; }
+  .nw-cockpit .nw-quote-instrument { flex-direction: column; align-items: stretch; gap: 3px; }
+  .nw-cockpit .nw-quote-side { font-size: 11px; }
+  .nw-cockpit .nw-quote-instrument dd { font-size: 25px; }
+  .nw-cockpit .nw-quote-instrument dd.nw-quote-value-long { font-size: 20px; }
+  .nw-cockpit .nw-clock-instrument > strong { font-size: 35px; }
+  .nw-cockpit .nw-sidebar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "position practice" "trades practice"; }
+  .nw-cockpit .nw-chart-footer-status { max-width: 120px; }
+}
+@media (max-width: 650px) {
+  .nw-cockpit .nw-flight-deck { grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); grid-template-areas: "price clock" "yes no"; }
+  .nw-price-instrument { grid-area: price; }
+  .nw-quote-instrument-yes { grid-area: yes; }
+  .nw-quote-instrument-no { grid-area: no; }
+  .nw-clock-instrument { grid-area: clock; }
+  .nw-cockpit .nw-market-price { font-size: clamp(28px, 6.7vw, 37px); }
+  .nw-cockpit .nw-clock-instrument > strong { font-size: 38px; }
+  .nw-cockpit .nw-quote-instrument { flex-direction: row; align-items: center; gap: 10px; min-height: 65px; }
+  .nw-cockpit .nw-quote-instrument dd { font-size: 29px; }
+  .nw-cockpit .nw-quote-instrument dd.nw-quote-value-long { font-size: clamp(18px, 4.6vw, 24px); }
+  .nw-cockpit .nw-quote-side { font-size: 12px; }
+  .nw-cockpit .nw-chart-legend { gap: 8px; font-size: 8px; }
+  .nw-cockpit .nw-chart-legend b { font-size: 8px; }
+  .nw-cockpit .nw-chart-legend i { width: 9px; }
+  .nw-cockpit .nw-range-controls button { padding-left: 9px; padding-right: 9px; }
+  .nw-cockpit .nw-chart-host { min-height: clamp(370px, 52svh, 470px); }
+  .nw-cockpit .nw-chart-footer { grid-template-columns: minmax(0, 1fr); }
+  .nw-cockpit .nw-chart-footer > .nw-chart-footer-tools { justify-content: space-between; padding: 0 10px 3px; border-top: 1px solid #1c4355; }
+  .nw-cockpit .nw-chart-footer-status { max-width: 50%; }
+  .nw-looking-glass-details > summary { padding-left: 10px; }
+  .nw-looking-glass-body { padding: 0 10px 12px; }
+  .nw-cockpit.nw-tv .nw-market-price { font-size: clamp(30px, 7vw, 40px); }
+  .nw-cockpit.nw-tv .nw-quote-instrument dd:not(.nw-quote-value-long) { font-size: 31px; }
+  .nw-cockpit.nw-tv .nw-clock-instrument > strong { font-size: 42px; }
+}
+@media (max-width: 540px) {
+  .cashout-bot-tabs.cashout-bot-tabs-compact { min-height: 50px; padding: 3px 0; }
+  .cashout-bot-tabs.cashout-bot-tabs-compact .cashout-asset-tab { flex: 0 0 82px; min-height: 44px; padding: 5px 8px; font-size: 12px; }
+  .cashout-bot-tabs.cashout-bot-tabs-compact .cashout-asset-symbol { width: 21px; font-size: 23px; }
+  .nw-cockpit .nw-workspace-toolbar { min-height: 54px; gap: 8px; padding: 5px 0; }
+  .nw-cockpit .nw-room-title { gap: 7px; }
+  .nw-cockpit .nw-title-line h2 { font-size: 17px; }
+  .nw-cockpit .nw-room-title p { font-size: 6.5px; letter-spacing: .8px; }
+  .nw-cockpit .nw-asset-mark { width: 30px; height: 33px; font-size: 23px; }
+  .nw-cockpit .nw-toolbar-actions { gap: 4px; }
+  .nw-cockpit .nw-toolbar-actions .nw-feed-badge { font-size: 9px; gap: 4px; margin-right: 2px; }
+  .nw-cockpit .nw-toolbar-actions .nw-button { width: 40px; min-height: 40px; padding: 8px; }
+  .nw-cockpit .nw-toolbar-actions .nw-button > span { display: none; }
+  .nw-cockpit .nw-fullscreen-button > svg { width: 18px; }
+  .nw-cockpit .nw-eyebrow { font-size: 9px; }
+  .nw-cockpit .nw-target-value { font-size: 8px; gap: 4px; }
+  .nw-cockpit .nw-target-value strong { font-size: 11px; }
+  .nw-cockpit .nw-market-price.nw-market-price-long, .nw-cockpit.nw-tv .nw-market-price.nw-market-price-long { font-size: clamp(21px, 5.8vw, 29px); letter-spacing: -.8px; }
+  .nw-cockpit .nw-quote-instrument { gap: 7px; padding: 7px; }
+  .nw-cockpit .nw-quote-instrument dl { gap: 7px; }
+  .nw-cockpit .nw-quote-instrument dd { font-size: 26px; }
+  .nw-cockpit .nw-quote-side { font-size: 10px; letter-spacing: .4px; }
+  .nw-cockpit .nw-chart-controls { padding: 3px 8px 5px; gap: 4px; }
+  .nw-cockpit .nw-route-legend { display: none !important; }
+  .nw-cockpit .nw-sidebar { grid-template-columns: minmax(0, 1fr); grid-template-areas: "practice" "position" "trades"; }
+  .nw-cockpit .nw-panel-heading { padding-top: 12px; padding-bottom: 10px; }
+  .nw-cockpit .nw-panel-heading h3 { font-size: 14px; }
+  .nw-cockpit.nw-is-fullscreen .nw-chart-host { min-height: clamp(370px, calc(100svh - 300px), 660px); }
+}
+@media (max-width: 380px) {
+  .nw-cockpit .nw-quote-instrument { flex-direction: column; align-items: stretch; gap: 2px; }
+  .nw-cockpit .nw-quote-instrument dd { font-size: 23px; letter-spacing: -.7px; }
+  .nw-cockpit .nw-quote-instrument dd.nw-quote-value-long { font-size: 17px; letter-spacing: -.6px; }
+  .nw-cockpit .nw-quote-side { font-size: 10px; }
+  .nw-cockpit .nw-market-price { font-size: 26px; }
+  .nw-cockpit .nw-toolbar-actions .nw-feed-badge { font-size: 8px; }
+  .nw-cockpit .nw-room-title { gap: 5px; }
+}

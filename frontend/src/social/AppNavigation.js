@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { PRIMARY_NAVIGATION, appSection, primaryDestination } from './socialModel.mjs';
+import peacockPoster from '../assets/peacock-poster.webp';
 import './social.css';
+import './app-shell.css';
 
 function NavIcon({ name }) {
   const paths = {
@@ -15,20 +17,24 @@ function NavIcon({ name }) {
 
 export default function AppNavigation({ activeTab, onSelect, lastRoom = 'bot-BTC', unread = 0, currentUser, level = 1,
   isDarkTheme = true, onToggleTheme, onLogout, connectionLabel = '' }) {
-  const section = appSection(activeTab);
+  const section = activeTab === 'admin' ? 'admin' : appSection(activeTab);
   const name = currentUser?.screen_name || currentUser?.real_name || currentUser?.username || 'Member';
   return <header className={`cashout-app-header ${isDarkTheme ? '' : 'is-light'}`}>
-    <div className="cashout-brand-row"><button type="button" className="cashout-brand" onClick={() => onSelect(primaryDestination('trading', lastRoom))} aria-label="CashOutAI trading home"><span className="cashout-brand-mark">C<span /></span><span><strong>CashOut<span>AI</span></strong><small>TRADE TOGETHER. LEARN TOGETHER.</small></span></button>
-      <div className="cashout-account-actions">{connectionLabel && <span className="cashout-connection"><span className={connectionLabel === 'Disconnected' ? 'is-offline' : ''} />{connectionLabel}</span>}
-        {currentUser?.is_admin && <button type="button" className={`cashout-admin-link ${activeTab === 'admin' ? 'is-active' : ''}`} onClick={() => onSelect('admin')}>Admin</button>}
+    <div className="cashout-header-frame">
+      <button type="button" className="cashout-brand" onClick={() => onSelect(primaryDestination('trading', lastRoom))} aria-label="CashOutAI trading home">
+        <span className="cashout-brand-mark"><img src={peacockPoster} alt="" width="52" height="39" draggable="false" /></span>
+        <span className="cashout-brand-wordmark"><strong>CashOut<span>AI</span></strong><small>TRADE TOGETHER. LEARN TOGETHER.</small></span>
+      </button>
+      <nav className="cashout-primary-nav" aria-label="Main navigation">{PRIMARY_NAVIGATION.map(item => <button type="button" key={item.key} className={section === item.key ? 'is-active' : ''} aria-current={section === item.key ? 'page' : undefined} onClick={() => onSelect(primaryDestination(item.key, lastRoom))}>
+        <span className="cashout-nav-icon"><NavIcon name={item.key} />{item.key === 'notifications' && unread > 0 && <span className="cashout-unread-badge" aria-label={`${unread} unread notifications`}>{unread > 99 ? '99+' : unread}</span>}</span><span>{item.label}</span>
+      </button>)}</nav>
+      <div className="cashout-account-actions">{connectionLabel && <span className="cashout-connection"><span className={connectionLabel === 'Disconnected' ? 'is-offline' : ''} aria-hidden="true" />{connectionLabel}</span>}
+        {currentUser?.is_admin && <button type="button" className={`cashout-admin-link ${activeTab === 'admin' ? 'is-active' : ''}`} aria-current={activeTab === 'admin' ? 'page' : undefined} onClick={() => onSelect('admin')}>Admin</button>}
         {onToggleTheme && <button type="button" className="cashout-theme-action" onClick={onToggleTheme} aria-label={isDarkTheme ? 'Switch to light theme' : 'Switch to dark theme'}>{isDarkTheme ? '☀' : '☾'}</button>}
         <button type="button" className="cashout-profile-shortcut" onClick={() => onSelect('profile')} aria-label={`Open ${name}'s profile`}><span className="cashout-nav-avatar">{name.charAt(0).toUpperCase()}{currentUser?.avatar_url && <img src={currentUser.avatar_url} alt="" onError={event => { event.currentTarget.style.display = 'none'; }} />}</span><span className="cashout-nav-identity"><strong>{name}</strong><small>Level {level}</small></span></button>
         {onLogout && <button type="button" className="cashout-header-logout" onClick={onLogout}>Log out</button>}
       </div>
     </div>
-    <nav className="cashout-primary-nav" aria-label="Main navigation">{PRIMARY_NAVIGATION.map(item => <button type="button" key={item.key} className={section === item.key ? 'is-active' : ''} aria-current={section === item.key ? 'page' : undefined} onClick={() => onSelect(primaryDestination(item.key, lastRoom))}>
-      <span className="cashout-nav-icon"><NavIcon name={item.key} />{item.key === 'notifications' && unread > 0 && <span className="cashout-unread-badge" aria-label={`${unread} unread notifications`}>{unread > 99 ? '99+' : unread}</span>}</span><span>{item.label}</span>
-    </button>)}</nav>
   </header>;
 }
 

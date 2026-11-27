@@ -46,15 +46,27 @@ function FeedBadge({ mode, updatedAt, status }) {
   return <span className={`nw-feed-badge nw-feed-${mode || 'offline'}`} title={updatedAt ? `Source updated ${clock(updatedAt)}` : 'Waiting for a source update'}><span className="nw-status-dot" />{labels[mode] || status || 'Feed offline'}</span>;
 }
 
-function NautilusCanvas({ native, span, television, asset, onSelectTrade, chartRef }) {
+function QuoteInstrument({ side, quotes }) {
+  // The adapted view model removes expired quotes. Never fall back to native marks.
+  const quote = quotes?.[side.toLowerCase()] || {};
+  const ask = cents(quote.ask), bid = cents(quote.bid);
+  return <div className={`nw-quote-instrument nw-quote-instrument-${side.toLowerCase()}`} role="group" aria-label={`${side} contract quotes`}>
+    <span className="nw-quote-side">{side}</span>
+    <dl><div><dt>Ask</dt><dd className={ask.length > 4 ? 'nw-quote-value-long' : undefined}>{ask}</dd></div><div><dt>Bid</dt><dd className={bid.length > 4 ? 'nw-quote-value-long' : undefined}>{bid}</dd></div></dl>
+  </div>;
+}
+
+function NautilusCanvas({ native, span, television, asset, onSelectTrade, onLookingGlassInfo, chartRef }) {
   const canvasRef = useRef(null);
   const tooltipRef = useRef(null);
   const latestData = useRef(native);
   const selectRef = useRef(onSelectTrade);
+  const lookingGlassInfoRef = useRef(onLookingGlassInfo);
   const [ready, setReady] = useState(false);
   const [failure, setFailure] = useState('');
   latestData.current = native;
   selectRef.current = onSelectTrade;
+  lookingGlassInfoRef.current = onLookingGlassInfo;
 
   useEffect(() => {
     let disposed = false;
@@ -65,6 +77,8 @@ function NautilusCanvas({ native, span, television, asset, onSelectTrade, chartR
         chart.focusVisual = true;
         chart.fontScale = window.innerWidth <= 540 ? 0.88 : 1.1;
         chart.showLookingGlass = true;
+        chart.showLookingGlassInfo = false;
+        chart.onLookingGlassInfo = lines => { if (!disposed) lookingGlassInfoRef.current?.(lines); };
         chart.setSpan(span * 900, { persist: false });
         chartRef.current = chart;
         if (latestData.current) chart.setData(latestData.current);
@@ -370,6 +384,7 @@ export default function BotWorkspace({
   const [focusMode, setFocusMode] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState(null);
   const [practiceSelection, setPracticeSelection] = useState(null);
+  const [lookingGlassInfo, setLookingGlassInfo] = useState([]);
   const [now, setNow] = useState(Date.now());
   const isFull = fullscreen || nativeFullscreen || focusMode;
   const mode = snapshot.mode || 'offline';
@@ -387,7 +402,7 @@ export default function BotWorkspace({
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [mode]);
-  useEffect(() => { setSelectedTrade(null); setPracticeSelection(null); chartRef.current?.toLive(); }, [asset]);
+  useEffect(() => { setSelectedTrade(null); setPracticeSelection(null); setLookingGlassInfo([]); chartRef.current?.toLive(); }, [asset]);
   useEffect(() => {
     if (!focusMode) return undefined;
     const previous = document.body.style.overflow;
@@ -422,22 +437,33 @@ export default function BotWorkspace({
   const remaining = mode === 'live' && Number.isFinite(end) ? Math.max(0, Math.floor((end - now) / 1000)) : snapshot.contract?.remainingSeconds;
   const timeLeft = valid(remaining) ? `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(Math.floor(remaining % 60)).padStart(2, '0')}` : clock(snapshot.contract?.closeTime);
   const timeLabel = valid(remaining) ? 'Time remaining' : 'Contract close · ET';
+  const closePeriod = !valid(remaining) ? timeLeft.match(/\s+(AM|PM)$/)?.[1] : null;
+  const clockValue = closePeriod ? timeLeft.replace(/\s+(AM|PM)$/, '') : timeLeft;
   const native = snapshot.native;
   const latestPrice = snapshot.price ?? native?.market?.btc;
+  const priceLabel = price(latestPrice);
 
-  return <div ref={workspaceRef} className={`nw-workspace ${television ? 'nw-tv' : ''} ${isFull ? 'nw-is-fullscreen' : ''} ${focusMode ? 'nw-focus-mode' : ''}`} style={{ '--asset-color': info.color }} data-asset={asset}>
+  return <div ref={workspaceRef} className={`nw-workspace nw-cockpit ${television ? 'nw-tv' : ''} ${isFull ? 'nw-is-fullscreen' : ''} ${focusMode ? 'nw-focus-mode' : ''}`} style={{ '--asset-color': info.color }} data-asset={asset}>
     <div className="nw-workspace-toolbar">
       <div className="nw-room-title"><span className="nw-asset-mark">{info.mark}</span><div><div className="nw-title-line"><h2>{info.name}</h2><span>{asset} / USD</span></div><p>TACHYOS <span> / </span> NAUTILUS</p></div></div>
       <div className="nw-toolbar-actions"><FeedBadge mode={mode} updatedAt={snapshot.updatedAt} /><button className={`nw-button nw-tv-button ${television ? 'is-active' : ''}`} type="button" onClick={() => setTelevision(!television)} aria-pressed={television} title="Larger type for viewing across the room"><Icon name="monitor" /><span>TV mode</span></button><button className="nw-button nw-fullscreen-button" type="button" onClick={requestFullscreen} aria-label={isFull ? 'Exit full screen' : `Open ${asset} full screen`}><Icon name={isFull ? 'collapse' : 'expand'} /><span>{isFull ? 'Exit full screen' : 'Full screen'}</span></button></div>
     </div>
     <div className="nw-layout">
       <section className="nw-panel nw-chart-panel" aria-label={`${asset} Nautilus`}>
-        <div className="nw-chart-topline"><div><span className="nw-eyebrow">{mode === 'live' ? 'Market price' : mode === 'offline' ? 'Market price' : 'Snapshot price'}</span><div className="nw-market-price">{price(latestPrice)}<span className="nw-market-pair">{asset}</span></div></div><div className="nw-chart-contract"><div><span className="nw-eyebrow">Contract target</span><strong>{price(snapshot.contract?.target ?? native?.market?.target)}</strong></div><div className="nw-countdown"><span className="nw-eyebrow">{timeLabel}</span><strong>{timeLeft}</strong></div></div></div>
+        <div className="nw-flight-deck" aria-label={`${asset} market and contract prices`}>
+          <div className="nw-price-instrument"><span className="nw-eyebrow">{mode === 'live' || !valid(latestPrice) ? 'Underlying price' : 'Snapshot price'}</span><div className={`nw-market-price ${priceLabel.length > 10 ? 'nw-market-price-long' : ''}`}>{priceLabel}<span className="nw-market-pair">{asset}</span></div><div className="nw-target-value"><span>Contract target</span><strong>{price(snapshot.contract?.target ?? native?.market?.target)}</strong></div></div>
+          <QuoteInstrument side="YES" quotes={snapshot.quotes} />
+          <QuoteInstrument side="NO" quotes={snapshot.quotes} />
+          <div className={`nw-countdown nw-clock-instrument ${valid(remaining) && remaining <= 60 ? 'nw-clock-urgent' : ''}`}><span className="nw-eyebrow">{timeLabel}</span><strong className={closePeriod ? 'nw-clock-close' : undefined}>{clockValue}{closePeriod && <small> {closePeriod}</small>}</strong><span className="nw-clock-caption">15-minute contract</span></div>
+        </div>
         <div className="nw-chart-controls"><div className="nw-chart-legend"><span><i className="nw-legend-ema9" />NAEVYR <b>9</b></span><span><i className="nw-legend-ema30" />THAERYON <b>30</b></span><span className="nw-route-legend"><i className="nw-legend-route" />Looking Glass</span></div><div className="nw-range-controls" role="group" aria-label="Chart history range">{[1, 2, 3].map(count => <button type="button" key={count} onClick={() => setSpan(count)} className={span === count ? 'is-active' : ''} aria-pressed={span === count} title={`${count} contract${count > 1 ? 's' : ''} · ${count * 15} minutes`}>{count}<span>{count === 1 ? ' contract' : ' contracts'}</span></button>)}</div></div>
-        <NautilusCanvas native={native} span={span} television={television} asset={asset} onSelectTrade={inspectTrade} chartRef={chartRef} />
-        <div className="nw-chart-footer"><span><span className="nw-status-dot" />{snapshot.status || (mode === 'offline' ? 'Waiting for source data' : 'PAPER observation')}</span><div><button type="button" onClick={() => { chartRef.current?.fitPriceScale(); }} title="Fit the chart to observed prices">Fit chart</button><button type="button" onClick={() => { chartRef.current?.toLive(); setSelectedTrade(null); }} title="Follow the newest source snapshot"><Icon name="target" size={12} />Follow</button></div></div>
+        <NautilusCanvas native={native} span={span} television={television} asset={asset} onSelectTrade={inspectTrade} onLookingGlassInfo={setLookingGlassInfo} chartRef={chartRef} />
+        <div className="nw-chart-footer">
+          <details key={asset} className="nw-looking-glass-details"><summary><Icon name="pulse" size={14} /><span>Looking Glass info</span><Icon name="chevron" size={13} /></summary><div className="nw-looking-glass-body"><p>Looking Glass compares historical observations with conditional scenario paths. Each path depends on its source data and can change as new observations arrive.</p>{Array.isArray(lookingGlassInfo) && lookingGlassInfo.length > 0 ? <ul>{lookingGlassInfo.filter(line => typeof line === 'string').map((line, index) => <li key={index}>{line}</li>)}</ul> : <p>Source notes will appear when a chart snapshot is available.</p>}</div></details>
+          <div className="nw-chart-footer-tools"><span className="nw-chart-footer-status"><span className="nw-status-dot" />{snapshot.status || (mode === 'offline' ? 'Waiting for source data' : 'PAPER observation')}</span><button type="button" onClick={() => { chartRef.current?.fitPriceScale(); }} title="Fit the chart to observed prices">Fit chart</button><button type="button" onClick={() => { chartRef.current?.toLive(); setSelectedTrade(null); }} title="Follow the newest source snapshot"><Icon name="target" size={12} />Follow</button></div>
+        </div>
       </section>
-      <aside className="nw-sidebar" aria-label="Bot activity and your practice"><CurrentPosition snapshot={snapshot} /><BotTrades trades={snapshot.trades} selectedTrade={selectedTrade} onInspectTrade={inspectTrade} /><PracticeBox asset={asset} snapshot={snapshot} practice={normalizedPractice} selection={practiceSelection} onBuyPractice={onBuyPractice} onClosePractice={onClosePractice} onResetPractice={onResetPractice} /></aside>
+      <aside className="nw-sidebar" aria-label="Bot activity and your practice"><CurrentPosition snapshot={snapshot} /><PracticeBox asset={asset} snapshot={snapshot} practice={normalizedPractice} selection={practiceSelection} onBuyPractice={onBuyPractice} onClosePractice={onClosePractice} onResetPractice={onResetPractice} /><BotTrades trades={snapshot.trades} selectedTrade={selectedTrade} onInspectTrade={inspectTrade} /></aside>
       <RoomChatDock key={asset} asset={asset} messages={chatMessages} onSendChat={onSendChat} chatMode={chatMode} chatStatus={chatStatus} currentUser={currentUser} />
       <EntryGuide asset={asset} snapshot={snapshot} selectedTrade={selectedTrade} onInspect={inspectEntry} onPracticeSide={side => setPracticeSelection({ asset, side, key: Date.now() })} />
     </div>
