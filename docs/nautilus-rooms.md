@@ -1,6 +1,6 @@
 # Nautilus bot rooms
 
-This release candidate adds BTC, ETH, SOL, XRP, and DOGE rooms with the native Nautilus chart, an asset-specific community chat, bot positions and trades, and a member practice account. These feature changes are prepared in source; the hosting migration alone did not deploy them. Bounded legacy ownership, administrator-role, and privacy repairs are included. Source validation does not establish live publisher, provider, email, or device delivery readiness.
+The deployed release includes BTC, ETH, SOL, XRP, and DOGE rooms with the native Nautilus chart, an asset-specific community chat, bot positions and trades, and a member practice account. Production rollout and owner/admin UI checks completed November 27, 2026. Bounded legacy ownership, administrator-role, and privacy repairs are included. The historical development checks below do not establish live publisher, provider, recovery-email, or device delivery readiness. Actual Windows feeds and Stocks integrations remain separate gates; the practice event is still disabled.
 
 ## Backend and publisher setup
 
@@ -27,7 +27,7 @@ Start the existing PAPER engines first. Their read-only native endpoints must be
 | XRP | 8790 |
 | DOGE | 8791 |
 
-The publisher polls `/api/nautilus?ui_build=0.0.8.4` once per second and sends packets to `POST /api/nautilus/ingest/{asset}`. Sources are fixed to `127.0.0.1`. Redirects are refused; the publisher secret is sent only to the configured backend, never to the local engine. The publisher has no venue credentials, order API, or strategy controls. A development-only `--allow-local-http` option permits an explicitly supplied localhost HTTP backend.
+The publisher polls the unversioned read-only `/api/nautilus` endpoint once per second and sends packets to `POST /api/nautilus/ingest/{asset}`. This avoids sending an obsolete dashboard-build hint to newer engine packages. Sources are fixed to `127.0.0.1`. Redirects are refused; the publisher secret is sent only to the configured backend, never to the local engine. The publisher has no venue credentials, order API, or strategy controls. A development-only `--allow-local-http` option permits an explicitly supplied localhost HTTP backend.
 
 The `ui_build` value identifies the dashboard protocol, not the PAPER engine version. The available recorded examples pair dashboard build `0.0.8.4` with engine `0.0.10.4_PAPER_ONLY`; the API fixture also covers the `0.0.10.7_PAPER_ONLY` display schema. Before enabling the user's current Windows engines, verify their actual asset, port, freshness fields, and packet shape. Do not change the dashboard identifier merely to match a newer engine's version number.
 

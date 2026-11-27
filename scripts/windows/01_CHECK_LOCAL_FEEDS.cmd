@@ -15,7 +15,7 @@ if errorlevel 1 (
 )
 echo Checking the five existing local PAPER endpoints once.
 echo This does not start bots, contact the app, or require a publisher key.
-py -3 "%CASHOUT_PUBLISHER%" --check-local
+py -3 -X utf8 "%CASHOUT_PUBLISHER%" --check-local
 set "CASHOUT_EXIT_CODE=%ERRORLEVEL%"
 echo.
 echo Check finished with exit code %CASHOUT_EXIT_CODE%.

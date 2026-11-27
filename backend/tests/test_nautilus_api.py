@@ -380,7 +380,7 @@ class PublisherTests(unittest.TestCase):
         self.assertIsInstance(opener.call_args.args[1], self.publisher.NoRedirect)
         self.assertEqual(len(requests), 1)
         request, timeout = requests[0]
-        self.assertEqual(request.full_url, f"http://127.0.0.1:{self.publisher.ASSET_PORTS[asset]}/api/nautilus?ui_build=0.0.8.4")
+        self.assertEqual(request.full_url, f"http://127.0.0.1:{self.publisher.ASSET_PORTS[asset]}/api/nautilus")
         self.assertEqual(request.get_method(), "GET")
         self.assertEqual(timeout, 2)
         self.assertEqual(request.headers, {"Accept": "application/json"})
@@ -395,6 +395,34 @@ class PublisherTests(unittest.TestCase):
                 # This mode checks identity, not current source/quote health.
                 self.assertEqual(self.check_local_packet(asset, data),
                                  (True, "reachable; matching read-only PAPER identity"))
+
+    def test_local_api_remains_compatible_when_the_dashboard_build_changes(self):
+        # An inert newer monitor rejects obsolete browser cache identities,
+        # while its stable API remains available to read-only tools. This
+        # fixture contains no private engine implementation or market source.
+        current_dashboard = "99.0.0"
+        requests = []
+        for asset in self.publisher.ASSET_PORTS:
+            with self.subTest(asset=asset):
+                data = packet(asset)
+                data["application"]["dashboard_build"] = current_dashboard
+
+                def local_open(request, timeout):
+                    requests.append(request)
+                    query = self.publisher.urlsplit(request.full_url).query
+                    if query and query != "ui_build=" + current_dashboard:
+                        return io.BytesIO(json.dumps({
+                            "reload_required": True, "error": "Dashboard build mismatch",
+                            "application": {"dashboard_build": current_dashboard},
+                        }).encode())
+                    return io.BytesIO(json.dumps(data).encode())
+
+                with patch.object(self.publisher, "build_opener", return_value=SimpleNamespace(open=local_open)):
+                    self.assertEqual(self.publisher.check_local_one(asset),
+                                     (True, "reachable; matching read-only PAPER identity"))
+                self.assertEqual(self.publisher.urlsplit(requests[-1].full_url).query, "")
+                self.assertEqual(requests[-1].headers, {"Accept": "application/json"})
+        self.assertEqual(len(requests), 5)
 
     def test_local_check_rejects_malformed_and_mismatched_identity(self):
         for data in ([], {}, {"mode": "LIVE", "readonly": True, "asset": {"symbol": "BTC"}},

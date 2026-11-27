@@ -13,16 +13,16 @@ The application displays one shared broadcast from the owner's five PAPER engine
 
 The five bot PAPER ledgers remain separate from each other and from member practice. In the inspected engine launcher, each bot defaults to its own $1,000 simulated balance. CashOutAI members instead receive one resettable **$100 virtual practice balance shared across the five rooms**. Neither is a funded venue account.
 
-## Source verified November 25, 2026
+## Source compatibility updated November 27, 2026
 
-The source package for this review was `TACHYOS_CLEAN_ROOM_0.0.10.10_BOUNDED_DEPTH_FIVE_ASSET_PAPER.zip`. The owner's subsequent 12-hour request is prepared in a separate private **0.0.10.11** package, retaining the original six-hour launcher and adding a twelve-hour launcher. Its engine strategy source is not copied into this public app repository.
+The current source package is the complete private **TACHYOS 0.0.10.20 WINDOWS_FIX1 PAPER** release. It retains separate six-hour and twelve-hour launchers and adds no venue-order transport. Its strategy source and recorded sessions are not copied into this public app repository. The deployed CashOutAI app has passed its public HTTP checks and owner/admin UI review; connecting the owner's Windows feeds remains a separate live gate.
 
 The source confirms:
 
 - `05_START_FIVE_ASSET_PAPER_12H.cmd` starts five separate `START_CONNECTED_PAPER.py` processes for 720 minutes, each with an explicit asset, port, and output folder. `05_START_FIVE_ASSET_PAPER_6H.cmd` remains available for 360-minute sessions.
-- The updated engine identity is `0.0.10.11_PAPER_ONLY`; the previous package remains `0.0.10.10_PAPER_ONLY` and does not accept 720 minutes.
-- The dashboard protocol remains `ui_build=0.0.8.4`, with `ui_protocol: 1`. The dashboard build and engine version are separate identifiers.
-- The native endpoint is `GET /api/nautilus?ui_build=0.0.8.4`. It binds only to `127.0.0.1` and exposes read-only PAPER telemetry.
+- The current engine identity is `0.0.10.20_PAPER_ONLY`, and the package revision is `WINDOWS_FIX1`.
+- The browser dashboard requires its own current `ui_build=0.0.10.20` when that hint is supplied. Dashboard build identifiers are separate from the read-only API contract.
+- The publisher uses plain `GET /api/nautilus`, which the native server explicitly supports for read-only API tools. It binds only to `127.0.0.1` and exposes PAPER telemetry. The old companion's hardcoded `ui_build=0.0.8.4` causes a reload-required response on the new engine and must not be used.
 - The adapter supplies `mode: "PAPER_ONLY"`, `readonly: true`, the actual asset symbol, source timestamps, run flags, chart data, positions, and trades expected by the app's display contract.
 
 This is a source compatibility check. It does not establish which folder is currently running on the owner's computer, actual source freshness, the complete latest payload's acceptance by the deployed backend, or prospective bot performance. A current Windows packet and controlled end-to-end check remain necessary before presenting a feed as live.
@@ -31,23 +31,23 @@ This is a source compatibility check. It does not establish which folder is curr
 
 The release includes two small Windows entry points in `scripts/windows`, with instructions in [README.md](../scripts/windows/README.md). [CashOutAI_Publisher_Windows.zip](../downloads/CashOutAI_Publisher_Windows.zip) preserves that layout and includes the same standard-library publisher. Keep it beside the complete private bot package.
 
-**01_CHECK_LOCAL_FEEDS.cmd** can be used while waiting for the app release. It reads the five fixed local endpoints once, requires no key, and contacts no backend or public provider. A pass establishes reachable, matching read-only PAPER identities only; source freshness and backend schema acceptance remain separate checks.
+**01_CHECK_LOCAL_FEEDS.cmd** reads the five fixed local endpoints once, requires no key, and contacts no backend or public provider. A pass establishes reachable, matching read-only PAPER identities only; source freshness and backend schema acceptance remain separate checks. Wait for engine startup/prewarm to complete; five opened command windows alone are not a readiness signal.
 
 **02_START_PUBLISHER.cmd** is for the coordinated live connection after the new routes and matching key are configured. It uses the fixed HTTPS backend origin and asks for a hidden publisher key. That explicit prompt overrides an environment key for the current run, leaves the environment unchanged, and never saves or prints the key. It refuses an echoed-input fallback. Both helpers use the existing `py -3` launcher and preserve the exit status for review.
 
-Equivalent explicit modes are `py -3 scripts\publish_nautilus.py --check-local` and `py -3 scripts\publish_nautilus.py --backend https://cashoutai.onrender.com --prompt-key`. Native Windows double-click execution and deployed publication remain unverified until performed on the operator's machine.
+Equivalent explicit modes are `py -3 -X utf8 scripts\publish_nautilus.py --check-local` and `py -3 -X utf8 scripts\publish_nautilus.py --backend https://cashoutai.onrender.com --prompt-key`. Both companion buttons explicitly enable UTF-8. Native Windows double-click execution and deployed publication remain unverified until performed on the operator's machine.
 
 ## First live connection
 
-Complete the coordinated app release and access checks first. The prior live application does not become a five-bot app merely because its database tier changed.
+The app release and owner/admin access checks are complete. Before advertising live practice, complete the publisher-key configuration and verify the five actual Windows feeds. Keep the practice event disabled during this preparation.
 
 ### 1. Start the complete Windows package
 
-Use the complete, separately extracted 0.0.10.11 package folder for twelve-hour sessions. Do not copy a new launcher into an older package. Its sequence is:
+Use the complete, separately extracted `TACHYOS_0120_PAPER` folder from **0.0.10.20 WINDOWS_FIX1** for twelve-hour sessions. Do not copy a new launcher into an older package. Its sequence is:
 
 1. Run `03_VERIFY_PACKAGE.cmd`.
 2. If its required dependencies are missing, use `04_INSTALL_PUBLIC_FEEDS.cmd`, then verify again.
-3. Run `05_START_FIVE_ASSET_PAPER_12H.cmd` after verification passes, or choose the retained `05_START_FIVE_ASSET_PAPER_6H.cmd` for a shorter session.
+3. Run `05_START_FIVE_ASSET_PAPER_12H_MINIMIZED.cmd` after verification passes, or `05_START_FIVE_ASSET_PAPER_12H.cmd` for visible command windows. The retained `05_START_FIVE_ASSET_PAPER_6H.cmd` selects a shorter session.
 
 The five-asset launcher performs its own validation before starting these processes:
 
@@ -59,7 +59,7 @@ The five-asset launcher performs its own validation before starting these proces
 | XRP | 8790 | `py -3 START_CONNECTED_PAPER.py --asset XRP --minutes 720 --port 8790 --output paper_runs\XRP` |
 | DOGE | 8791 | `py -3 START_CONNECTED_PAPER.py --asset DOGE --minutes 720 --port 8791 --output paper_runs\DOGE` |
 
-These commands are recorded to explain the launcher; use the verified launcher so its validation step is retained. The similarly named `05_START_PUBLIC_PAPER_6H.cmd` is BTC-only. The older `07_OPEN_NAUTILUS.cmd` also opens only BTC and carries an older UI identifier; use the URLs printed by the running five-asset engines for their local cockpits.
+These commands are recorded to explain the launcher; use the verified launcher so its validation step is retained. The minimized variant also passes `--no-browser`. The similarly named `05_START_PUBLIC_PAPER_6H.cmd` is BTC-only. Use the current package's viewer launcher or the URLs printed by each running engine to open Nautilus later; closing a viewer does not stop its PAPER process.
 
 ### 2. Configure one publisher secret
 
@@ -73,13 +73,13 @@ Use [scripts/publish_nautilus.py](../scripts/publish_nautilus.py) from this app 
 
 ```powershell
 $env:NAUTILUS_BACKEND_URL = 'https://cashoutai.onrender.com'
-py -3 .\scripts\publish_nautilus.py --once
+py -3 -X utf8 .\scripts\publish_nautilus.py --once
 ```
 
 This makes one bounded attempt per asset. It exits successfully only if the backend explicitly accepts a new snapshot for all five assets. Exit code 1 can also mean that a native timestamp was unchanged; wait for a newer native packet and retry. An unchanged result alone does not establish an authentication or backend failure. After that check succeeds, leave one continuous publisher process running:
 
 ```powershell
-py -3 .\scripts\publish_nautilus.py
+py -3 -X utf8 .\scripts\publish_nautilus.py
 ```
 
 The default target is one round per second, with up to five concurrent requests. Each round reads the fixed local ports above and sends the packets to `POST /api/nautilus/ingest/{asset}`. A slow or unavailable source can lengthen a round; the publisher never fabricates data to fill a gap. Do not run multiple copies of the publisher against the same five local sources.
@@ -162,6 +162,20 @@ The release adds non-unique `nautilus_chat_asset_created_at` and `nautilus_chat_
 | Accepted packet, practice still unavailable | Check native source/quote freshness, open contract, and the selected member's active access. HTTP acknowledgement alone is insufficient. |
 
 ## Verification boundary
+
+### November 27 publisher compatibility correction
+
+The earlier companion's browser-specific build query was incompatible with the current private package. The corrected publisher uses the native server's supported plain API path while retaining fixed loopback sources, PAPER identity, size bounds, redirect rejection, and private-key handling. All 24 focused Nautilus API/publisher regressions pass, including a newer-dashboard fixture that fails with the old query and succeeds for all five assets after the fix.
+
+A separate offline integration used the uploaded package's actual HTTP handler and converter with synthetic observations for all five assets, followed by the app's actual router with an in-memory database. It reproduced the old reload-required response, then passed native packet read, ingestion, authenticated member retrieval, native price/candle preservation, both YES/NO quote actions, live/stale/offline transitions, unchanged-timestamp handling, and deduplicated session notices. It made no external connections or production writes and used no real credentials. This establishes the existing app contract, not a live Windows/network connection.
+
+The current package's unmodified validator passed 913 tests with no failures, errors, or skips in Linux with Python 3.12 and Node available. Its four diagnostic-runner tests and JavaScript gates passed. All 1,199 sealed manifest entries and all 49 runtime hashes matched before and after validation. Native Windows execution and a fresh twelve-hour session remain separate checks.
+
+CashOutAI's existing allowlist does not expose the new local Long View/macro context and private analytics fields. Those remain available in the Windows viewer; this bridge correction does not add those interfaces to the website. Preserve the native three-second quote expiry, and verify actual internet latency before opening practice. At ordinary engine shutdown the listener closes; the last app snapshot ages to stale and later offline instead of being presented as an indefinitely live feed.
+
+The companion ZIP can be rebuilt with `python scripts/build_windows_publisher.py` and checked without changes using `python scripts/build_windows_publisher.py --check`. Its explicit four-file allowlist includes only the publisher, two Windows commands, and their README, plus a checksum manifest.
+
+### Historical twelve-hour preparation
 
 The private engine source supplied the exact Windows launchers, twelve-hour duration path, ports, protocol, and endpoint behavior above. The updated duration, shutdown, retention, and twelve-hour timestamp-range export received offline checks. Neither an actual twelve-hour endurance run nor Windows double-click execution is established by those checks. No public feed or real venue trade was run for this preparation.
 

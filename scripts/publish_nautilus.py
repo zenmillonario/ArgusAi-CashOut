@@ -74,7 +74,9 @@ def read_local_paper(asset):
         raise ValueError("Unknown bot asset")
     # Proxy environment settings must never send localhost telemetry elsewhere.
     local_opener = build_opener(ProxyHandler({}), NoRedirect())
-    source = f"http://127.0.0.1:{ASSET_PORTS[asset]}/api/nautilus?ui_build=0.0.8.4"
+    # Dashboard cache versions belong to browser tabs. The stable read-only
+    # API intentionally accepts an unversioned request from this display bridge.
+    source = f"http://127.0.0.1:{ASSET_PORTS[asset]}/api/nautilus"
     with local_opener.open(Request(source, headers={"Accept": "application/json"}), timeout=2) as response:
         raw = _read_bounded(response)
     packet = json.loads(raw)
