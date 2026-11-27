@@ -1,4 +1,4 @@
-"""Two deliberately unchained private tasks; neither accepts retained inputs.
+"""Deliberately unchained private tasks; none accepts retained inputs.
 
 Only a strict, aggregate result is returned to Render. Snapshot credentials live
 in runtime environment variables, never task arguments, and are forwarded only
@@ -25,6 +25,9 @@ CHILD_TIMEOUT_SECONDS = 1700
 MAX_STDOUT_BYTES = 65536
 MAX_STDERR_BYTES = 16 * 1024 * 1024
 MAX_FAILURE_BYTES = 1024
+STORAGE_CHILD_TIMEOUT_SECONDS = 20
+MAX_STORAGE_OUTPUT_BYTES = 8192
+MAX_STORAGE_NUMBER = 2 ** 53 - 1
 # This list is deliberately literal, independent of child output and receipt
 # values. New importer reasons stay generic until separately reviewed here.
 RESTORED_FAILURE_REASONS = frozenset({
@@ -288,6 +291,113 @@ def safe_run(mode):
         raise PrivateTaskError("private_runtime_interrupted") from None
 
 
+def storage_environment(private_root):
+    # The actual parent-selected temporary filesystem is forwarded locally,
+    # without inheriting any runtime credentials or retaining a path in output.
+    return {"PATH": "/opt/cashout-app/bin:/usr/bin:/bin", "LANG": "C.UTF-8", "TZ": "UTC",
+            "PYTHONUNBUFFERED": "1", "PYTHONDONTWRITEBYTECODE": "1", "TMPDIR": str(private_root)}
+
+
+def aggregate_storage_result(value):
+    constants = {"schema": "cashout_private_storage_v1", "result": "PASS", "mode": "metadata_only",
+                 "network_attempts": 0, "snapshot_data_accessed": False, "probe_cleanup_verified": True}
+    require(type(value) is dict and set(value) == set(constants) | {"candidates"}, "invalid_storage_result")
+    for key, expected in constants.items():
+        require(type(value[key]) is type(expected) and value[key] == expected, "invalid_storage_result")
+    rows = value["candidates"]
+    labels = ("default", "tmp", "var_tmp", "home")
+    numbers = {"total_bytes", "free_bytes", "total_inodes", "free_inodes"}
+    booleans = {"available", "writable", "same_filesystem_as_default"}
+    fields = {"label", "filesystem_type"} | numbers | booleans
+    kinds = {"tmpfs", "overlay", "ext4", "xfs", "btrfs", "other", "unknown"}
+    require(type(rows) is list and len(rows) == len(labels), "invalid_storage_result")
+    for row, label in zip(rows, labels):
+        require(type(row) is dict and set(row) == fields, "invalid_storage_result")
+        require(type(row["label"]) is str and row["label"] == label
+                and type(row["filesystem_type"]) is str and row["filesystem_type"] in kinds,
+                "invalid_storage_result")
+        require(all(type(row[key]) is bool for key in booleans), "invalid_storage_result")
+        require(all(type(row[key]) is int and 0 <= row[key] <= MAX_STORAGE_NUMBER for key in numbers),
+                "invalid_storage_result")
+        require(row["free_bytes"] <= row["total_bytes"] and row["free_inodes"] <= row["total_inodes"],
+                "invalid_storage_result")
+        if row["available"]:
+            require(row["total_bytes"] > 0, "invalid_storage_result")
+        else:
+            require(not row["writable"] and not row["same_filesystem_as_default"]
+                    and row["filesystem_type"] == "unknown" and all(row[key] == 0 for key in numbers),
+                    "invalid_storage_result")
+    require(rows[0]["available"] and rows[0]["same_filesystem_as_default"], "invalid_storage_result")
+    return value
+
+
+def parse_storage_result(raw):
+    require(type(raw) is bytes and len(raw) <= MAX_STORAGE_OUTPUT_BYTES, "invalid_storage_result")
+    def unique_keys(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate_storage_key")
+            result[key] = value
+        return result
+    try:
+        value = json.loads(raw, object_pairs_hook=unique_keys)
+    except (ValueError, UnicodeError, RecursionError):
+        raise PrivateTaskError("invalid_storage_result") from None
+    return aggregate_storage_result(value)
+
+
+def stop_storage_child(process):
+    if process.poll() is None:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+            process.wait(timeout=2)
+        except ProcessLookupError:
+            return
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=2)
+
+
+def run_storage_probe():
+    script = ROOT / "scripts/private_recovery/inspect_private_storage.py"
+    require(APP_PYTHON.is_file() and script.is_file(), "private_storage_runtime_missing")
+    # Use the same default tempfile selection as the recovery wrapper. The
+    # child measures this exact directory's filesystem, even if Render sets a
+    # default other than /tmp. The path never becomes a retained task argument.
+    with tempfile.TemporaryDirectory(prefix="cashout_workflow_storage_") as directory:
+        private_root = Path(directory).resolve()
+        os.chmod(private_root, 0o700)
+        with tempfile.TemporaryFile(dir=private_root) as output, tempfile.TemporaryFile(dir=private_root) as errors:
+            process = subprocess.Popen([str(APP_PYTHON), str(script)], cwd=ROOT,
+                env=storage_environment(private_root), stdin=subprocess.DEVNULL,
+                stdout=output, stderr=errors, start_new_session=True)
+            try:
+                try:
+                    process.wait(timeout=STORAGE_CHILD_TIMEOUT_SECONDS)
+                except subprocess.TimeoutExpired:
+                    raise PrivateTaskError("private_storage_probe_timeout") from None
+                require(process.returncode == 0, "private_storage_probe_failed")
+                require(os.fstat(output.fileno()).st_size <= MAX_STORAGE_OUTPUT_BYTES
+                        and os.fstat(errors.fileno()).st_size == 0, "private_storage_output_refused")
+                output.seek(0)
+                return parse_storage_result(output.read(MAX_STORAGE_OUTPUT_BYTES + 1))
+            finally:
+                stop_storage_child(process)
+
+
+def safe_storage_probe():
+    try:
+        return run_storage_probe()
+    except PrivateTaskError as error:
+        raise PrivateTaskError(str(error)) from None
+    except BaseException:
+        raise PrivateTaskError("private_storage_probe_interrupted") from None
+
+
 @app.task(name="synthetic_preflight", retry=Retry(max_retries=0, wait_duration_ms=1000),
           timeout_seconds=1800, plan="2c-4g")
 def synthetic_preflight(ctx: TaskContext) -> dict:
@@ -300,6 +410,13 @@ def synthetic_preflight(ctx: TaskContext) -> dict:
 def rehearse_restored_copy(ctx: TaskContext) -> dict:
     """Use the runtime-only selected snapshot; do not chain or retry this task."""
     return safe_run("restored_snapshot")
+
+
+@app.task(name="inspect_private_storage", retry=Retry(max_retries=0, wait_duration_ms=1000),
+          timeout_seconds=30, plan="2c-4g")
+def inspect_private_storage(ctx: TaskContext) -> dict:
+    """Inspect fixed filesystem candidates without snapshot inputs or data."""
+    return safe_storage_probe()
 
 
 if __name__ == "__main__":

@@ -212,6 +212,27 @@ jobs:
             cashout-private-recovery:ci -m unittest discover \
             -s scripts/private_recovery -p 'test_preflight_contract.py'
 
+      - name: Check storage diagnostic privacy and cleanup contracts without network
+        run: |
+          docker run --rm --network none --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=128m \
+            --entrypoint /opt/cashout-app/bin/python \
+            cashout-private-recovery:ci -m unittest discover \
+            -s scripts/private_recovery -p 'test_private_storage.py'
+
+      - name: Inspect actual task-local filesystems without snapshot inputs or network
+        timeout-minutes: 2
+        run: |
+          # Deliberately choose a parent default other than /tmp, on a separate
+          # filesystem. The child must measure the wrapper's actual selection.
+          docker run --name cashout-storage-inspection --rm --network none \
+            --cpus 2 --memory 4g --read-only --env TMPDIR=/var/tmp \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=64m \
+            --tmpfs /var/tmp:rw,nosuid,nodev,mode=1777,size=32m \
+            --entrypoint /opt/cashout-workflow/bin/python \
+            cashout-private-recovery:ci -c \
+            'import json; from scripts.private_recovery.workflow import inspect_private_storage; result = inspect_private_storage.func(None); rows = {row["label"]: row for row in result["candidates"]}; assert rows["var_tmp"]["same_filesystem_as_default"] and not rows["tmp"]["same_filesystem_as_default"]; print(json.dumps(result, sort_keys=True))'
+
       - name: Restore a generated native snapshot and exercise the restored-copy helpers
         timeout-minutes: 16
         run: |
@@ -242,6 +263,7 @@ jobs:
           printf '%s\n' \
             'The private Docker image built and passed its actual synthetic task, MongoDB, and compiled-browser preflight with external networking disabled.' \
             'The image also passed snapshot-input refusal and aggregate-result privacy checks.' \
+            'The inputless storage diagnostic passed its privacy and cleanup contracts and inspected only filesystem metadata with external networking disabled.' \
             'A generated native snapshot passed safe extraction, typed BSON and index preservation, verified logical copies, and the actual restored-copy API and browser helpers on synthetic identities.' \
             'This is synthetic CI evidence only. No snapshot link, real account selection, provider credentials, production data, or Render task was used.' \
             'No container, database, reset-link, browser, or runtime-log artifacts are uploaded.' \
@@ -249,4 +271,4 @@ jobs:
 
       - name: Stop any remaining synthetic container
         if: always()
-        run: docker rm --force cashout-private-preflight cashout-native-integration >/dev/null 2>&1 || true
+        run: docker rm --force cashout-private-preflight cashout-native-integration cashout-storage-inspection >/dev/null 2>&1 || true
