@@ -5048,15 +5048,18 @@ try:
     from .account_credentials import password_record
     from .square_billing import SquareBillingService
     from .practice_event import PracticeEventService
+    from .traffic_analytics import create_traffic_router
 except ImportError:
     from stock_alerts import StockAlertService, active_membership
     from membership import MEMBERSHIP_REQUIRED, utc_datetime, iso_date
     from account_credentials import password_record
     from square_billing import SquareBillingService
     from practice_event import PracticeEventService
+    from traffic_analytics import create_traffic_router
 practice_event_service = PracticeEventService(
     db, email_sender=email_service.send_email if email_service else None)
 app.include_router(practice_event_service.router())
+app.include_router(create_traffic_router(db, require_authenticated_admin, limiter))
 stock_alert_service = StockAlertService(db, require_profile_owner, get_active_fcm_tokens, community_broadcast=manager.broadcast)
 app.include_router(stock_alert_service.router())
 square_billing_service = SquareBillingService(

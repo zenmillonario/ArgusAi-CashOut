@@ -4,6 +4,7 @@ name: CashOutAI frontend checks
   push:
     branches:
       - 'codex/cashoutai-cockpit-*'
+      - 'codex/cashoutai-event-notices-traffic-*'
     paths:
       - '.github/workflows/cashout-frontend.yml'
       - 'frontend/**'
