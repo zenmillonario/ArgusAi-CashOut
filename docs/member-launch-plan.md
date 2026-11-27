@@ -1,6 +1,6 @@
 # CashOutAI member continuity, signup and launch plan
 
-**Reviewed November 25, 2026. Status: app feature release remains a draft; the production frontend hosting migration is complete.**
+**Release preparation update, November 27, 2026 UTC:** The production frontend hosting migration, isolated native snapshot comparison, and private restored-member recovery are complete. The member-facing release is being prepared for a coordinated backend/frontend deployment. The event stays disabled and memberships stay manually approved until the corresponding live checks pass. See the [completed private recovery evidence](private-recovery-workflow.md) for its exact tested revision and limitations.
 
 ## Existing members keep their accounts
 
@@ -14,7 +14,7 @@ The draft repairs a specific legacy signup defect: registration could delete a r
 
 Follow the [backup and existing-account recovery runbook](backup-and-recovery-runbook.md) for the minimum backup, isolated restore, and recovery rehearsal before deployment.
 
-**November 25 update:** The owner completed the Atlas Flex upgrade. Backups are enabled and the restarted existing backend is healthy, but the first completed snapshot and isolated restore are still pending. Follow [administrator operations](admin-operations.md) for the paid-purchase review controls and the isolated generic test login, and [bot operations](bot-operations.md) for the verified five-asset Windows launcher and publisher. Those controls belong to the release draft until frontend and backend are deployed together.
+**Recovery prerequisite completed:** Following the owner's Atlas Flex upgrade, a completed native snapshot passed an isolated M10 restore and record comparison. A separate private runtime then completed recovery on copied member and administrator identities, including the selected member's compiled-browser journey, while preserving records. Both disposable recovery workflows were deleted and the source snapshot retained. Captured recovery emails do not establish production delivery or live provider readiness. Follow [administrator operations](admin-operations.md) for the paid-purchase review controls and [bot operations](bot-operations.md) for the five-asset Windows launcher and publisher; their live integration checks remain separate.
 
 1. Verify the current production database and uploaded-image storage configuration. Take a restorable backup and verify a restoration in an isolated environment. Do not point the new release at an empty replacement database.
 2. Compare member counts, stable IDs, membership fields and representative related-record counts in the isolated copy. Audit existing duplicate usernames/emails before adding uniqueness constraints or proposing any merge.

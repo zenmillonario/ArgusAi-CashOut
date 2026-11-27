@@ -11,6 +11,8 @@ name: CashOutAI synthetic recovery and browser checks
       - backend/**
       - frontend/**
       - scripts/test_recovery_browser.py
+      - scripts/test_sensitive_landing_browser.py
+      - scripts/test_legacy_worker_browser.py
       - scripts/private_recovery/**
 
 permissions:
@@ -88,6 +90,19 @@ jobs:
           GENERATE_SOURCEMAP: 'false'
           CI: 'true'
         run: yarn --cwd frontend build
+
+      - name: Check frontend session, worker and feature model contracts
+        run: node --test frontend/src/*.test.mjs frontend/src/*/*.test.mjs
+
+      - name: Verify sensitive landing privacy in the compiled browser UI
+        timeout-minutes: 5
+        run: |
+          "$REHEARSAL_DIR/venv/bin/python" scripts/test_sensitive_landing_browser.py \
+            --frontend-build "$GITHUB_WORKSPACE/frontend/build"
+
+      - name: Verify legacy worker retirement in a real browser lifecycle
+        timeout-minutes: 5
+        run: "$REHEARSAL_DIR/venv/bin/python" scripts/test_legacy_worker_browser.py
 
       - name: Download and verify the official MongoDB 8.0.38 binary
         run: |
