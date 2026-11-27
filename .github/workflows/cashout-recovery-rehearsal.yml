@@ -102,7 +102,8 @@ jobs:
 
       - name: Verify legacy worker retirement in a real browser lifecycle
         timeout-minutes: 5
-        run: "$REHEARSAL_DIR/venv/bin/python" scripts/test_legacy_worker_browser.py
+        run: |
+          "$REHEARSAL_DIR/venv/bin/python" scripts/test_legacy_worker_browser.py
 
       - name: Download and verify the official MongoDB 8.0.38 binary
         run: |
