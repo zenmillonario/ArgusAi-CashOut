@@ -85,36 +85,53 @@ def seed_fixture(database):
     ])
 
 
-def run(root):
+def run(root, progress):
+    progress["phase"] = "prepare_synthetic_fixture"
     plan = synthetic_plan()
     environment = runner.child_environment(root)
     (root / "tmp").mkdir(mode=0o700)
     seed_path = root / "seed"
     seed_path.mkdir(mode=0o700)
+    # The source port is used again after extraction. Keep seed-process logs in
+    # their own private directory; the production launcher's exclusive file
+    # creation must continue to reject accidental log reuse.
+    seed_runtime = root / "seed-runtime"
+    seed_runtime.mkdir(mode=0o700)
     boundary = runner.NetworkBoundary("unused.invalid", set())
     boundary.local_only = True
     sys.addaudithook(boundary)
-    with runner.running_mongo(seed_path, runner.SOURCE_PORT, root, environment) as (client, version):
+    progress["phase"] = "start_seed_mongodb"
+    with runner.running_mongo(seed_path, runner.SOURCE_PORT, seed_runtime, environment) as (client, version):
+        progress["phase"] = "seed_synthetic_records"
         seed_fixture(client.cashoutai)
+        progress["phase"] = "fingerprint_synthetic_source"
         baseline = runner.database_fingerprint(client.cashoutai, plan)
         chosen = runner.choose_accounts(client.cashoutai)
         runner.require(chosen == {"member_id": "synthetic-member", "admin_id": "synthetic-admin"},
                        "SYNTHETIC_SELECTION_FAILED")
     archive = root / "synthetic-native.tar.gz"
+    progress["phase"] = "capture_synthetic_raw_archive"
     # Source Mongo has shut down cleanly before capturing these raw data files.
     with tarfile.open(archive, "w:gz") as bundle:
         bundle.add(seed_path, arcname="synthetic-native")
+    progress["phase"] = "extract_synthetic_raw_archive"
     restored_path = runner.extract_archive(archive, root / "restored", plan)
     target_path = root / "target"
     target_path.mkdir(mode=0o700)
     api_name = "cashout_rehearsal_synthetic_archive_api"
     browser_name = "cashout_rehearsal_synthetic_archive_browser"
+    progress["phase"] = "start_clone_mongodb"
     with runner.running_mongo(target_path, runner.TARGET_PORT, root, environment) as (target, target_version):
+        progress["phase"] = "start_restored_source_mongodb"
         with runner.running_mongo(restored_path, runner.SOURCE_PORT, root, environment) as (source, source_version):
+            progress["phase"] = "verify_raw_restore"
             runner.require(source_version == version and runner.database_fingerprint(source.cashoutai, plan) == baseline,
                            "SYNTHETIC_RAW_RESTORE_MISMATCH")
+            progress["phase"] = "clone_api_database"
             clone = runner.clone_database(source.cashoutai, target, api_name, baseline, plan)
+            progress["phase"] = "clone_browser_database"
             runner.clone_database(source.cashoutai, target, browser_name, baseline, plan)
+            progress["phase"] = "verify_clone_preservation"
             runner.require(target_version == version and runner.database_fingerprint(clone, plan) == baseline
                            and runner.choose_accounts(clone) == chosen, "SYNTHETIC_CLONE_MISMATCH")
             # Deliberately change only the clone. The immutable source baseline
@@ -128,13 +145,16 @@ def run(root):
         # The restored-source listener is stopped before either actual app
         # journey; the two children receive distinct, unchanged logical clones.
         runner.private_json(root / "selection.json", chosen)
+        progress["phase"] = "exercise_actual_api_child"
         api = runner.run_child([sys.executable, str(runner.APP_ROOT / "backend/tests/rehearse_restored_app_recovery.py"),
             "--mode", "exercise", "--restored-copy", "--database", api_name, "--mongo-port", str(runner.TARGET_PORT),
             "--selection-file", str(root / "selection.json")], environment, root / "api-output.json", 300)
+        progress["phase"] = "exercise_restored_browser_child"
         browser = runner.run_child([sys.executable, str(runner.APP_ROOT / "scripts/private_recovery/test_restored_browser.py"),
             "--frontend-build", str(runner.APP_ROOT / "frontend/build"), "--database", browser_name,
             "--selection-file", str(root / "selection.json"), "--mongo-port", str(runner.TARGET_PORT),
             "--http-port", str(runner.HTTP_PORT)], environment, root / "browser-output.json", 480)
+        progress["phase"] = "verify_aggregate_contract"
         with archive.open("rb") as archived:
             digest = hashlib.file_digest(archived, "sha256").hexdigest()
         aggregate_contract = runner.public_result(digest, version, baseline, api, browser)
@@ -154,6 +174,7 @@ def run(root):
 
 
 def main():
+    progress = {"phase": "validate_synthetic_inputs"}
     try:
         runner.require(len(sys.argv) == 1 and not (runner.ENV_NAMES & os.environ.keys()), "SYNTHETIC_INPUTS_REFUSED")
         runner.require(not any("mongodb://" in value or "mongodb+srv://" in value for value in os.environ.values()),
@@ -167,11 +188,22 @@ def main():
         signal.signal(signal.SIGTERM, timeout)
         signal.alarm(900)
         with tempfile.TemporaryDirectory(prefix="cashout_synthetic_archive_") as temporary:
-            result = run(Path(temporary))
+            result = run(Path(temporary), progress)
         signal.alarm(0)
     except BaseException as error:
+        # This inputless exercise contains generated fixtures only. Fixed stage,
+        # exception class and numeric code make CI failures actionable without
+        # publishing exception text, database records, child output or logs.
+        known_types = {"Refusal", "FileExistsError", "FileNotFoundError", "PermissionError", "OSError",
+                       "KeyError", "IndexError", "TypeError", "ValueError", "AssertionError", "OperationFailure",
+                       "InvalidOperation", "ConnectionFailure", "ServerSelectionTimeoutError", "InvalidBSON",
+                       "TimeoutExpired", "TimeoutError", "MemoryError"}
+        error_type = type(error).__name__
+        numeric_code = getattr(error, "code", getattr(error, "errno", None))
         result = {"schema": "cashout_synthetic_archive_integration_v1", "result": "FAIL",
                   "mode": "synthetic_archive_integration", "reason": str(error) if isinstance(error, runner.Refusal) else "SYNTHETIC_RUNTIME_FAILED",
+                  "phase": progress["phase"], "error_type": error_type if error_type in known_types else "UnexpectedException",
+                  "error_code": numeric_code if type(numeric_code) is int and 0 <= numeric_code <= 10**9 else None,
                   "real_member_recovery_verified": False}
         print(json.dumps(result, sort_keys=True), flush=True)
         return 1
