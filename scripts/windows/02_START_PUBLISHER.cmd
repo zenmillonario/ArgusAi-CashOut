@@ -18,7 +18,7 @@ echo Keep your five existing PAPER engines running in their own windows.
 echo Enter the publisher key at the hidden prompt. It is not saved.
 echo The entered key overrides any publisher key in the environment for this run.
 echo Leave this window open while publishing. Press Ctrl+C to stop the publisher.
-py -3 "%CASHOUT_PUBLISHER%" --backend "https://cashoutai.onrender.com" --prompt-key
+py -3 -X utf8 "%CASHOUT_PUBLISHER%" --backend "https://cashoutai.onrender.com" --prompt-key
 set "CASHOUT_EXIT_CODE=%ERRORLEVEL%"
 echo.
 echo Publisher finished with exit code %CASHOUT_EXIT_CODE%.
