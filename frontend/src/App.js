@@ -29,6 +29,7 @@ import { readStockAlertLink } from './stockNotifications.mjs';
 import AppNavigation, { TradingTools, CommunityNavigation, MembersDirectory } from './social/AppNavigation';
 import { appSection, unreadCount, reactionType, reactionSummary, persistReaction, winDraft } from './social/socialModel.mjs';
 import BillingPanel, { AdminBillingPanel } from './billing/BillingPanel';
+import AdminTrafficPanel from './admin/AdminTrafficPanel';
 import { MEMBERSHIP_PLANS, membershipPlan, moneyFromCents, signupPlanIntent, billingReturnIntent, normalizeBillingProof,
   readBillingProof, saveBillingProof, clearBillingProof, memberBillingCredential, responseBelongsToSession } from './billing/billingModel.mjs';
 import usePracticeEvent from './practiceEvent/usePracticeEvent';
@@ -3015,6 +3016,7 @@ function App() {
         {/* Admin Tab */}
         {activeTab === 'admin' && currentUser?.is_admin && (
           <div className="space-y-6">
+            <AdminTrafficPanel key={`${currentUser.id}:${currentUser.active_session_id}`} apiBase={API} currentUser={currentUser} isDarkTheme={isDarkTheme} />
             <AdminBillingPanel key={`${currentUser.id}:${currentUser.active_session_id}`} apiBase={API}
               credential={memberBillingCredential(currentUser)} members={[...allUsers, ...pendingUsers]}
               selectedMemberId={billingReviewSelection.userId} selectionVersion={billingReviewSelection.version}
