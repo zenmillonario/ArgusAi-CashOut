@@ -1,5 +1,19 @@
 export const EVENT_REGISTRATION_PLAN = 'Practice event';
 
+// Keep the existing API's string field without collecting a real name.
+// The server independently validates the campaign and requires email verification.
+export function eventRegistrationPayload(credentials, email, config) {
+  if (practiceEventPhase(config) !== 'open' || !config?.campaign_id) throw new Error('This practice event is not open.');
+  return {
+    username: String(credentials.username || '').trim(),
+    password: credentials.password,
+    email: String(email || '').trim(),
+    real_name: '',
+    membership_plan: EVENT_REGISTRATION_PLAN,
+    practice_event_id: config.campaign_id,
+  };
+}
+
 export function eventTokenFromLocation(location) {
   return new URLSearchParams(location?.search || '').get('event_token') || '';
 }

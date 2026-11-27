@@ -33,7 +33,7 @@ import { MEMBERSHIP_PLANS, membershipPlan, moneyFromCents, signupPlanIntent, bil
   readBillingProof, saveBillingProof, clearBillingProof, memberBillingCredential, responseBelongsToSession } from './billing/billingModel.mjs';
 import usePracticeEvent from './practiceEvent/usePracticeEvent';
 import { PracticeEventInvitation, PracticeEventRequestDialog, PracticeEventVerification, PracticeEventMemberBanner } from './practiceEvent/PracticeEvent';
-import { EVENT_REGISTRATION_PLAN, eventTokenFromLocation, withoutEventToken, eventDeadlineLabel, practiceEventError, requestPracticeEventLink } from './practiceEvent/eventModel.mjs';
+import { EVENT_REGISTRATION_PLAN, eventTokenFromLocation, withoutEventToken, eventDeadlineLabel, practiceEventError, requestPracticeEventLink, eventRegistrationPayload } from './practiceEvent/eventModel.mjs';
 
 // Error Boundary Component for Mobile App
 class MobileErrorBoundary extends React.Component {
@@ -155,11 +155,6 @@ function App() {
   useEffect(() => {
     if (eventTokenFromLocation(window.location)) window.history.replaceState({}, '', withoutEventToken(window.location.href));
   }, []);
-  useEffect(() => {
-    if (isRegistering && practiceEvent.phase === 'open') {
-      setLoginForm(previous => previous.membership_plan ? previous : { ...previous, membership_plan: EVENT_REGISTRATION_PLAN });
-    }
-  }, [isRegistering, practiceEvent.phase]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -1132,11 +1127,9 @@ function App() {
       if (registering) {
         if (joiningEvent && practiceEvent.phase !== 'open') { setError('The practice event is not accepting new access. Choose a membership or sign in to your existing account.'); return; }
         if (!joiningEvent && !selectedPlan) { setError('Choose the practice event or a membership option.'); return; }
-        await axios.post(`${API}/users/register`, {
-          ...credentials, email: loginForm.email, real_name: loginForm.real_name,
-          membership_plan: joiningEvent ? EVENT_REGISTRATION_PLAN : selectedPlan.registrationLabel,
-          ...(joiningEvent ? { practice_event_id: practiceEvent.config.campaign_id } : {})
-        });
+        await axios.post(`${API}/users/register`, joiningEvent
+          ? eventRegistrationPayload(credentials, loginForm.email, practiceEvent.config)
+          : { ...credentials, email: loginForm.email, real_name: loginForm.real_name, membership_plan: selectedPlan.registrationLabel });
         if (authAttemptRef.current !== attempt || activeUserRef.current) return;
         accountCreated = true;
         if (joiningEvent) {
@@ -1947,7 +1940,7 @@ function App() {
             {billingPlanId && <div className="billing-plan-intent"><p>Selected: {membershipPlan(billingPlanId)?.label} · {moneyFromCents(membershipPlan(billingPlanId)?.amount_cents)}</p><small>Already a member? Sign in with your existing account to review this option. If your old password does not work, recover that account below.</small></div>}
             {openBillingOnLogin && !billingPlanId && <div className="billing-plan-intent"><p>Sign in to review your membership and payment status.</p><small>Returning from checkout does not confirm payment or activate access. Your account shows the server-verified status.</small></div>}
             <PracticeEventInvitation event={practiceEvent} registering={isRegistering}
-              onJoin={() => { setError(null); setIsRegistering(true); setBillingPlanId(''); setLoginForm(previous => ({ ...previous, membership_plan: EVENT_REGISTRATION_PLAN, password: '' })); }}
+              onJoin={() => { setError(null); setIsRegistering(true); setBillingPlanId(''); setLoginForm(previous => ({ ...previous, membership_plan: EVENT_REGISTRATION_PLAN, real_name: '', password: '' })); }}
               onExisting={() => openEventRequest(loginForm.email)} />
             
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -1981,6 +1974,7 @@ function App() {
               
               {isRegistering && (
                 <>
+                  {!isEventRegistration && (
                   <div>
                     <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                       Real Name
@@ -1997,6 +1991,7 @@ function App() {
                       required
                     />
                   </div>
+                  )}
                   
                   <div>
                     <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -2014,6 +2009,12 @@ function App() {
                       required
                     />
                   </div>
+                  {isEventRegistration ? (
+                    <div className="practice-event-choice-note">
+                      <p>{practiceEvent.phase === 'open' ? `Free Event Access through ${eventDeadlineLabel(practiceEvent.config.ends_at)}. No card or automatic charge.` : 'The event is not accepting new access.'}</p>
+                      <button type="button" className="practice-event-text" disabled={isLoggingIn} onClick={() => { setError(null); setBillingPlanId(''); setLoginForm(previous => ({ ...previous, membership_plan: '' })); }}>Choose a paid membership instead</button>
+                    </div>
+                  ) : (
                   <div>
                     <label className={`block mb-2 ${isDarkTheme ? 'text-gray-300' : 'text-gray-700'}`}>
                       Access option *
@@ -2029,13 +2030,12 @@ function App() {
                       required
                     >
                       <option value="">Select an access option</option>
-                      {practiceEvent.phase === 'open' && <option value={EVENT_REGISTRATION_PLAN}>Free practice event — verify your email</option>}
-                      {isEventRegistration && practiceEvent.phase !== 'open' && <option value={EVENT_REGISTRATION_PLAN} disabled>Practice event — currently unavailable</option>}
+                      {practiceEvent.phase === 'open' && <option value={EVENT_REGISTRATION_PLAN}>Free Event Access — verify your email</option>}
                       {MEMBERSHIP_PLANS.map(plan => <option value={plan.registrationLabel} key={plan.id}>{plan.label} — {moneyFromCents(plan.amount_cents)} one time</option>)}
                     </select>
-                    {isEventRegistration ? <p className="practice-event-choice-note">{practiceEvent.phase === 'open' ? `Verify your email for free event access through ${eventDeadlineLabel(practiceEvent.config.ends_at)}. No card or automatic charge. Everyone shares this deadline.` : 'The practice event is currently unavailable. Select a membership option or return to sign in.'}</p>
-                      : <p className={`text-xs mt-2 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>Pay once on Square after creating your account. Paid access begins after the team approves your purchase. No automatic renewal or rolling trial.</p>}
+                    <p className={`text-xs mt-2 ${isDarkTheme ? 'text-gray-400' : 'text-gray-500'}`}>Pay once on Square after creating your account. Paid access begins after the team approves your purchase. No automatic renewal or rolling trial.</p>
                   </div>
+                  )}
                 </>
               )}
               
@@ -2096,9 +2096,9 @@ function App() {
               
               <button
                 type="submit"
-                disabled={isLoggingIn}
+                disabled={isLoggingIn || (isEventRegistration && practiceEvent.phase !== 'open')}
                 className={`w-full py-3 rounded-lg font-semibold transition-all duration-200 ${
-                  isLoggingIn 
+                  isLoggingIn || (isEventRegistration && practiceEvent.phase !== 'open') 
                     ? 'bg-gray-400 cursor-not-allowed text-gray-200' 
                     : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700'
                 }`}
@@ -2128,7 +2128,7 @@ function App() {
                 <button
                   type="button"
                   disabled={isLoggingIn}
-                  onClick={() => setIsRegistering(!isRegistering)}
+                  onClick={() => { setError(null); if (!isRegistering) setLoginForm(previous => ({ ...previous, membership_plan: membershipPlan(previous.membership_plan)?.registrationLabel || '', password: '' })); setIsRegistering(!isRegistering); }}
                   className={`${isDarkTheme ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} transition-colors`}
                 >
                   {isRegistering ? 'Already have an account? Sign in' : "Don't have an account? Create one"}
