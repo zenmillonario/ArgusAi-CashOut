@@ -167,12 +167,13 @@ class StockPreferences(BaseModel):
 
 
 class StockAlertService:
-    def __init__(self, db, require_owner, active_tokens, provider=None, now=utcnow):
+    def __init__(self, db, require_owner, active_tokens, provider=None, now=utcnow, community_broadcast=None):
         self.db = db
         self.require_owner = require_owner
         self.active_tokens = active_tokens
         self.provider = provider
         self.now = now
+        self.community_broadcast = community_broadcast
 
     async def member(self, request):
         user_id = request.headers.get("x-user-id", "")
@@ -187,6 +188,8 @@ class StockAlertService:
     async def ingest(self, request, payload):
         require_webhook_secret(request)
         candidate = normalize_stock_alert(payload, self.now())
+        if self.community_broadcast is not None:
+            candidate["community_pending"] = True
         inserted = False
         try:
             result = await self.db.stock_alerts.update_one({"_id": candidate["id"]}, {"$setOnInsert": candidate}, upsert=True)
@@ -205,6 +208,40 @@ class StockAlertService:
         await self.db.stock_alerts.create_index([("audience_ready", 1), ("created_at", 1)])
         await self.db.stock_alert_deliveries.create_index([("status", 1), ("next_attempt_at", 1)])
         await self.db.stock_alert_deliveries.create_index([("alert_id", 1)])
+        if self.community_broadcast is not None:
+            await self.db.stock_alerts.create_index([("community_pending", 1), ("created_at", 1)])
+
+    async def publish_community(self, alert):
+        """Mirror a saved alert once, without member notification or XP hooks."""
+        key = "stock-alert-" + alert["id"]
+        # Only normalized, verified alert fields are used; no mailbox contents,
+        # credentials, member impersonation, or executable trade instruction.
+        source = alert.get("source_timestamp") or alert["received_at"]
+        timestamp = alert["created_at"]
+        body = f'{alert["symbol"]} stock alert'
+        if alert.get("price"):
+            body += f' at ${alert["price"]}'
+        body += f'. Thinkorswim · source time {source}. Open Stocks to review.'
+        row = {"_id": key, "id": key, "user_id": "cashoutai-stock-system",
+               "username": "CashOutAI Stocks", "screen_name": "CashOutAI Stocks",
+               "content": body, "content_type": "text", "is_admin": False,
+               "timestamp": timestamp, "highlighted_tickers": [alert["symbol"]]}
+        inserted = False
+        try:
+            result = await self.db.messages.update_one({"_id": key}, {"$setOnInsert": row}, upsert=True)
+            inserted = result.upserted_id is not None
+        except Exception as error:
+            if getattr(error, "code", None) != 11000:
+                raise
+        await self.db.stock_alerts.update_one({"_id": alert["id"]}, {"$set": {"community_pending": False}})
+        if inserted:
+            public = {k: v for k, v in row.items() if k != "_id"}
+            public["timestamp"] = iso(timestamp)
+            try:
+                await self.community_broadcast(json.dumps({"type": "message", "data": public}))
+            except Exception:
+                # The normal authenticated chat read still returns the saved post.
+                logger.warning("Stock community live broadcast unavailable; post saved.")
 
     async def prepare_audience(self, alert):
         if alert["push_expires_at"] <= self.now():
@@ -305,6 +342,19 @@ class StockAlertService:
             "next_attempt_at": {"$lte": self.now()}}).sort("next_attempt_at", 1).limit(50).to_list(50)
         for job in jobs:
             await self.send_job(job)
+        # Chat mirroring is deliberately separate from delivery and its expiry.
+        # A database failure is retried on a later tick; deterministic IDs keep
+        # writes idempotent even across restarts or concurrent workers.
+        if self.community_broadcast is not None:
+            try:
+                pending = await self.db.stock_alerts.find({"community_pending": True}).sort("created_at", 1).limit(20).to_list(20)
+                for alert in pending:
+                    try:
+                        await self.publish_community(alert)
+                    except Exception:
+                        logger.warning("Stock community post pending retry.")
+            except Exception:
+                logger.warning("Stock community queue temporarily unavailable.")
 
     async def run(self):
         try:

@@ -140,7 +140,7 @@ class StockAlertTests(unittest.IsolatedAsyncioTestCase):
             {"id": "member", "active_session_id": "synthetic-session", "status": "approved", "stock_alert_push_enabled": True},
             {"id": "quiet", "active_session_id": "quiet-session", "status": "approved"},
             {"id": "stale", "active_session_id": "new-session", "status": "approved", "stock_alert_push_enabled": True},
-        ]), stock_alerts=Collection(), stock_alert_deliveries=Collection())
+        ]), stock_alerts=Collection(), stock_alert_deliveries=Collection(), messages=Collection())
         self.devices = [
             {"user_id": "member", "token": "current-device", "session_fingerprint": hashlib.sha256(b"synthetic-session").hexdigest()},
             {"user_id": "quiet", "token": "quiet-device", "session_fingerprint": hashlib.sha256(b"quiet-session").hexdigest()},
@@ -162,7 +162,13 @@ class StockAlertTests(unittest.IsolatedAsyncioTestCase):
                                         "owner_user_id": d["user_id"], "owner_session_fingerprint": d["session_fingerprint"]}
                                        for d in self.devices])
         self.provider = Provider()
-        self.service = StockAlertService(self.db, owner, tokens, self.provider, now=lambda: self.clock)
+        self.community_messages = []
+
+        async def broadcast(message):
+            self.community_messages.append(json.loads(message))
+
+        self.service = StockAlertService(self.db, owner, tokens, self.provider, now=lambda: self.clock,
+                                         community_broadcast=broadcast)
         self.app = FastAPI()
         self.app.include_router(self.service.router())
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app), base_url="http://test")
@@ -201,10 +207,41 @@ class StockAlertTests(unittest.IsolatedAsyncioTestCase):
         await self.service.tick()
         self.assertEqual(len(self.db.stock_alerts.docs), 1)
         self.assertEqual(len(self.provider.calls), 1)
+        self.assertEqual(len(self.db.messages.docs), 1)
+        self.assertEqual(len(self.community_messages), 1)
+        self.assertEqual(self.db.messages.docs[0]["highlighted_tickers"], ["AAPL"])
+        self.assertIn("194.25", self.db.messages.docs[0]["content"])
+        self.assertFalse(self.db.messages.docs[0]["is_admin"])
+        self.assertEqual(self.community_messages[0]["type"], "message")
         self.assertEqual(self.db.stock_alert_deliveries.docs[0]["status"], "accepted")
         with self.assertRaises(HTTPException) as error:
             await self.ingest({**payload(), "body": "Last = $199.99"})
         self.assertEqual(error.exception.status_code, 409)
+
+    async def test_community_retry_is_independent_of_push_and_does_not_duplicate(self):
+        await self.ingest()
+        original = self.db.messages.update_one
+        async def fail(*args, **kwargs):
+            raise RuntimeError("synthetic chat storage failure")
+        self.db.messages.update_one = fail
+        await self.service.tick()
+        self.assertEqual(len(self.provider.calls), 1)
+        self.assertEqual(self.db.messages.docs, [])
+        self.assertTrue(self.db.stock_alerts.docs[0]["community_pending"])
+        self.db.messages.update_one = original
+        await self.service.tick()
+        await self.service.tick()
+        self.assertEqual(len(self.db.messages.docs), 1)
+        self.assertEqual(len(self.community_messages), 1)
+        self.assertEqual(len(self.provider.calls), 1)
+        self.assertFalse(self.db.stock_alerts.docs[0]["community_pending"])
+
+    async def test_existing_alerts_are_not_automatically_backfilled(self):
+        old = normalize_stock_alert(payload(), NOW)
+        self.db.stock_alerts.docs.append(old)
+        await self.service.tick()
+        self.assertEqual(self.db.messages.docs, [])
+        self.assertEqual(self.community_messages, [])
 
     async def test_repeated_prices_with_different_email_ids_remain_distinct(self):
         a = await self.ingest(payload("email-1"))
