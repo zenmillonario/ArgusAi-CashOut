@@ -216,12 +216,14 @@ class StockAlertService:
         key = "stock-alert-" + alert["id"]
         # Only normalized, verified alert fields are used; no mailbox contents,
         # credentials, member impersonation, or executable trade instruction.
-        source = alert.get("source_timestamp") or alert["received_at"]
         timestamp = alert["created_at"]
-        body = f'{alert["symbol"]} stock alert'
+        body = f'🔔 ${alert["symbol"]}'
         if alert.get("price"):
-            body += f' at ${alert["price"]}'
-        body += f'. Thinkorswim · source time {source}. Open Stocks to review.'
+            price = alert["price"]
+            if price.startswith("0."):
+                price = price[1:]
+            body += f' ${price}'
+        body += " 👀"
         row = {"_id": key, "id": key, "user_id": "cashoutai-stock-system",
                "username": "CashOutAI Stocks", "screen_name": "CashOutAI Stocks",
                "content": body, "content_type": "text", "is_admin": False,
