@@ -11,6 +11,7 @@ name: CashOutAI synthetic recovery and browser checks
       - backend/**
       - frontend/**
       - scripts/test_recovery_browser.py
+      - scripts/private_recovery/**
 
 permissions:
   contents: read
@@ -168,3 +169,84 @@ jobs:
           if [[ "${REHEARSAL_DIR:-}" == "$RUNNER_TEMP/cashout-recovery" ]]; then
             rm -rf -- "$REHEARSAL_DIR/db"
           fi
+
+  private-image-preflight:
+    name: Build private runtime and exercise only synthetic data
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the triggering commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Build the exact private Linux amd64 image without secrets
+        run: |
+          docker build --platform linux/amd64 --pull \
+            --file scripts/private_recovery/Dockerfile \
+            --build-arg "CASHOUT_SOURCE_REVISION=$GITHUB_SHA" \
+            --tag cashout-private-recovery:ci .
+
+      - name: Check current SDK task metadata and retained-result boundaries
+        run: |
+          docker run --rm --network none --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=128m \
+            --entrypoint /opt/cashout-workflow/bin/python \
+            cashout-private-recovery:ci -m unittest discover \
+            -s scripts/private_recovery -p 'test_workflow_contract.py'
+
+      - name: Check snapshot refusal and synthetic preflight contracts without network
+        run: |
+          docker run --rm --network none --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=128m \
+            --entrypoint /opt/cashout-app/bin/python \
+            cashout-private-recovery:ci -m unittest discover \
+            -s scripts/private_recovery -p 'test_restored*.py'
+          docker run --rm --network none --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=128m \
+            --entrypoint /opt/cashout-app/bin/python \
+            cashout-private-recovery:ci -m unittest discover \
+            -s scripts/private_recovery -p 'test_preflight_contract.py'
+
+      - name: Restore a generated native snapshot and exercise the restored-copy helpers
+        timeout-minutes: 16
+        run: |
+          # Generate the raw snapshot from empty local MongoDB instances inside
+          # this container. No Atlas URL, receipt, account, or credential enters.
+          docker run --name cashout-native-integration --rm --network none \
+            --cpus 2 --memory 4g --shm-size 512m --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=2g \
+            --entrypoint /opt/cashout-app/bin/python \
+            cashout-private-recovery:ci \
+            /app/scripts/private_recovery/test_native_restore_integration.py
+
+      - name: Run the actual synthetic task entry with MongoDB and the compiled browser
+        timeout-minutes: 12
+        run: |
+          # Invoking the SDK task's local function validates this exact image
+          # and wrapper. It does not register or run a paid Render task.
+          # Numeric loopback works with Docker's external network disabled.
+          docker run --name cashout-private-preflight --rm --network none \
+            --cpus 2 --memory 4g --shm-size 512m --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=1g \
+            --entrypoint /opt/cashout-workflow/bin/python \
+            cashout-private-recovery:ci -c \
+            'import json; from scripts.private_recovery.workflow import synthetic_preflight; print(json.dumps(synthetic_preflight.func(None), sort_keys=True))'
+
+      - name: Record the image evidence boundary
+        run: |
+          printf '%s\n' \
+            'The private Docker image built and passed its actual synthetic task, MongoDB, and compiled-browser preflight with external networking disabled.' \
+            'The image also passed snapshot-input refusal and aggregate-result privacy checks.' \
+            'A generated native snapshot passed safe extraction, typed BSON and index preservation, verified logical copies, and the actual restored-copy API and browser helpers on synthetic identities.' \
+            'This is synthetic CI evidence only. No snapshot link, real account selection, provider credentials, production data, or Render task was used.' \
+            'No container, database, reset-link, browser, or runtime-log artifacts are uploaded.' \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop any remaining synthetic container
+        if: always()
+        run: docker rm --force cashout-private-preflight cashout-native-integration >/dev/null 2>&1 || true
