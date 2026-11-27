@@ -24,6 +24,86 @@ APP_PYTHON = Path("/opt/cashout-app/bin/python")
 CHILD_TIMEOUT_SECONDS = 1700
 MAX_STDOUT_BYTES = 65536
 MAX_STDERR_BYTES = 16 * 1024 * 1024
+MAX_FAILURE_BYTES = 1024
+# This list is deliberately literal, independent of child output and receipt
+# values. New importer reasons stay generic until separately reviewed here.
+RESTORED_FAILURE_REASONS = frozenset({
+    "EXPLICIT_RESTORED_MODE_REQUIRED",
+    "REMOTE_DATABASE_CONFIGURATION_REFUSED",
+    "PRODUCTION_CREDENTIAL_ENVIRONMENT_REFUSED",
+    "SNAPSHOT_RECEIPT_REQUIRED",
+    "INVALID_SNAPSHOT_RECEIPT",
+    "INCOMPLETE_SNAPSHOT_RECEIPT",
+    "EXACTLY_ONE_SNAPSHOT_IDENTITY_REQUIRED",
+    "SOURCE_DECLARATION_REFUSED",
+    "INVALID_PROJECT_DECLARATION",
+    "INVALID_SNAPSHOT_IDENTITY",
+    "INVALID_SNAPSHOT_ARCHIVE_NAME",
+    "SNAPSHOT_ARCHIVE_URL_MISMATCH",
+    "SOURCE_VERSION_REFUSED",
+    "INVALID_RECEIPT_TIME",
+    "RECEIPT_TIME_MUST_BE_UTC",
+    "SNAPSHOT_DOWNLOAD_RECEIPT_EXPIRED",
+    "INVALID_ARCHIVE_LIMITS",
+    "INVALID_COLLECTION_DECLARATION",
+    "INVALID_DOCUMENT_COUNT_DECLARATION",
+    "INVALID_DOWNLOAD_URL",
+    "DOWNLOAD_HOST_MISMATCH",
+    "IP_LITERAL_DOWNLOAD_REFUSED",
+    "DOWNLOAD_PROVIDER_REFUSED",
+    "SNAPSHOT_HOST_LOOKUP_FAILED",
+    "NONPUBLIC_DOWNLOAD_ADDRESS_REFUSED",
+    "NETWORK_BOUNDARY_REFUSED",
+    "PRIVATE_PARENT_DIRECTORY_REQUIRED",
+    "PRIVATE_PARENT_DIRECTORY_REFUSED",
+    "INSUFFICIENT_PRIVATE_DISK",
+    "SNAPSHOT_DOWNLOAD_HTTP_FAILED",
+    "ENCODED_DOWNLOAD_REFUSED",
+    "DOWNLOAD_LENGTH_REFUSED",
+    "DOWNLOAD_TIME_LIMIT",
+    "DOWNLOAD_SIZE_LIMIT",
+    "DOWNLOAD_LENGTH_MISMATCH",
+    "ARCHIVE_EXPANSION_LIMIT",
+    "TRUNCATED_ARCHIVE",
+    "ARCHIVE_TRAILER_REFUSED",
+    "ARCHIVE_MEMBER_LIMIT",
+    "ARCHIVE_SPECIAL_FILE_REFUSED",
+    "ARCHIVE_MEMBER_SIZE_REFUSED",
+    "ARCHIVE_EXTENSION_LIMIT",
+    "ARCHIVE_SPARSE_REFUSED",
+    "ARCHIVE_PATH_REFUSED",
+    "ARCHIVE_DUPLICATE_PATH",
+    "SINGLE_RAW_DATABASE_REQUIRED",
+    "LOCAL_PORT_REFUSED",
+    "MONGODB_BINARY_UNAVAILABLE",
+    "MONGODB_START_FAILED",
+    "LOCAL_MONGODB_VERSION_REFUSED",
+    "SOURCE_FCV_REFUSED",
+    "UNEXPECTED_LOCAL_MONGODB",
+    "MONGODB_RUNTIME_MISMATCH",
+    "INCOMPLETE_INDEX_REFUSED",
+    "SOURCE_COLLECTIONS_MISMATCH",
+    "SOURCE_DOCUMENT_LIMIT",
+    "DUPLICATE_DOCUMENT_IDENTITY",
+    "SOURCE_DOCUMENT_COUNTS_MISMATCH",
+    "EMPTY_REHEARSAL_DATABASE_REQUIRED",
+    "UNSUPPORTED_COLLECTION_TYPE",
+    "RESTORED_COPY_COMPARISON_FAILED",
+    "RESTORED_SOURCE_CHANGED",
+    "ELIGIBLE_RESTORED_ACCOUNTS_UNAVAILABLE",
+    "CHILD_OUTPUT_LIMIT",
+    "CHILD_RESULT_UNAVAILABLE",
+    "CHILD_REHEARSAL_FAILED",
+    "CHILD_REHEARSAL_TIME_LIMIT",
+    "API_RECOVERY_EVIDENCE_FAILED",
+    "BROWSER_RECOVERY_EVIDENCE_FAILED",
+    "CAPTURED_EMAIL_EVIDENCE_FAILED",
+    "INVALID_AGGREGATE_INPUT",
+    "PARENT_NETWORK_BOUNDARY_FAILED",
+    "COMMAND_ARGUMENTS_REFUSED",
+    "PRIVATE_REHEARSAL_INTERRUPTED",
+    "PRIVATE_RUNTIME_FAILED",
+})
 SNAPSHOT_ENV = (
     "CASHOUT_REHEARSAL_MODE",
     "CASHOUT_SNAPSHOT_URL",
@@ -110,6 +190,36 @@ def aggregate_result(value, mode):
     return value
 
 
+def restored_failure_code(raw):
+    """Expose only reviewed literals from a bounded, exact failure object."""
+    generic = "private_runner_failed"
+    if type(raw) is not bytes or len(raw) > MAX_FAILURE_BYTES:
+        return generic
+
+    def unique_keys(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("duplicate_failure_key")
+            value[key] = item
+        return value
+
+    try:
+        value = json.loads(raw, object_pairs_hook=unique_keys)
+    except (ValueError, UnicodeError, RecursionError):
+        return generic
+    if type(value) is not dict or set(value) != {"schema", "result", "stage", "reason"}:
+        return generic
+    if (type(value["schema"]) is not str or value["schema"] != "cashout_private_recovery_v1"
+            or type(value["result"]) is not str or value["result"] != "FAIL"
+            or type(value["stage"]) is not str
+            or value["stage"] not in {"configuration", "restored_rehearsal"}
+            or type(value["reason"]) is not str
+            or value["reason"] not in RESTORED_FAILURE_REASONS):
+        return generic
+    return f"private_runner_failed:{value['stage']}:{value['reason']}"
+
+
 def stop_child(process):
     """Give the runner time to stop Mongo/preview and remove private state."""
     if process.poll() is None:
@@ -147,7 +257,14 @@ def run_private(mode):
                             and os.fstat(errors.fileno()).st_size <= MAX_STDERR_BYTES,
                             "private_output_limit")
                     time.sleep(0.2)
-                require(process.returncode == 0, "private_runner_failed")
+                if process.returncode != 0:
+                    code = "private_runner_failed"
+                    if mode == "restored_snapshot":
+                        output.seek(0)
+                        code = restored_failure_code(output.read(MAX_FAILURE_BYTES + 1))
+                    # Keep the task failed; never return failure data as success
+                    # and never read or forward stderr or arbitrary child text.
+                    raise PrivateTaskError(code) from None
                 require(os.fstat(output.fileno()).st_size <= MAX_STDOUT_BYTES,
                         "private_output_limit")
                 output.seek(0)

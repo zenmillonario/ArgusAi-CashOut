@@ -38,6 +38,20 @@ def environment(value=None, url=None):
             "CASHOUT_SNAPSHOT_URL": url or "https://synthetic-bucket.s3.amazonaws.com/fixture?signature=PRIVATE_SENTINEL"}
 
 
+def archive_receipt():
+    value = receipt()
+    value.pop("snapshot_id")
+    value["snapshot_archive_name"] = "SyntheticCluster-2026-11-26T22-58-00.123Z.tgz"
+    return value
+
+
+def archive_environment(value=None, component=None):
+    value = archive_receipt() if value is None else value
+    component = value["snapshot_archive_name"] if component is None else component
+    return environment(value, "https://synthetic-bucket.s3.amazonaws.com/downloads/" + component
+                       + "?signature=PRIVATE_SENTINEL")
+
+
 def plan():
     return runner.Plan.from_environment(environment(), NOW)
 
@@ -108,6 +122,79 @@ class RestoredRecoveryTests(unittest.TestCase):
             with self.subTest(fields=list(change)):
                 with self.assertRaises(runner.Refusal):
                     runner.Plan.from_environment(environment({**receipt(), **change}), NOW)
+
+    def test_archive_identity_accepts_exact_name_and_once_decoded_url_basename(self):
+        value = archive_receipt()
+        name = value["snapshot_archive_name"]
+        for component in (name, name.replace("-", "%2D").replace(".", "%2E")):
+            with self.subTest(encoded=component != name):
+                result = runner.Plan.from_environment(archive_environment(value, component), NOW)
+                self.assertEqual(result.receipt["snapshot_archive_name"], name)
+                self.assertNotIn("snapshot_id", result.receipt)
+                self.assertNotIn(name, repr(result))
+                self.assertNotIn("PRIVATE_SENTINEL", repr(result))
+        # Archive-name time and provider-displayed snapshot completion time have distinct provenance.
+        self.assertEqual(value["snapshot_created_at"], (NOW - timedelta(hours=2)).isoformat())
+        self.assertEqual(plan().receipt["snapshot_id"], "synthetic-snapshot")
+
+    def test_snapshot_identity_requires_exactly_one_present_key(self):
+        missing = receipt()
+        missing.pop("snapshot_id")
+        both = {**receipt(), "snapshot_archive_name": archive_receipt()["snapshot_archive_name"]}
+        for value in (missing, both, {**both, "snapshot_id": None}, {**both, "snapshot_archive_name": None}):
+            with self.subTest(keys=sorted(value)):
+                with self.assertRaisesRegex(runner.Refusal, "^EXACTLY_ONE_SNAPSHOT_IDENTITY_REQUIRED$"):
+                    runner.Plan.from_environment(environment(value), NOW)
+
+    def test_archive_identity_rejects_unsafe_names_or_wrong_cluster(self):
+        valid = archive_receipt()["snapshot_archive_name"]
+        names = (None, 123, [], "", "../" + valid, "/" + valid, "nested/" + valid,
+                 "..\\" + valid, valid + "/", valid + "\0", valid + "\n", " " + valid,
+                 valid.replace("SyntheticCluster", "AnotherCluster"), valid.replace(".tgz", ".tar.gz"),
+                 valid.replace(".tgz", ".TGZ"), valid.replace("-", "%2D"), valid + "?signature=x")
+        for name in names:
+            with self.subTest(name_type=type(name).__name__):
+                with self.assertRaisesRegex(runner.Refusal, "^INVALID_SNAPSHOT_ARCHIVE_NAME$"):
+                    runner.Plan.from_environment(archive_environment({**archive_receipt(), "snapshot_archive_name": name}, valid), NOW)
+        for cluster in ("../SyntheticCluster", "SyntheticCluster/child", "SyntheticCluster\\child"):
+            with self.assertRaisesRegex(runner.Refusal, "^INVALID_SNAPSHOT_IDENTITY$"):
+                runner.Plan.from_environment(archive_environment({**archive_receipt(), "source_cluster": cluster}), NOW)
+
+    def test_archive_identity_requires_valid_utc_millisecond_timestamp(self):
+        for stamp in ("2026-02-30T22-58-00.123Z", "2026-13-26T22-58-00.123Z", "2026-11-26T24-58-00.123Z",
+                      "2026-11-26T22-60-00.123Z", "2026-11-26T22-58-60.123Z", "2026-11-26T22-58-00Z",
+                      "2026-11-26T22-58-00.1Z", "2026-11-26T22-58-00.123456Z", "2026-11-26T22:58:00.123Z",
+                      "2026-11-26T22-58-00.123+00:00", "２０２６-11-26T22-58-00.123Z"):
+            value = {**archive_receipt(), "snapshot_archive_name": "SyntheticCluster-" + stamp + ".tgz"}
+            with self.subTest(timestamp_shape=stamp[-9:]):
+                with self.assertRaisesRegex(runner.Refusal, "^INVALID_SNAPSHOT_ARCHIVE_NAME$"):
+                    runner.Plan.from_environment(archive_environment(value), NOW)
+
+    def test_archive_identity_requires_exact_decoded_final_url_component(self):
+        value = archive_receipt()
+        name = value["snapshot_archive_name"]
+        for component in ("different.tgz", name.replace("123Z", "124Z"), name + "/", "?filename=" + name,
+                          "..%2F" + name, "%2F" + name, "%5C" + name, name.replace("-", "%252D"),
+                          name + "%00", name + "%FF", name + "%ZZ", name.replace(".", "+")):
+            with self.subTest(component_length=len(component)):
+                with self.assertRaisesRegex(runner.Refusal, "^SNAPSHOT_ARCHIVE_URL_MISMATCH$") as refusal:
+                    runner.Plan.from_environment(archive_environment(value, component), NOW)
+                self.assertNotIn(name, str(refusal.exception))
+                self.assertNotIn("PRIVATE_SENTINEL", str(refusal.exception))
+
+    def test_archive_identity_keeps_source_time_provider_and_environment_guards(self):
+        for change in ({"source_mongodb_version": "7.0.5"}, {"source_fcv": "7.0"},
+                       {"download_expires_at": (NOW + timedelta(hours=2)).isoformat()},
+                       {"download_expires_at": NOW.isoformat()}, {"archive_max_bytes": True}):
+            with self.subTest(fields=list(change)):
+                with self.assertRaises(runner.Refusal):
+                    runner.Plan.from_environment(archive_environment({**archive_receipt(), **change}), NOW)
+        config = archive_environment()
+        for change in ({"CASHOUT_SNAPSHOT_URL": config["CASHOUT_SNAPSHOT_URL"].replace("https:", "http:")},
+                       {"CASHOUT_SNAPSHOT_URL": config["CASHOUT_SNAPSHOT_URL"].replace("synthetic-bucket", "other-bucket")},
+                       {"MONGODB_URI": "mongodb+srv://production.invalid/cashoutai"}):
+            with self.assertRaises(runner.Refusal):
+                runner.Plan.from_environment({**config, **change}, NOW)
 
     def test_url_requires_exact_https_provider_host_without_credentials_or_ip(self):
         for url in ("http://synthetic-bucket.s3.amazonaws.com/a", "https://other.s3.amazonaws.com/a",

@@ -34,7 +34,7 @@ import sys
 import tarfile
 import tempfile
 import time
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 
 APP_ROOT = Path(__file__).resolve().parents[2]
@@ -49,11 +49,12 @@ MODE = "atlas_native_snapshot_v1"
 SCHEMA = "cashout_atlas_snapshot_v1"
 ENV_NAMES = frozenset({"CASHOUT_REHEARSAL_MODE", "CASHOUT_SNAPSHOT_URL", "CASHOUT_SNAPSHOT_DECLARATION_JSON"})
 RECEIPT_FIELDS = frozenset({
-    "schema", "project_id", "source_cluster", "snapshot_id", "snapshot_created_at",
+    "schema", "project_id", "source_cluster", "snapshot_created_at",
     "source_mongodb_version", "source_fcv", "source_database", "download_created_at",
     "download_expires_at", "download_host", "archive_min_bytes", "archive_max_bytes",
     "expanded_max_bytes", "member_limit", "document_limit", "expected_collections",
 })
+SNAPSHOT_IDENTITY_FIELDS = frozenset({"snapshot_id", "snapshot_archive_name"})
 
 
 class Refusal(Exception):
@@ -101,6 +102,22 @@ def validate_download_url(url, expected_host):
     return host
 
 
+def validate_snapshot_archive_name(name, source_cluster, url):
+    require(isinstance(name, str) and len(name) <= 255, "INVALID_SNAPSHOT_ARCHIVE_NAME")
+    match = re.fullmatch(re.escape(source_cluster)
+                         + r"-([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}\.[0-9]{3}Z)\.tgz", name)
+    require(match is not None, "INVALID_SNAPSHOT_ARCHIVE_NAME")
+    try:
+        datetime.strptime(match.group(1), "%Y-%m-%dT%H-%M-%S.%fZ")
+    except ValueError:
+        raise Refusal("INVALID_SNAPSHOT_ARCHIVE_NAME") from None
+    try:
+        url_name = unquote(urlsplit(url).path.rsplit("/", 1)[-1], encoding="utf-8", errors="strict")
+    except UnicodeDecodeError:
+        raise Refusal("SNAPSHOT_ARCHIVE_URL_MISMATCH") from None
+    require(url_name == name, "SNAPSHOT_ARCHIVE_URL_MISMATCH")
+
+
 @dataclass(frozen=True)
 class Plan:
     url: str = field(repr=False)
@@ -124,12 +141,14 @@ class Plan:
         except (TypeError, ValueError):
             raise Refusal("INVALID_SNAPSHOT_RECEIPT") from None
         require(isinstance(receipt, dict) and RECEIPT_FIELDS <= receipt.keys()
-                and receipt.keys() <= RECEIPT_FIELDS | {"expected_document_counts"}, "INCOMPLETE_SNAPSHOT_RECEIPT")
+                and receipt.keys() <= RECEIPT_FIELDS | SNAPSHOT_IDENTITY_FIELDS | {"expected_document_counts"},
+                "INCOMPLETE_SNAPSHOT_RECEIPT")
+        require(len(receipt.keys() & SNAPSHOT_IDENTITY_FIELDS) == 1, "EXACTLY_ONE_SNAPSHOT_IDENTITY_REQUIRED")
         require(receipt["schema"] == SCHEMA and receipt["source_database"] == "cashoutai"
                 and receipt["source_fcv"] == "8.0", "SOURCE_DECLARATION_REFUSED")
         require(isinstance(receipt["project_id"], str) and re.fullmatch(r"[0-9a-f]{24}", receipt["project_id"]),
                 "INVALID_PROJECT_DECLARATION")
-        for key in ("source_cluster", "snapshot_id"):
+        for key in ("source_cluster",) + (("snapshot_id",) if "snapshot_id" in receipt else ()):
             require(isinstance(receipt[key], str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{1,127}", receipt[key]),
                     "INVALID_SNAPSHOT_IDENTITY")
         require(isinstance(receipt["source_mongodb_version"], str)
@@ -159,6 +178,8 @@ class Plan:
                     and sum(counts.values()) <= receipt["document_limit"], "INVALID_DOCUMENT_COUNT_DECLARATION")
         url = environment.get("CASHOUT_SNAPSHOT_URL", "")
         validate_download_url(url, receipt["download_host"])
+        if "snapshot_archive_name" in receipt:
+            validate_snapshot_archive_name(receipt["snapshot_archive_name"], receipt["source_cluster"], url)
         return cls(url, receipt)
 
 

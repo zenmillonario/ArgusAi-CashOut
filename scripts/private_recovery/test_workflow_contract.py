@@ -1,9 +1,13 @@
 """No-network tests of SDK metadata and the boundary around retained results."""
+from contextlib import redirect_stderr, redirect_stdout
 import inspect
+import io
+import json
 import os
 from pathlib import Path
+import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import workflow
 
@@ -24,6 +28,11 @@ def successful_result(mode="synthetic_only"):
                       local_snapshot_restore="PASS", logical_copy_verified=True,
                       archive_sha256="a" * 64, source_documents=10, source_collections=3)
     return result
+
+
+def failed_result(reason="INSUFFICIENT_PRIVATE_DISK", stage="restored_rehearsal"):
+    return {"schema": "cashout_private_recovery_v1", "result": "FAIL",
+            "stage": stage, "reason": reason}
 
 
 class WorkflowContractTests(unittest.TestCase):
@@ -98,6 +107,88 @@ class WorkflowContractTests(unittest.TestCase):
             result.update(mutation)
             with self.assertRaises(workflow.PrivateTaskError):
                 workflow.aggregate_result(result, "restored_snapshot")
+
+    def test_reviewed_failure_reasons_preserve_only_known_stage_and_reason(self):
+        for stage, reason in (
+            ("configuration", "EXACTLY_ONE_SNAPSHOT_IDENTITY_REQUIRED"),
+            ("configuration", "INVALID_SNAPSHOT_ARCHIVE_NAME"),
+            ("configuration", "SNAPSHOT_ARCHIVE_URL_MISMATCH"),
+            ("configuration", "PRIVATE_PARENT_DIRECTORY_REFUSED"),
+            ("restored_rehearsal", "INSUFFICIENT_PRIVATE_DISK"),
+            ("restored_rehearsal", "SNAPSHOT_DOWNLOAD_HTTP_FAILED"),
+            ("restored_rehearsal", "SOURCE_FCV_REFUSED"),
+            ("restored_rehearsal", "ELIGIBLE_RESTORED_ACCOUNTS_UNAVAILABLE"),
+        ):
+            with self.subTest(stage=stage, reason=reason):
+                raw = json.dumps(failed_result(reason, stage)).encode()
+                self.assertEqual(workflow.restored_failure_code(raw),
+                                 f"private_runner_failed:{stage}:{reason}")
+
+    def test_failure_schema_rejects_unknown_extra_and_leaky_values(self):
+        mutations = (
+            {"reason": "NEW_UNREVIEWED_REFUSAL"},
+            {"reason": "INSUFFICIENT_PRIVATE_DISK https://private.invalid/token"},
+            {"reason": ["INSUFFICIENT_PRIVATE_DISK"]},
+            {"stage": "download https://private.invalid/token"},
+            {"stage": False}, {"result": "PASS"}, {"schema": "other_schema"},
+            {"snapshot_url": "https://private.invalid/token"},
+            {"details": "private-account-marker"},
+        )
+        for mutation in mutations:
+            value = failed_result()
+            value.update(mutation)
+            with self.subTest(field=next(iter(mutation))):
+                self.assertEqual(workflow.restored_failure_code(json.dumps(value).encode()),
+                                 "private_runner_failed")
+        for key in failed_result():
+            value = failed_result()
+            del value[key]
+            self.assertEqual(workflow.restored_failure_code(json.dumps(value).encode()),
+                             "private_runner_failed")
+
+    def test_failure_bytes_reject_malformed_duplicate_extra_and_oversized_output(self):
+        valid = json.dumps(failed_result()).encode()
+        duplicate = valid[:-1] + b', "reason": "INSUFFICIENT_PRIVATE_DISK"}'
+        for raw in (
+            b"", b"\xff", b"[]", b"null", b"true", b"\"private-token-marker\"",
+            b"private-token-marker\n" + valid, valid + b"\nprivate-token-marker",
+            valid + valid, duplicate,
+            valid + b" " * workflow.MAX_FAILURE_BYTES,
+        ):
+            self.assertEqual(workflow.restored_failure_code(raw), "private_runner_failed")
+        self.assertEqual(workflow.restored_failure_code(valid.decode()), "private_runner_failed")
+
+    def test_nonzero_exit_remains_failed_and_never_emits_child_output(self):
+        valid = json.dumps(failed_result()).encode()
+        for mode, raw, expected in (
+            ("restored_snapshot", valid,
+             "private_runner_failed:restored_rehearsal:INSUFFICIENT_PRIVATE_DISK"),
+            ("restored_snapshot", valid + b"\nprivate-token-marker", "private_runner_failed"),
+            ("restored_snapshot", b"private-token-marker" * workflow.MAX_FAILURE_BYTES,
+             "private_runner_failed"),
+            ("synthetic_only", valid, "private_runner_failed"),
+        ):
+            process = Mock(returncode=1)
+            process.poll.return_value = 1
+
+            def failed_child(*args, **kwargs):
+                kwargs["stdout"].write(raw)
+                kwargs["stderr"].write(b"private-stderr-marker https://private.invalid/token")
+                return process
+
+            public_stdout, public_stderr = io.StringIO(), io.StringIO()
+            with self.subTest(mode=mode, expected=expected), \
+                    patch.object(workflow, "APP_PYTHON", Path(sys.executable)), \
+                    patch.object(workflow, "child_environment", return_value={}), \
+                    patch.object(workflow.subprocess, "Popen", side_effect=failed_child) as launch, \
+                    redirect_stdout(public_stdout), redirect_stderr(public_stderr):
+                with self.assertRaises(workflow.PrivateTaskError) as caught:
+                    workflow.safe_run(mode)
+                self.assertEqual(str(caught.exception), expected)
+                self.assertTrue(caught.exception.__suppress_context__)
+                launch.assert_called_once()
+            self.assertEqual(public_stdout.getvalue(), "")
+            self.assertEqual(public_stderr.getvalue(), "")
 
     def test_unexpected_exceptions_never_forward_sensitive_text(self):
         with patch.object(workflow, "run_private", side_effect=ValueError("private-token-marker")):
