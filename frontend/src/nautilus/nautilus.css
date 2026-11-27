@@ -617,7 +617,7 @@
 .nw-cockpit .nw-workspace-foot { padding-top: 8px; color: #7d9faf; }
 .nw-cockpit.nw-tv .nw-layout { grid-template-columns: minmax(0, 1fr) 340px; }
 .nw-cockpit.nw-tv .nw-market-price { font-size: clamp(34px, 2.7vw, 51px); }
-.nw-cockpit.nw-tv .nw-quote-instrument dd { font-size: clamp(27px, 2.1vw, 40px); }
+.nw-cockpit.nw-tv .nw-quote-instrument dd:not(.nw-quote-value-long) { font-size: clamp(27px, 2.1vw, 40px); }
 .nw-cockpit.nw-tv .nw-clock-instrument > strong { font-size: clamp(37px, 2.9vw, 54px); }
 .nw-cockpit.nw-is-fullscreen .nw-layout { min-height: 0; }
 .nw-cockpit.nw-is-fullscreen .nw-chart-host { min-height: clamp(430px, calc(100vh - 230px), 950px); min-height: clamp(430px, calc(100svh - 230px), 950px); }
@@ -694,7 +694,7 @@
   .nw-looking-glass-details > summary { padding-left: 10px; }
   .nw-looking-glass-body { padding: 0 10px 12px; }
   .nw-cockpit.nw-tv .nw-market-price { font-size: clamp(30px, 7vw, 40px); }
-  .nw-cockpit.nw-tv .nw-quote-instrument dd { font-size: 31px; }
+  .nw-cockpit.nw-tv .nw-quote-instrument dd:not(.nw-quote-value-long) { font-size: 31px; }
   .nw-cockpit.nw-tv .nw-clock-instrument > strong { font-size: 42px; }
 }
 @media (max-width: 540px) {
