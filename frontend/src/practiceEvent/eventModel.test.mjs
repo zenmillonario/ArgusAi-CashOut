@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizePracticeEvent, practiceEventPhase, eventDeadlineLabel, eventMembershipPresentation,
-  eventTokenFromLocation, withoutEventToken, requestPracticeEventLink, confirmPracticeEvent, practiceEventError } from './eventModel.mjs';
+  eventTokenFromLocation, withoutEventToken, requestPracticeEventLink, confirmPracticeEvent, practiceEventError, eventRegistrationPayload } from './eventModel.mjs';
 
 const end = '2026-12-01T05:00:00Z';
 const start = '2026-11-25T17:00:00Z';
@@ -89,4 +89,19 @@ test('closed, rate-limited, and unavailable email states remain distinguishable'
   assert.match(practiceEventError({ response: { status: 429 } }), /wait a little/);
   assert.match(practiceEventError({ response: { status: 503 } }), /temporarily unavailable/);
   assert.equal(practiceEventError({ response: { status: 409, data: { detail: 'Account access changed while confirming. Request a fresh verification link.' } } }), 'Account access changed while confirming. Request a fresh verification link.');
+});
+
+
+test('free event registration uses only the three credentials and server campaign, never a paid plan or real name', () => {
+  const live = normalizePracticeEvent({campaign_id: 'cashoutai-practice-2026', status: 'open', starts_at: start, ends_at: end, server_now: start}, Date.now());
+  assert.deepEqual(eventRegistrationPayload({username: '  racer  ', password: 'example-password', real_name: 'ignored', membership_plan: 'Lifetime'}, ' racer@example.test ', live), {
+    username: 'racer', password: 'example-password', email: 'racer@example.test', real_name: '', membership_plan: 'Practice event', practice_event_id: 'cashoutai-practice-2026',
+  });
+});
+
+test('the short signup cannot construct event registration when the event is closed or unavailable', () => {
+  for (const status of ['disabled', 'scheduled', 'ended']) {
+    assert.throws(() => eventRegistrationPayload({username:'racer', password:'example-password'}, 'racer@example.test', config({status})), /not open/);
+  }
+  assert.throws(() => eventRegistrationPayload({}, '', null), /not open/);
 });

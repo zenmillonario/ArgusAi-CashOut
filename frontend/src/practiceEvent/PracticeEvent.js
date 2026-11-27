@@ -7,11 +7,11 @@ export function PracticeEventInvitation({ event, onJoin, onExisting, registering
   if (event.phase === 'ended') return <div className="practice-event-invitation is-ended"><strong>The open practice event has ended.</strong><p>Your account and practice history stay saved. Sign in to review your membership options.</p></div>;
   if (event.phase !== 'open') return null;
   return <section className="practice-event-invitation" aria-label="Open practice event">
-    <span className="practice-event-kicker">OPEN PRACTICE EVENT</span>
-    <h2>Explore the bots. Practice with $100 virtual.</h2>
-    <p>Verify your email to try the Nautilus rooms and learn from bot entries. No card is needed for event access.</p>
+    <span className="practice-event-kicker">FREE EVENT ACCESS</span>
+    <h2>Explore the bots. Start with $100 in virtual funds.</h2>
+    <p>Create an account with your username, email and password. Verify your email to explore the Nautilus rooms. No card required.</p>
     <p className="practice-event-deadline">Free access through <strong>{eventDeadlineLabel(event.config.ends_at)}</strong>.</p>
-    {!registering && <div className="practice-event-actions"><button type="button" className="practice-event-primary" onClick={onJoin}>Create a practice account</button><button type="button" className="practice-event-text" onClick={onExisting}>Use my existing account</button></div>}
+    {!registering && <div className="practice-event-actions"><button type="button" className="practice-event-primary" onClick={onJoin}>Free Event Access</button><button type="button" className="practice-event-text" onClick={onExisting}>Use my existing account</button></div>}
     <small>One shared deadline. Your saved progress stays with your account.</small>
   </section>;
 }
