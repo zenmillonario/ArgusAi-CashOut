@@ -3,6 +3,48 @@ export const ASSET_NAMES = { BTC: 'Bitcoin', ETH: 'Ethereum', SOL: 'Solana', XRP
 const number = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
 const iso = seconds => Number.isFinite(seconds) ? new Date(seconds * 1000).toISOString() : null;
 
+function quoteDisplay(market, quote, { current, replay, presentation, now }) {
+  const unavailable = {
+    displayQuotes: { yes: { bid: null, ask: null }, no: { bid: null, ask: null } },
+    displayQuoteStatus: 'unavailable', displayQuoteObservedAt: null,
+  };
+  const verified = quote.last_verified;
+  const observed = number(verified?.verified_at), close = number(market.close_ts);
+  // This is a display-only record from one native book observation. Receipt
+  // time, an earlier contract, or the opposite side cannot fill missing data.
+  if (typeof market.ticker !== 'string' || !market.ticker.trim()
+    || quote.ticker !== market.ticker || verified?.ticker !== market.ticker
+    || quote.source !== 'KALSHI_PUBLIC_BOOK'
+    || number(now) === null || now <= 0 || observed === null || observed <= 0
+    || close === null || close <= 0 || observed >= close
+    || !Number.isFinite(new Date(observed * 1000).getTime())
+    || !Number.isFinite(new Date(close * 1000).getTime())
+    // Match the server's bounded source-clock allowance; never renew expiry.
+    || observed > now + 2 || (!replay && close <= now)) return unavailable;
+  const displayQuotes = {};
+  let hasPrice = false;
+  for (const side of ['yes', 'no']) {
+    const values = {
+      bid: verified[side + '_bid'], ask: verified[side + '_ask'],
+    };
+    const prices = {};
+    for (const kind of ['bid', 'ask']) {
+      const value = values[kind];
+      if (value != null && (number(value) === null || value < 0 || value > 1)) return unavailable;
+      prices[kind] = value ?? null;
+      if (value != null) hasPrice = true;
+    }
+    if (prices.bid !== null && prices.ask !== null && prices.bid > prices.ask) return unavailable;
+    displayQuotes[side] = prices;
+  }
+  if (!hasPrice) return unavailable;
+  return {
+    displayQuotes,
+    displayQuoteStatus: replay ? 'recorded' : current ? 'live' : presentation === 'offline' ? 'offline' : 'delayed',
+    displayQuoteObservedAt: observed,
+  };
+}
+
 /** Present native recorded values unchanged. A stale quote is never a live practice mark. */
 export function adaptNativeSnapshot(native, asset, { state = 'offline', mode, receivedAt, now = Date.now() / 1000 } = {}) {
   if (!BOT_ASSETS.includes(asset)) throw new Error('Unsupported bot asset.');
@@ -47,6 +89,7 @@ export function adaptNativeSnapshot(native, asset, { state = 'offline', mode, re
     updatedAt: iso(m.time) || receivedAt || null, price: number(m.btc),
     contract: { id: m.ticker || null, closeTime: iso(m.close_ts), target: number(m.target) },
     quotes, position, trades, native: native || null,
+    ...quoteDisplay(m, q, { current, replay, presentation, now }),
     canPractice: current || explicitReplay,
     practiceMode: explicitReplay ? 'replay' : current ? 'live' : 'unavailable',
     quoteValidUntil: number(q.valid_until), feePolicy: 'Fees excluded',
