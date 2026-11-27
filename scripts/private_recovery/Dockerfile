@@ -43,6 +43,9 @@ RUN python3.12 -m venv /opt/cashout-app \
 # 8.0.39 is Atlas-only. Atlas documents restore compatibility between any
 # patches of the same major/minor; the importer also verifies actual FCV 8.0.
 # This is the same official binary and SHA-256 as the passing synthetic CI.
+# Render's build host can omit the CPU topology required even by --version.
+# Verify and package the binary here; the actual task's synthetic preflight
+# still checks CPU topology, starts MongoDB, and verifies its version and FCV.
 RUN curl --fail --silent --show-error --location --proto '=https' \
       --connect-timeout 15 --max-time 180 --retry 2 \
       --output /tmp/mongodb.tgz \
@@ -54,7 +57,7 @@ RUN curl --fail --silent --show-error --location --proto '=https' \
     && tar --extract --gzip --file /tmp/mongodb.tgz --directory /opt/mongodb \
       --strip-components=1 --no-same-owner --no-same-permissions \
     && rm /tmp/mongodb.tgz \
-    && /opt/mongodb/bin/mongod --version
+    && test -x /opt/mongodb/bin/mongod
 
 COPY backend/ backend/
 COPY scripts/test_recovery_browser.py scripts/test_recovery_browser.py
