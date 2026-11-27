@@ -5057,7 +5057,7 @@ except ImportError:
 practice_event_service = PracticeEventService(
     db, email_sender=email_service.send_email if email_service else None)
 app.include_router(practice_event_service.router())
-stock_alert_service = StockAlertService(db, require_profile_owner, get_active_fcm_tokens)
+stock_alert_service = StockAlertService(db, require_profile_owner, get_active_fcm_tokens, community_broadcast=manager.broadcast)
 app.include_router(stock_alert_service.router())
 square_billing_service = SquareBillingService(
     db, require_profile_owner, verify_password,
