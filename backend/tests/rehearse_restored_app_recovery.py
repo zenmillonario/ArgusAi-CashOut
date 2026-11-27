@@ -51,7 +51,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 DATABASE_PATTERN = re.compile(r"cashout_rehearsal_[a-z0-9_]{4,48}\Z")
 AUTH_CHANGES = frozenset({
     "password_hash", "hashed_password", "password", "reset_token_hash", "reset_token",
-    "reset_expires", "modified_at", "active_session_id", "session_created_at", "is_online", "last_seen",
+    "reset_expires", "reset_context_hash", "modified_at", "active_session_id", "session_created_at", "is_online", "last_seen",
 })
 LOGIN_CHANGES = AUTH_CHANGES | frozenset({
     "experience_points", "level", "daily_login_streak", "last_login_date",
@@ -428,7 +428,7 @@ async def exercise(server, accounts, captures):
             require(len(captures.messages) == before_count + 1, "The reset request did not capture exactly one email")
             token = captures.token_for(label)
             after_request = await server.db.users.find_one({"id": identity})
-            ignored = {"reset_token_hash", "reset_token", "reset_expires"}
+            ignored = {"reset_token_hash", "reset_token", "reset_expires", "reset_context_hash"}
             require(filtered(after_request, ignored) == filtered(current, ignored), "Recovery request changed unrelated account data")
             require(after_request.get("reset_token_hash") == hashlib.sha256(token.encode()).hexdigest(), "Stored token hash differs")
             require((await request(client, "GET", "/api/users/" + identity + "/session-status", headers=old_headers))["valid"],
@@ -439,7 +439,7 @@ async def exercise(server, accounts, captures):
             require(filtered(recovered, AUTH_CHANGES) == filtered(current, AUTH_CHANGES), "Recovery changed identity or saved history")
             require(bcrypt.checkpw(password.encode(), recovered["password_hash"].encode()), "The real password hash did not verify")
             require(not recovered.get("active_session_id"), "Recovery did not revoke the old session")
-            require(not {"reset_token_hash", "reset_token", "reset_expires", "hashed_password", "password"} & recovered.keys(),
+            require(not {"reset_token_hash", "reset_token", "reset_expires", "reset_context_hash", "hashed_password", "password"} & recovered.keys(),
                     "Recovery left an obsolete credential")
             await request(client, "GET", profile, status=401, headers=old_headers)
             await request(client, "POST", "/api/users/reset-password-confirm", status=400, json={"token": token, "new_password": password})

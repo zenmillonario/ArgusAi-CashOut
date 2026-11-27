@@ -34,12 +34,12 @@ def load_auth_slice():
     tree = ast.parse(source.read_text())
     names = {
         "redact_auth_fields", "public_socket_message", "UserStatus", "UserRole",
-        "User", "AuthenticatedUser", "UserCreate", "UserLogin", "PasswordChange",
+        "User", "AuthenticatedUser", "UserCreate", "UserLogin", "PasswordChange", "ExistingProfileUpdate", "ProfileUpdate",
         "PasswordResetRequest", "PasswordResetConfirm", "ConnectionManager",
-        "validate_new_password", "require_profile_owner", "hash_password", "verify_password",
+        "validate_new_password", "password_reset_context", "require_profile_owner", "hash_password", "verify_password",
         "migrate_password_if_needed", "register_user", "login_user",
         "request_password_reset", "direct_password_reset", "confirm_password_reset",
-        "send_password_reset_email", "get_users",
+        "send_password_reset_email", "get_users", "change_password", "update_user_profile",
     }
     selected = []
     for node in tree.body:
@@ -59,12 +59,16 @@ def matches(document, filters):
     for key, value in filters.items():
         actual = document.get(key)
         if isinstance(value, dict):
+            if "$exists" in value and (key in document) != value["$exists"]:
+                return False
+            if "$eq" in value and actual != value["$eq"]:
+                return False
             if "$regex" in value:
                 if re.search(value["$regex"], actual or "", re.I if value.get("$options") == "i" else 0) is None:
                     return False
-            elif "$gt" in value and (actual is None or actual <= value["$gt"]):
+            if "$gt" in value and (actual is None or actual <= value["$gt"]):
                 return False
-            elif "$ne" in value and actual == value["$ne"]:
+            if "$ne" in value and actual == value["$ne"]:
                 return False
         elif actual != value:
             return False
@@ -162,6 +166,7 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.n.update({
             "db": SimpleNamespace(users=self.users), "email_service": EmailRecorder(), "manager": FakeManager(),
             "send_password_reset_confirmation": noop, "send_registration_confirmation_to_user": noop,
+            "send_password_change_notification": noop,
             "send_notification_to_admins": noop, "handle_referral_signup": noop,
             "process_login_rewards_async": noop, "get_level_from_xp": lambda value: 1,
             "generate_referral_code": lambda username: "TEST1234",
@@ -204,7 +209,9 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_confirm_is_one_time_atomic_and_revokes_session(self):
         token = "verified-email-token-" + "x" * 32
-        self.users.documents[0].update({"reset_token_hash": hashlib.sha256(token.encode()).hexdigest(), "reset_expires": datetime.utcnow() + timedelta(minutes=10)})
+        context_hash, _ = self.n["password_reset_context"](self.users.documents[0])
+        self.users.documents[0].update({"reset_token_hash": hashlib.sha256(token.encode()).hexdigest(),
+            "reset_expires": datetime.utcnow() + timedelta(minutes=10), "reset_context_hash": context_hash})
         body = self.n["PasswordResetConfirm"](token=token, new_password="new-password")
         results = await asyncio.gather(*[
             self.n["confirm_password_reset"](request(), body, BackgroundTasks()) for _ in range(2)
@@ -217,7 +224,171 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(doc["is_online"])
         self.assertNotIn("reset_token_hash", doc)
         self.assertNotIn("reset_expires", doc)
+        self.assertNotIn("reset_context_hash", doc)
         self.assertEqual(self.n["manager"].invalidated, ["member-a"])
+
+    async def request_recovery(self):
+        tasks = BackgroundTasks()
+        await self.n["request_password_reset"](request(),
+            self.n["PasswordResetRequest"](email=self.users.documents[0]["email"]), tasks)
+        self.assertEqual(len(tasks.tasks), 1)
+        return tasks.tasks[0].args[2]
+
+    def owner_request(self):
+        return request({"X-User-ID": "member-a", "X-Session-ID": self.original["active_session_id"]})
+
+    async def assert_recovery_rejected_without_write(self, token):
+        before = deepcopy(self.users.documents)
+        writes = self.users.writes
+        with self.assertRaises(HTTPException) as rejected:
+            await self.n["confirm_password_reset"](request(),
+                self.n["PasswordResetConfirm"](token=token, new_password="recovered-password"), BackgroundTasks())
+        self.assertEqual(rejected.exception.status_code, 400)
+        self.assertEqual(self.users.documents, before)
+        self.assertEqual(self.users.writes, writes)
+
+    async def test_email_change_retires_old_link_and_new_address_can_recover_same_account(self):
+        token = await self.request_recovery()
+        result = await self.n["update_user_profile"](self.owner_request(), "member-a",
+            self.n["ExistingProfileUpdate"](email="new-address@example.test"))
+        self.assertEqual(result.id, self.original["id"])
+        self.assertEqual(result.email, "new-address@example.test")
+        for field in ("reset_token", "reset_token_hash", "reset_expires", "reset_context_hash"):
+            self.assertNotIn(field, self.users.documents[0])
+        await self.assert_recovery_rejected_without_write(token)
+        fresh = await self.request_recovery()
+        await self.n["confirm_password_reset"](request(),
+            self.n["PasswordResetConfirm"](token=fresh, new_password="recovered-password"), BackgroundTasks())
+        self.assertEqual(self.users.documents[0]["id"], self.original["id"])
+        self.assertEqual(self.users.documents[0]["email"], "new-address@example.test")
+        self.assertIsNone(self.users.documents[0]["active_session_id"])
+
+    async def test_unbound_existing_reset_link_requires_a_new_request_without_changing_account(self):
+        token = "unbound-old-token-" + "x" * 32
+        self.users.documents[0].update(reset_token_hash=hashlib.sha256(token.encode()).hexdigest(),
+                                      reset_expires=datetime.utcnow() + timedelta(minutes=10))
+        await self.assert_recovery_rejected_without_write(token)
+        for invalid_context in (None, "", "0" * 64, "\u00e9" * 64):
+            with self.subTest(context_type=type(invalid_context).__name__):
+                self.users.documents[0]["reset_context_hash"] = invalid_context
+                await self.assert_recovery_rejected_without_write(token)
+
+    async def test_link_is_bound_to_email_and_all_credential_fields_even_without_cleanup(self):
+        mutations = (("email", "changed@example.test"),
+                     ("password_hash", hashlib.sha256(b"replacement-password").hexdigest()),
+                     ("hashed_password", hashlib.sha256(b"alternate-password").hexdigest()),
+                     ("password", "legacy-value"), ("hashed_password", None))
+        for field, value in mutations:
+            with self.subTest(field=field, value_type=type(value).__name__):
+                self.users.documents = [deepcopy(self.original)]
+                token = await self.request_recovery()
+                # Model another credential writer that did not clear reset
+                # metadata. Issuance-state binding must still reject the link.
+                await self.users.update_one({"id": "member-a"}, {"$set": {field: value}})
+                await self.assert_recovery_rejected_without_write(token)
+
+    async def test_unchanged_email_and_other_profile_edits_keep_requested_link_usable(self):
+        token = await self.request_recovery()
+        context_before = self.users.documents[0]["reset_context_hash"]
+        await self.n["update_user_profile"](self.owner_request(), "member-a",
+            self.n["ExistingProfileUpdate"](email=self.original["email"], real_name="Updated name"))
+        self.assertEqual(self.users.documents[0]["reset_context_hash"], context_before)
+        await self.n["confirm_password_reset"](request(),
+            self.n["PasswordResetConfirm"](token=token, new_password="recovered-password"), BackgroundTasks())
+        self.assertEqual(self.users.documents[0]["real_name"], "Updated name")
+
+    async def test_stale_request_cannot_issue_after_authenticated_email_change(self):
+        update_one = self.users.update_one
+        raced = False
+        async def raced_update(filters, update):
+            nonlocal raced
+            if not raced and "reset_token_hash" in update.get("$set", {}):
+                raced = True
+                await self.n["update_user_profile"](self.owner_request(), "member-a",
+                    self.n["ExistingProfileUpdate"](email="changed@example.test"))
+            return await update_one(filters, update)
+        self.users.update_one = raced_update
+        tasks = BackgroundTasks()
+        result = await self.n["request_password_reset"](request(),
+            self.n["PasswordResetRequest"](email=self.original["email"]), tasks)
+        self.assertTrue(raced)
+        self.assertIn("If an account", result["message"])
+        self.assertEqual(tasks.tasks, [])
+        self.assertEqual(self.users.documents[0]["email"], "changed@example.test")
+        self.assertEqual(self.users.documents[0]["password_hash"], self.original["password_hash"])
+        self.assertEqual(self.users.documents[0]["active_session_id"], self.original["active_session_id"])
+        self.assertNotIn("reset_token_hash", self.users.documents[0])
+
+    async def test_stale_request_cannot_resurrect_link_after_password_change(self):
+        await self.request_recovery()
+        update_one = self.users.update_one
+        raced = False
+        async def raced_update(filters, update):
+            nonlocal raced
+            if not raced and "reset_token_hash" in update.get("$set", {}):
+                raced = True
+                await self.n["change_password"](
+                    self.n["PasswordChange"](current_password="old-password", new_password="changed-password"),
+                    BackgroundTasks(), "member-a")
+            return await update_one(filters, update)
+        self.users.update_one = raced_update
+        tasks = BackgroundTasks()
+        await self.n["request_password_reset"](request(),
+            self.n["PasswordResetRequest"](email=self.original["email"]), tasks)
+        self.assertTrue(raced)
+        self.assertEqual(tasks.tasks, [])
+        self.assertEqual(self.users.documents[0]["password_hash"], hashlib.sha256(b"changed-password").hexdigest())
+        self.assertIsNone(self.users.documents[0]["active_session_id"])
+        for field in ("reset_token", "reset_token_hash", "reset_expires", "reset_context_hash"):
+            self.assertNotIn(field, self.users.documents[0])
+
+    async def test_confirmation_cas_rejects_email_or_credential_change_after_token_read(self):
+        find_and_update = self.users.find_one_and_update
+        update_one = self.users.update_one
+        for mutation in ({"email": "changed@example.test"},
+                         {"password_hash": hashlib.sha256(b"changed-password").hexdigest()},
+                         {"hashed_password": None}):
+            with self.subTest(fields=list(mutation)):
+                self.users.documents = [deepcopy(self.original)]
+                token = await self.request_recovery()
+                raced = False
+                async def raced_consume(filters, update):
+                    nonlocal raced
+                    raced = True
+                    await update_one({"id": "member-a"}, {"$set": mutation})
+                    return await find_and_update(filters, update)
+                self.users.find_one_and_update = raced_consume
+                with self.assertRaises(HTTPException) as rejected:
+                    await self.n["confirm_password_reset"](request(),
+                        self.n["PasswordResetConfirm"](token=token, new_password="recovered-password"), BackgroundTasks())
+                self.assertEqual(rejected.exception.status_code, 400)
+                self.assertTrue(raced)
+                self.assertEqual(self.users.documents[0]["active_session_id"], self.original["active_session_id"])
+                self.assertEqual(self.users.documents[0]["password_hash"], mutation.get("password_hash", self.original["password_hash"]))
+                self.assertIn("reset_token_hash", self.users.documents[0])
+                for field, value in mutation.items():
+                    self.assertEqual(self.users.documents[0][field], value)
+
+    async def test_old_profile_edit_cannot_change_email_after_reset_revokes_its_session(self):
+        token = await self.request_recovery()
+        update_one = self.users.update_one
+        raced = False
+        async def raced_update(filters, update):
+            nonlocal raced
+            if not raced and "email" in update.get("$set", {}):
+                raced = True
+                await self.n["confirm_password_reset"](request(),
+                    self.n["PasswordResetConfirm"](token=token, new_password="recovered-password"), BackgroundTasks())
+            return await update_one(filters, update)
+        self.users.update_one = raced_update
+        with self.assertRaises(HTTPException) as rejected:
+            await self.n["update_user_profile"](self.owner_request(), "member-a",
+                self.n["ExistingProfileUpdate"](email="stale-session@example.test"))
+        self.assertEqual(rejected.exception.status_code, 409)
+        self.assertTrue(raced)
+        self.assertEqual(self.users.documents[0]["email"], self.original["email"])
+        self.assertEqual(self.users.documents[0]["password_hash"], hashlib.sha256(b"recovered-password").hexdigest())
+        self.assertIsNone(self.users.documents[0]["active_session_id"])
 
     async def test_expired_or_incorrect_tokens_cannot_change_password(self):
         token = "expired-" + "x" * 40
@@ -238,13 +409,14 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
         users = await self.n["get_users"]()
         self.assertNotIn("active_session_id", users[0].model_dump())
         message = self.n["public_socket_message"](json.dumps({"type": "user_approval", "user": {
-            **self.original, "nested": [{"reset_token": "reset-secret"}],
+            **self.original, "nested": [{"reset_token": "reset-secret", "reset_context_hash": "context-secret"}],
             "billing_entitlement": {"payment_ids": ["private-payment-id"]},
             "manual_access_granted_by": "private-approving-admin",
             "billing_token": "private-billing-token",
         }}, default=str))
         self.assertNotIn("private-active-session", message)
         self.assertNotIn("reset-secret", message)
+        self.assertNotIn("context-secret", message)
         self.assertNotIn("password_hash", message)
         self.assertNotIn("private-payment-id", message)
         self.assertNotIn("private-approving-admin", message)

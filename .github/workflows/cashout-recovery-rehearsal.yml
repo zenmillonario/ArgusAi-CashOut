@@ -1,4 +1,4 @@
-name: CashOutAI synthetic recovery on MongoDB 8
+name: CashOutAI synthetic recovery and browser checks
 
 # This checks the reviewed release branch using wholly synthetic accounts.
 # It never connects to Atlas, deploys the app, or verifies a production backup.
@@ -9,6 +9,8 @@ name: CashOutAI synthetic recovery on MongoDB 8
     paths:
       - .github/workflows/cashout-recovery-rehearsal.yml
       - backend/**
+      - frontend/**
+      - scripts/test_recovery_browser.py
 
 permissions:
   contents: read
@@ -19,9 +21,9 @@ concurrency:
 
 jobs:
   synthetic-recovery:
-    name: Real MongoDB, synthetic accounts
+    name: Real MongoDB and compiled frontend, synthetic accounts
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 25
     env:
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
       PIP_CONFIG_FILE: /dev/null
@@ -34,6 +36,7 @@ jobs:
           umask 077
           mkdir -p "$RUNNER_TEMP/cashout-recovery"
           printf 'REHEARSAL_DIR=%s\n' "$RUNNER_TEMP/cashout-recovery" >> "$GITHUB_ENV"
+          printf 'PLAYWRIGHT_BROWSERS_PATH=%s\n' "$RUNNER_TEMP/cashout-recovery/browsers" >> "$GITHUB_ENV"
 
       - name: Check out the triggering commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -46,6 +49,11 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Set up the pinned Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.16.0'
+
       - name: Install the required application dependencies at repository pins
         run: |
           umask 077
@@ -55,8 +63,30 @@ jobs:
             --no-input --only-binary=:all: --index-url https://pypi.org/simple \
             --constraint backend/requirements.txt \
             aiohttp bcrypt fastapi httpx limits motor pydantic pymongo \
-            python-dotenv python-multipart requests resend slowapi starlette
+            python-dotenv python-multipart requests resend slowapi starlette \
+            pytest playwright uvicorn h11 websockets
           "$REHEARSAL_DIR/venv/bin/python" -m pip check
+
+      - name: Run the backend unit regression suites
+        run: |
+          # unittest discovers only TestCase suites. The older pytest-only
+          # live-API test file must never be executed against any real account.
+          "$REHEARSAL_DIR/venv/bin/python" -m unittest discover \
+            -s backend/tests -p 'test_*.py'
+
+      - name: Install the locked frontend and browser dependencies
+        run: |
+          npm install --global yarn@1.22.22 --ignore-scripts --no-audit --no-fund
+          yarn --cwd frontend install --frozen-lockfile --non-interactive
+          "$REHEARSAL_DIR/venv/bin/python" -m playwright install --with-deps chromium
+
+      - name: Compile the exact frontend for the private same-origin preview
+        env:
+          REACT_APP_BACKEND_URL: ''
+          PUBLIC_URL: ''
+          GENERATE_SOURCEMAP: 'false'
+          CI: 'true'
+        run: yarn --cwd frontend build
 
       - name: Download and verify the official MongoDB 8.0.38 binary
         run: |
@@ -108,11 +138,20 @@ jobs:
             --mode exercise --mongo-port 27217 \
             --database cashout_rehearsal_github_actions --seed-synthetic
 
+      - name: Complete recovery and replace sessions through the compiled browser UI
+        timeout-minutes: 5
+        run: |
+          umask 077
+          "$REHEARSAL_DIR/venv/bin/python" scripts/test_recovery_browser.py \
+            --frontend-build "$GITHUB_WORKSPACE/frontend/build" \
+            --mongo-port 27217 --http-port 4185
+
       - name: Record the evidence boundary
         run: |
           printf '%s\n' \
             'The actual application recovery rehearsal passed on MongoDB 8.0.38 using wholly synthetic accounts.' \
-            'This does not verify a production backup, restored member data, browser reset-link completion, or live providers.' \
+            'The matching compiled frontend completed its captured reset link, rejected reuse, retained login after reload, and replaced the first browser session after a second sign-in.' \
+            'This is synthetic browser evidence only. It does not verify restored member recovery, production deployment, real email delivery, or live providers.' \
             'No database files, captured reset links, operator details, or runtime logs are uploaded as artifacts.' \
             >> "$GITHUB_STEP_SUMMARY"
 
@@ -122,4 +161,10 @@ jobs:
           if [[ -n "${REHEARSAL_DIR:-}" && -x "$REHEARSAL_DIR/mongodb/bin/mongod" && -f "$REHEARSAL_DIR/mongod.pid" ]]; then
             "$REHEARSAL_DIR/mongodb/bin/mongod" --shutdown \
               --dbpath "$REHEARSAL_DIR/db" >/dev/null 2>&1 || true
+          fi
+          # The browser runner reaps its preview and removes its private state
+          # in finally, including on SIGTERM. Runner-local Mongo data is also
+          # removed; none of it is uploaded as an artifact.
+          if [[ "${REHEARSAL_DIR:-}" == "$RUNNER_TEMP/cashout-recovery" ]]; then
+            rm -rf -- "$REHEARSAL_DIR/db"
           fi

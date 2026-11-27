@@ -68,7 +68,7 @@ def headers(user_id, token):
 def preserved(row):
     mutable = {
         "password_hash", "hashed_password", "password", "reset_token_hash",
-        "reset_token", "reset_expires", "modified_at", "active_session_id",
+        "reset_token", "reset_expires", "reset_context_hash", "modified_at", "active_session_id",
         "session_created_at", "is_online", "last_seen",
     }
     return {key: value for key, value in row.items() if key not in mutable}
@@ -155,7 +155,7 @@ async def recovery_case(db, client, name, bcrypt):
     assert after_request["reset_token_hash"] == hashlib.sha256(token.encode()).hexdigest()
     assert "reset_token" not in after_request
     assert datetime.utcnow() < after_request["reset_expires"] <= datetime.utcnow() + timedelta(hours=1)
-    assert {k: v for k, v in after_request.items() if k not in {"reset_token_hash", "reset_expires"}} == original
+    assert {k: v for k, v in after_request.items() if k not in {"reset_token_hash", "reset_expires", "reset_context_hash"}} == original
     assert (await expect(client, "GET", "/api/users/" + name + "/session-status", 200, headers=old_headers))["valid"]
 
     # These requests go through actual Pydantic validation and SlowAPI wrappers.
@@ -176,7 +176,7 @@ async def recovery_case(db, client, name, bcrypt):
     assert preserved(recovered) == preserved(original)
     assert recovered["active_session_id"] is None and recovered["session_created_at"] is None
     assert recovered["is_online"] is False
-    assert not {"reset_token_hash", "reset_token", "reset_expires", "hashed_password", "password"} & recovered.keys()
+    assert not {"reset_token_hash", "reset_token", "reset_expires", "reset_context_hash", "hashed_password", "password"} & recovered.keys()
     assert len(MAIL) == count + 2 and "Password Reset Complete" in MAIL[-1]["subject"]
     assert not (await expect(client, "GET", "/api/users/" + name + "/session-status", 200, headers=old_headers))["valid"]
     await expect(client, "GET", profile, 401, headers=old_headers)
@@ -192,7 +192,7 @@ async def recovery_case(db, client, name, bcrypt):
                              json={"username": original["username"].upper(), "password": NEW_PASSWORD})
     if name != "pending":
         assert logged_in["id"] == original["id"]
-        assert not {"password_hash", "hashed_password", "reset_token_hash", "billing_entitlement"} & logged_in.keys()
+        assert not {"password_hash", "hashed_password", "reset_token_hash", "reset_context_hash", "billing_entitlement"} & logged_in.keys()
         first_session = logged_in["active_session_id"]
         assert first_session != original["active_session_id"]
         await expect(client, "GET", profile, 200, headers=headers(name, first_session))

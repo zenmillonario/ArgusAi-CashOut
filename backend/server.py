@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # private billing records. Billing endpoints use their own owner-only projection.
 AUTH_PRIVATE_FIELDS = frozenset({
     "password", "password_hash", "hashed_password", "active_session_id",
-    "session_created_at", "new_session_id", "reset_token", "reset_token_hash", "reset_expires",
+    "session_created_at", "new_session_id", "reset_token", "reset_token_hash", "reset_expires", "reset_context_hash",
     "billing_entitlement", "billing_token", "credential_fingerprint",
     "manual_access_granted", "manual_access_granted_at", "manual_access_granted_by",
     "practice_event_token_hash", "practice_event_token_expires", "practice_event_token_campaign",
@@ -1551,6 +1551,20 @@ def validate_new_password(password: str):
     if not isinstance(password, str) or len(password) < 8 or len(password.encode("utf-8")) > 72:
         raise HTTPException(status_code=400, detail="Use a password of at least 8 characters and no more than 72 UTF-8 bytes.")
 
+def password_reset_context(user):
+    """Bind a recovery link to the exact email and credential state it proved.
+
+    Keep only a digest beside the token. The comparison filter also checks field
+    presence, so an absent credential cannot match one added during an await.
+    """
+    fields = ("email", "password_hash", "hashed_password", "password")
+    state = [[field, field in user, type(user.get(field)).__name__, user.get(field)] for field in fields]
+    digest = hashlib.sha256(json.dumps(state, sort_keys=True, separators=(",", ":"),
+                                      default=str).encode("utf-8")).hexdigest()
+    guard = {field: {"$exists": True, "$eq": user[field]} if field in user else {"$exists": False}
+             for field in fields}
+    return digest, guard
+
 async def require_profile_owner(request: Request, user_id: str):
     """Authenticate changes to the recovery email using the existing session."""
     claimed_user = request.headers.get("x-user-id")
@@ -2730,7 +2744,7 @@ async def change_password(password_data: PasswordChange, background_tasks: Backg
             "active_session_id": None,
             "session_created_at": None,
             "is_online": False,
-        }, "$unset": {"reset_token": "", "reset_token_hash": "", "reset_expires": "", "password": "", "hashed_password": ""}}
+        }, "$unset": {"reset_token": "", "reset_token_hash": "", "reset_expires": "", "reset_context_hash": "", "password": "", "hashed_password": ""}}
     )
     
     if result.modified_count == 0:
@@ -2768,14 +2782,19 @@ async def request_password_reset(request: Request, reset_request: PasswordResetR
     reset_token_hash = hashlib.sha256(reset_token.encode("utf-8")).hexdigest()
     reset_expires = datetime.utcnow() + timedelta(hours=1)  # Token expires in 1 hour
     
-    # Store reset token
-    await db.users.update_one(
-        {"id": user["id"]},
+    # A concurrent email/password change wins over this earlier account read.
+    # Do not install or email a link for an account state that is already stale.
+    context_hash, context_guard = password_reset_context(user)
+    stored = await db.users.update_one(
+        {"id": user["id"], **context_guard},
         {"$set": {
             "reset_token_hash": reset_token_hash,
-            "reset_expires": reset_expires
+            "reset_expires": reset_expires,
+            "reset_context_hash": context_hash,
         }, "$unset": {"reset_token": ""}}
     )
+    if not stored.matched_count:
+        return {"message": "If an account with that email exists, you will receive a password reset link."}
     
     # Send reset email
     user_name = user.get('real_name', user.get('username'))
@@ -2802,9 +2821,23 @@ async def confirm_password_reset(request: Request, reset_confirm: PasswordResetC
     """Consume one unexpired email token atomically and revoke prior sessions."""
     validate_new_password(reset_confirm.new_password)
     token_hash = hashlib.sha256(reset_confirm.token.encode("utf-8")).hexdigest()
+    current = await db.users.find_one(
+        {"reset_token_hash": token_hash, "reset_expires": {"$gt": datetime.utcnow()}}
+    )
+    if not current:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    context_hash, context_guard = password_reset_context(current)
+    issued_context = current.get("reset_context_hash")
+    if (not isinstance(issued_context, str) or not re.fullmatch(r"[0-9a-f]{64}", issued_context)
+            or not secrets.compare_digest(issued_context, context_hash)):
+        # Earlier unbound links also require a fresh request. Never guess which
+        # email/credential state an already-issued link originally verified.
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     new_password_hash = hash_password(reset_confirm.new_password)
     user = await db.users.find_one_and_update(
-        {"reset_token_hash": token_hash, "reset_expires": {"$gt": datetime.utcnow()}},
+        {"id": current["id"], "reset_token_hash": token_hash,
+         "reset_expires": {"$gt": datetime.utcnow()}, "reset_context_hash": context_hash,
+         **context_guard},
         {"$set": {
             "password_hash": new_password_hash,
             "modified_at": datetime.utcnow(),
@@ -2816,6 +2849,7 @@ async def confirm_password_reset(request: Request, reset_confirm: PasswordResetC
             "reset_token": "",
             "reset_token_hash": "",
             "reset_expires": "",
+            "reset_context_hash": "",
             "password": "",
             "hashed_password": "",
         }}
@@ -4925,8 +4959,15 @@ async def update_user_profile(request: Request, user_id: str, profile_data: Exis
     
     # Update user
     if update_data:
+        update = {"$set": update_data}
+        if "email" in update_data and update_data["email"] != user.get("email"):
+            update["$unset"] = {"reset_token": "", "reset_token_hash": "", "reset_expires": "", "reset_context_hash": ""}
         try:
-            await db.users.update_one({"id": user_id}, {"$set": update_data})
+            updated = await db.users.update_one(
+                {"id": user_id, "active_session_id": user["active_session_id"],
+                 "email": user["email"]}, update)
+            if not updated.matched_count:
+                raise HTTPException(409, detail="Account access changed. Please sign in again before updating your profile.")
         except Exception as error:
             if getattr(error, "code", None) == 11000:
                 raise HTTPException(409, detail="Another account already uses that username or email.") from None
