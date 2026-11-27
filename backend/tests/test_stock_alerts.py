@@ -210,13 +210,30 @@ class StockAlertTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.db.messages.docs), 1)
         self.assertEqual(len(self.community_messages), 1)
         self.assertEqual(self.db.messages.docs[0]["highlighted_tickers"], ["AAPL"])
-        self.assertIn("194.25", self.db.messages.docs[0]["content"])
+        self.assertEqual(self.db.messages.docs[0]["content"], "🔔 $AAPL $194.25 👀")
         self.assertFalse(self.db.messages.docs[0]["is_admin"])
         self.assertEqual(self.community_messages[0]["type"], "message")
         self.assertEqual(self.db.stock_alert_deliveries.docs[0]["status"], "accepted")
         with self.assertRaises(HTTPException) as error:
             await self.ingest({**payload(), "body": "Last = $199.99"})
         self.assertEqual(error.exception.status_code, 409)
+
+    async def test_compact_community_format_preserves_exact_price_and_omits_unknown_price(self):
+        for i, (price, expected) in enumerate((
+            ("0.282", "🔔 $LOT $.282 👀"),
+            ("0.0050", "🔔 $LOT $.0050 👀"),
+            ("1.20", "🔔 $LOT $1.20 👀"),
+            (None, "🔔 $LOT 👀"),
+        )):
+            value = {"message_id": f"compact-{i}", "subject": "LOT price alert",
+                     "body": "Alert triggered", "source_timestamp": "2026-11-25T12:00:00Z"}
+            if price is not None:
+                value["price"] = price
+            result = await self.ingest(value)
+            await self.service.tick()
+            row = await self.db.messages.find_one({"_id": "stock-alert-" + result["alert_id"]})
+            self.assertEqual(row["content"], expected)
+            self.assertEqual(self.community_messages[-1]["data"]["content"], expected)
 
     async def test_community_retry_is_independent_of_push_and_does_not_duplicate(self):
         await self.ingest()
