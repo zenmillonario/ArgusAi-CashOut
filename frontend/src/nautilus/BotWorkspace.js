@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { deriveContractClock } from './contractClock.mjs';
+import { targetDistance } from './targetDistance.mjs';
 import './nautilus.css';
 
 const ASSETS = {
@@ -471,6 +472,8 @@ export default function BotWorkspace({
   const native = snapshot.native;
   const latestPrice = snapshot.price ?? native?.market?.btc;
   const priceLabel = price(latestPrice);
+  const contractTarget = snapshot.contract?.target ?? native?.market?.target;
+  const distance = targetDistance(latestPrice, contractTarget);
 
   return <div ref={workspaceRef} className={`nw-workspace nw-cockpit ${television ? 'nw-tv' : ''} ${isFull ? 'nw-is-fullscreen' : ''} ${focusMode ? 'nw-focus-mode' : ''}`} style={{ '--asset-color': info.color }} data-asset={asset}>
     <div className="nw-workspace-toolbar">
@@ -480,7 +483,7 @@ export default function BotWorkspace({
     <div className="nw-layout">
       <section className="nw-panel nw-chart-panel" aria-label={`${asset} Nautilus`}>
         <div className="nw-flight-deck" aria-label={`${asset} market and contract prices`}>
-          <div className="nw-price-instrument"><span className="nw-eyebrow">{mode === 'live' || !valid(latestPrice) ? 'Underlying price' : 'Snapshot price'}</span><div className={`nw-market-price ${priceLabel.length > 10 ? 'nw-market-price-long' : ''}`}>{priceLabel}<span className="nw-market-pair">{asset}</span></div><div className="nw-target-value"><span>Contract target</span><strong>{price(snapshot.contract?.target ?? native?.market?.target)}</strong></div></div>
+          <div className="nw-price-instrument"><span className="nw-eyebrow">{mode === 'live' || !valid(latestPrice) ? 'Underlying price' : 'Snapshot price'}</span><div className={`nw-market-price ${priceLabel.length > 10 ? 'nw-market-price-long' : ''}`}>{priceLabel}<span className="nw-market-pair">{asset}</span></div><div className="nw-target-value"><span>Price to beat</span><strong>{price(contractTarget)}</strong></div><div className={`nw-target-distance nw-distance-${distance.direction}`} title={mode === 'live' ? 'Underlying price minus contract target' : 'Distance in the last available snapshot; not a live quote'}><span>{mode === 'live' ? 'Distance to target' : 'Snapshot distance'}</span><strong>{distance.label}</strong><small>{distance.direction === 'above' ? 'ABOVE' : distance.direction === 'below' ? 'BELOW' : distance.direction === 'at' ? 'AT TARGET' : ''}</small></div></div>
           <QuoteInstrument side="YES" quotes={snapshot.displayQuotes || snapshot.quotes} status={snapshot.displayQuoteStatus} observedAt={snapshot.displayQuoteObservedAt} />
           <QuoteInstrument side="NO" quotes={snapshot.displayQuotes || snapshot.quotes} status={snapshot.displayQuoteStatus} observedAt={snapshot.displayQuoteObservedAt} />
           <div className={`nw-countdown nw-clock-instrument ${valid(remaining) && remaining <= 60 && !contractClock.ended ? 'nw-clock-urgent' : ''}`}><span className="nw-eyebrow">{timeLabel}</span><strong className={closePeriod ? 'nw-clock-close' : undefined}>{clockValue}{closePeriod && <small> {closePeriod}</small>}</strong><span className="nw-clock-caption">{contractClock.ended ? 'Awaiting next contract' : '15-minute contract'}</span></div>

@@ -752,3 +752,14 @@
 .nw-cockpit .nw-history-actions .nw-button{min-height:40px}
 @media(max-width:1180px){.nw-cockpit .nw-sidebar{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"position trades" "practice history";align-items:start}}
 @media(max-width:650px){.nw-cockpit .nw-sidebar{grid-template-columns:minmax(0,1fr);grid-template-areas:"position" "trades" "practice" "history"}}
+
+/* Signed underlying-to-strike distance is always visible, including on mobile. */
+.nw-target-distance{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 7px;margin-top:5px;padding-top:5px;border-top:1px solid #285668;color:#9fc7d3;font-size:10px;line-height:1.25}
+.nw-target-distance>span{font-weight:600}
+.nw-target-distance strong{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;color:#d6e5ec}
+.nw-target-distance small{font-size:8px;font-weight:750;letter-spacing:.3px;color:inherit}
+.nw-distance-above strong,.nw-distance-above small{color:#83ffe0}
+.nw-distance-below strong,.nw-distance-below small{color:#ff9da4}
+.nw-distance-at strong,.nw-distance-at small{color:#ffc166}
+.nw-cockpit.nw-tv .nw-target-distance strong{font-size:21px}
+@media(max-width:540px){.nw-target-distance{font-size:9px;gap:2px 5px}.nw-target-distance strong{font-size:14px}.nw-target-distance small{font-size:8px}}
