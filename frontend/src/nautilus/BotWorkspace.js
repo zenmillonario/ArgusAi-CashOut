@@ -145,7 +145,7 @@ function CurrentPosition({ snapshot }) {
   const position = snapshot?.position;
   const pnl = position?.netPnl;
   return <section className="nw-panel nw-position-panel" aria-label="Bot current position">
-    <div className="nw-panel-heading"><h3>Current position</h3><span className="nw-mini-label">BOT · PAPER</span></div>
+    <div className="nw-panel-heading"><h3>Bot Current Position</h3><span className="nw-mini-label">BOT · PAPER</span></div>
     {position ? <>
       <div className="nw-position-main"><span className={`nw-side-pill nw-side-${String(position.side).toLowerCase()}`}>{String(position.side).toUpperCase()}</span><span className={`nw-position-pnl ${valid(pnl) && pnl < 0 ? 'nw-negative' : 'nw-positive'}`}>{signedCash(pnl)}<small>{percent(position.netReturnPct)}</small></span></div>
       <dl className="nw-position-details"><div><dt>Entry</dt><dd>{cents(position.entryPrice)}</dd></div><div><dt>Current bid</dt><dd>{cents(position.currentBid)}</dd></div><div><dt>Contracts</dt><dd>{valid(position.quantity) ? position.quantity.toLocaleString() : '—'}</dd></div></dl>
@@ -157,10 +157,33 @@ function CurrentPosition({ snapshot }) {
 function BotTrades({ trades = [], onInspectTrade, selectedTrade }) {
   const recent = (Array.isArray(trades) ? [...trades] : []).slice(-4).reverse();
   return <section className="nw-panel nw-trades-panel" aria-label="Past bot trades">
-    <div className="nw-panel-heading"><h3>Past trades</h3><span className="nw-mini-label">BOT · NET</span></div>
+    <div className="nw-panel-heading"><h3>Past Bot Trades</h3><span className="nw-mini-label">BOT · NET</span></div>
     <div className="nw-trade-table"><div className="nw-trade-table-head"><span>Side / entry</span><span>Exit</span><span>Return</span></div>
-      {recent.length ? recent.map((trade, index) => <button type="button" key={trade.id || index} className={`nw-trade-row ${selectedTrade?.id === trade.id && trade.id ? 'is-selected' : ''}`} onClick={() => onInspectTrade?.(trade)} disabled={!onInspectTrade} aria-label={`Inspect ${trade.side} trade, return ${percent(trade.netReturnPct)}`}><span><b className={`nw-trade-side nw-${String(trade.side).toLowerCase()}`}>{String(trade.side).toUpperCase()}</b><small>{cents(trade.entryPrice)}</small></span><span>{cents(trade.exitPrice)}<small>{clock(trade.closedAt)}</small></span><span className={trade.netPnl < 0 ? 'nw-negative' : 'nw-positive'}><b>{percent(trade.netReturnPct)}</b><small>{signedCash(trade.netPnl)}</small></span></button>) : <div className="nw-empty-trades">Completed trades will appear here.</div>}
+      {recent.length ? recent.map((trade, index) => <button type="button" key={trade.id || index} className={`nw-trade-row ${selectedTrade?.id === trade.id && trade.id ? 'is-selected' : ''}`} onClick={() => onInspectTrade?.(trade)} disabled={!onInspectTrade} aria-label={`Inspect ${trade.side} trade, return ${percent(trade.netReturnPct)}`}><span><b className={`nw-trade-side nw-${String(trade.side).toLowerCase()}`}>{String(trade.side).toUpperCase()}</b><small>{cents(trade.entryPrice)}</small></span><span>{cents(trade.exitPrice)}<small>{clock(trade.closedAt)}</small></span><span className={trade.netPnl < 0 ? 'nw-negative' : 'nw-positive'}><b>{percent(trade.netReturnPct)}</b><small>{signedCash(trade.netPnl)}</small></span></button>) : <div className="nw-empty-trades">Completed bot trades will appear here.</div>}
     </div>
+  </section>;
+}
+
+function PracticeHistory({ asset, practice }) {
+  const [visibleCount, setVisibleCount] = useState(4);
+  const results = (practice.results || []).filter(result => result.asset === asset);
+  return <section className="nw-panel nw-personal-history" aria-label={`Your past ${asset} practice trades`}>
+    <div className="nw-panel-heading"><h3>Your Past Practice Trades</h3><span className="nw-mini-label">YOU · VIRTUAL</span></div>
+    <p className="nw-history-note">{asset} only · Your current practice attempt · {results.length} completed</p>
+    <div className="nw-trade-table">
+      <div className="nw-trade-table-head"><span>Side / invested</span><span>Exit</span><span>Your return</span></div>
+      {practice.ready === false ? <div className="nw-empty-trades">Loading your practice history…</div> : results.length ? results.slice(0, visibleCount).map(result =>
+        <div className="nw-trade-row nw-personal-trade" key={result.id}>
+          <span><b className={`nw-trade-side nw-${String(result.side).toLowerCase()}`}>{result.side}</b><small>{currency(result.costBasis)}</small></span>
+          <span>{cents(result.exitPrice)}<small>{result.type === 'SETTLE' ? 'Settled' : 'Closed'}</small><small>{clock(result.timestamp)} ET</small></span>
+          <span className={valid(result.realizedPnl) && result.realizedPnl < 0 ? 'nw-negative' : valid(result.realizedPnl) ? 'nw-positive' : ''}><b>{percent(result.returnPct)}</b><small>{signedCash(result.realizedPnl)}</small></span>
+        </div>
+      ) : <div className="nw-empty-trades">Your closed and settled practice trades will appear here.</div>}
+    </div>
+    {results.length > 4 && <div className="nw-history-actions">
+      {results.length > visibleCount && <button type="button" className="nw-button" onClick={() => setVisibleCount(n => n + 20)}>Show more ({results.length - visibleCount})</button>}
+      {visibleCount > 4 && <button type="button" className="nw-button" onClick={() => setVisibleCount(4)}>Show less</button>}
+    </div>}
   </section>;
 }
 
@@ -180,7 +203,6 @@ function PracticeBox({ asset, snapshot, practice = {}, selection, onBuyPractice,
   const displayQuote = displayQuotes[side.toLowerCase()] || {};
   const retainedQuote = ['delayed', 'offline'].includes(snapshot?.displayQuoteStatus);
   const positions = (practice.positions || []).filter(position => position.asset === asset && position.quantity > 0);
-  const results = (practice.results || []).filter(result => result.asset === asset).slice(-3).reverse();
   const needsSettlement = position => {
     if (snapshot?.practiceMode === 'replay') return false;
     const heldContractClose = timestamp(position.contractCloseTime);
@@ -246,8 +268,7 @@ function PracticeBox({ asset, snapshot, practice = {}, selection, onBuyPractice,
     <p className="nw-fee-note">{practice.feeLabel || 'Practice fees are configured separately.'}</p>
     <button type="button" className="nw-calculator-toggle" onClick={() => setCalculatorOpen(!calculatorOpen)} aria-expanded={calculatorOpen}><span>What if I exit at…</span><Icon name="chevron" size={14} style={{ transform: calculatorOpen ? 'rotate(180deg)' : 'none' }} /></button>
     {calculatorOpen && <div className="nw-exit-calculator"><label htmlFor={`practice-exit-${asset}`}>Hypothetical exit price</label><div><div className="nw-money-field"><input id={`practice-exit-${asset}`} type="number" min="0" max="100" step="0.1" inputMode="decimal" placeholder={valid(quote.bid) ? String(Math.round(quote.bid * 1000) / 10) : '0'} value={exitPrice} onChange={event => setExitPrice(event.target.value)} /><span>¢</span></div><strong className={projectedPnl < 0 ? 'nw-negative' : 'nw-positive'}>{signedCash(projectedPnl)}<small>{percent(projectedReturn)}</small></strong></div><p>{valid(estimatedExitFee) ? `Includes ${currency(estimatedExitFee)} estimated exit fee.` : 'An exit-fee estimate is needed to calculate net profit.'}</p></div>}
-    {positions.length > 0 && <div className="nw-your-positions"><span className="nw-eyebrow">Your {asset} practice positions</span>{positions.map(position => <div className="nw-practice-position" key={position.id}><div><b className={`nw-${String(position.side).toLowerCase()}`}>{position.side}</b><span>{position.quantity} × {cents(position.entryPrice)}</span><small className={position.unrealizedPnl < 0 ? 'nw-negative' : 'nw-positive'}>{signedCash(position.unrealizedPnl)}</small></div>{needsSettlement(position) ? <span className="nw-practice-hint" style={{ padding: 0, fontSize: 9, maxWidth: 100 }}>Awaiting verified settlement</span> : <button type="button" disabled={busy || practice.ready === false || !valid(position.currentBid) || !onClosePractice} onClick={() => runAction(() => onClosePractice(position.id), 'Practice position closed.')} title={valid(position.currentBid) ? `Sell at the quoted bid of ${cents(position.currentBid)}` : 'A fresh matching bid is needed to close this practice position'}>Close <span>{cents(position.currentBid)}</span></button>}</div>)}{positions.some(needsSettlement) && <p className="nw-fee-note">Cash stays reserved until Kalshi publishes a verified final result. Reset $100 starts a new practice attempt.</p>}</div>}
-    {results.length > 0 && <div className="nw-practice-results"><span className="nw-eyebrow">Your recent {asset} results</span>{results.map(result => <div key={result.id}><span><b className={`nw-${String(result.side).toLowerCase()}`}>{result.side}</b><small>{result.type === 'SETTLE' ? `Settled · ${result.officialWinningSide} won` : 'Closed at bid'}</small></span><span className={result.realizedPnl < 0 ? 'nw-negative' : 'nw-positive'}>{signedCash(result.realizedPnl)}<small>{clock(result.timestamp)} ET</small></span></div>)}</div>}
+    {positions.length > 0 && <div className="nw-your-positions"><span className="nw-eyebrow">Your {asset} Current Practice Positions</span>{positions.map(position => <div className="nw-practice-position" key={position.id}><div><b className={`nw-${String(position.side).toLowerCase()}`}>{position.side}</b><span>{position.quantity} × {cents(position.entryPrice)}</span><small className={position.unrealizedPnl < 0 ? 'nw-negative' : 'nw-positive'}>{signedCash(position.unrealizedPnl)}</small></div>{needsSettlement(position) ? <span className="nw-practice-hint" style={{ padding: 0, fontSize: 9, maxWidth: 100 }}>Awaiting verified settlement</span> : <button type="button" disabled={busy || practice.ready === false || !valid(position.currentBid) || !onClosePractice} onClick={() => runAction(() => onClosePractice(position.id), 'Practice position closed.')} title={valid(position.currentBid) ? `Sell at the quoted bid of ${cents(position.currentBid)}` : 'A fresh matching bid is needed to close this practice position'}>Close <span>{cents(position.currentBid)}</span></button>}</div>)}{positions.some(needsSettlement) && <p className="nw-fee-note">Cash stays reserved until Kalshi publishes a verified final result. Reset $100 starts a new practice attempt.</p>}</div>}
     <div className="nw-practice-message" aria-live="polite">{actionError ? <span className="nw-negative" role="alert">{actionError}</span> : notice ? <span className="nw-positive">{notice}</span> : null}</div>
     <div className="nw-practice-foot"><Icon name="shield" size={12} /><span>Simulated money · one balance across five bots</span></div>
   </section>;
@@ -471,7 +492,12 @@ export default function BotWorkspace({
           <div className="nw-chart-footer-tools"><span className="nw-chart-footer-status"><span className="nw-status-dot" />{snapshot.status || (mode === 'offline' ? 'Waiting for source data' : 'PAPER observation')}</span><button type="button" onClick={() => { chartRef.current?.fitPriceScale(); }} title="Fit the chart to observed prices">Fit chart</button><button type="button" onClick={() => { chartRef.current?.toLive(); setSelectedTrade(null); }} title="Follow the newest source snapshot"><Icon name="target" size={12} />Follow</button></div>
         </div>
       </section>
-      <aside className="nw-sidebar" aria-label="Bot activity and your practice"><CurrentPosition snapshot={snapshot} /><PracticeBox asset={asset} snapshot={snapshot} practice={normalizedPractice} selection={practiceSelection} onBuyPractice={onBuyPractice} onClosePractice={onClosePractice} onResetPractice={onResetPractice} /><BotTrades trades={snapshot.trades} selectedTrade={selectedTrade} onInspectTrade={inspectTrade} /></aside>
+      <aside className="nw-sidebar" aria-label="Bot activity and your practice">
+        <CurrentPosition snapshot={snapshot} />
+        <BotTrades trades={snapshot.trades} selectedTrade={selectedTrade} onInspectTrade={inspectTrade} />
+        <PracticeBox asset={asset} snapshot={snapshot} practice={normalizedPractice} selection={practiceSelection} onBuyPractice={onBuyPractice} onClosePractice={onClosePractice} onResetPractice={onResetPractice} />
+        <PracticeHistory key={`${asset}:${normalizedPractice.attemptId || ''}`} asset={asset} practice={normalizedPractice} />
+      </aside>
       <RoomChatDock key={asset} asset={asset} messages={chatMessages} onSendChat={onSendChat} chatMode={chatMode} chatStatus={chatStatus} currentUser={currentUser} />
       <EntryGuide asset={asset} snapshot={snapshot} selectedTrade={selectedTrade} onInspect={inspectEntry} onPracticeSide={side => setPracticeSelection({ asset, side, key: Date.now() })} />
     </div>

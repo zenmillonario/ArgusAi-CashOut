@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BotWorkspace from './BotWorkspace';
 import { adaptNativeSnapshot, accountMarks, BOT_ASSETS } from './snapshotAdapter';
-import { calculateAccountSummary, fromMoneyUnits, quotePurchase } from './practiceEngine';
+import { calculateAccountSummary, practiceTradeHistory, quotePurchase } from './practiceEngine';
 import { preferNewerPracticeLedger, roomAssetsToPoll, startVisiblePolling } from './roomPolling.mjs';
 
 let chartScriptPromise;
@@ -132,11 +132,8 @@ export default function BotTabContainer({ asset, currentUser, apiBase }) {
   const snapshot = snapshots[asset] || adaptNativeSnapshot(null, asset);
   const practice = { ...summary, ready: Boolean(account), busy, exitFee: 0, feesIncluded: false, feeLabel: 'Fees excluded from this practice model', error,
     positions: (summary.positions || []).map(p => ({ ...p, entryPrice: p.entryPrice, currentBid: p.currentBid })),
-    results: (account?.transactions || []).filter(transaction => ['CLOSE', 'SETTLE'].includes(transaction.type)).slice(-20).map(transaction => ({
-      id: transaction.id, asset: transaction.asset, side: transaction.side, type: transaction.type,
-      realizedPnl: fromMoneyUnits(transaction.realizedPnlUnits), timestamp: transaction.timestamp,
-      officialWinningSide: transaction.officialWinningSide,
-    })),
+    attemptId: account?.attemptId,
+    results: practiceTradeHistory(account, asset),
     quotePurchase: ({ ask, budget }) => {
       if (!account) return { error: 'Loading your practice balance.' };
       if (!snapshot.canPractice) return { error: 'Practice entries need a current bot quote.' };

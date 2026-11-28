@@ -60,6 +60,24 @@ export function toMoneyUnits(value, label = 'Amount') {
   return Number(units);
 }
 export function fromMoneyUnits(units) { return safeResult(units) / MONEY_SCALE; }
+
+/** Read-only view of completed transactions for one room, newest first.
+ * The server ledger remains authoritative; no reconstructed entry prices.
+ */
+export function practiceTradeHistory(account, asset) {
+  if (!SUPPORTED_ASSETS.includes(asset) || !Array.isArray(account?.transactions)) return [];
+  const money = units => Number.isSafeInteger(units) ? fromMoneyUnits(units) : null;
+  return account.transactions.filter(tx => tx && tx.asset === asset &&
+    ['CLOSE', 'SETTLE'].includes(tx.type)).map(tx => ({
+      id: tx.id, asset: tx.asset, side: tx.side, type: tx.type, timestamp: tx.timestamp,
+      officialWinningSide: tx.officialWinningSide,
+      costBasis: money(tx.costBasisUnits),
+      exitPrice: money(tx.priceUnits),
+      realizedPnl: money(tx.realizedPnlUnits),
+      returnPct: Number.isSafeInteger(tx.costBasisUnits) && tx.costBasisUnits > 0 &&
+        Number.isSafeInteger(tx.realizedPnlUnits) ? tx.realizedPnlUnits / tx.costBasisUnits * 100 : null,
+    })).reverse();
+}
 function priceUnits(value, label, allowZero) {
   const units = toMoneyUnits(value, label);
   if (units > MONEY_SCALE || (!allowZero && units === 0)) {
