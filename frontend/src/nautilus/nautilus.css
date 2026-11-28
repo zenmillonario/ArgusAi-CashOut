@@ -736,3 +736,19 @@
   .nw-cockpit .nw-toolbar-actions .nw-feed-badge { font-size: 8px; }
   .nw-cockpit .nw-room-title { gap: 5px; }
 }
+
+/* Separate the bot's evidence from each member's private practice ledger. */
+.nw-cockpit .nw-position-panel,.nw-cockpit .nw-trades-panel{border-color:#386c91;border-top:2px solid #6eaef1;background:linear-gradient(145deg,#102e46,#092432)}
+.nw-cockpit .nw-position-panel .nw-panel-heading h3,.nw-cockpit .nw-trades-panel .nw-panel-heading h3,.nw-cockpit .nw-position-panel .nw-mini-label,.nw-cockpit .nw-trades-panel .nw-mini-label{color:#acd5ff}
+.nw-cockpit .nw-practice-panel,.nw-cockpit .nw-personal-history{border-color:#3b8c7d;border-top:2px solid #72e2c0;background:linear-gradient(145deg,#0d3638,#08242b)}
+.nw-cockpit .nw-practice-panel .nw-panel-heading h3,.nw-cockpit .nw-personal-history .nw-panel-heading h3,.nw-cockpit .nw-personal-history .nw-mini-label{color:#a4f6de}
+.nw-history-note{padding:0 13px 10px;font-size:10px;color:#a8d1c9;line-height:1.5}
+.nw-personal-history{grid-area:history}
+.nw-personal-history .nw-personal-trade{cursor:default;font-size:12px}
+.nw-personal-history .nw-personal-trade small{font-size:10px}
+.nw-personal-history .nw-personal-trade:hover{background:transparent}
+.nw-personal-history .nw-personal-trade b{font-weight:700}
+.nw-history-actions{display:flex;gap:7px;flex-wrap:wrap;padding:4px 13px 12px}
+.nw-cockpit .nw-history-actions .nw-button{min-height:40px}
+@media(max-width:1180px){.nw-cockpit .nw-sidebar{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"position trades" "practice history";align-items:start}}
+@media(max-width:650px){.nw-cockpit .nw-sidebar{grid-template-columns:minmax(0,1fr);grid-template-areas:"position" "trades" "practice" "history"}}

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const source = await readFile(new URL('./practiceEngine.js', import.meta.url), 'utf8');
 const engine = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const { createAccount, quotePurchase, buyContracts, closePosition, settlePosition,
-  calculateAccountSummary, resetAccount, estimateTrade, toMoneyUnits } = engine;
+  calculateAccountSummary, resetAccount, estimateTrade, toMoneyUnits, practiceTradeHistory } = engine;
 const purchase = (account, overrides = {}) => buyContracts(account, {
   transactionId: 'buy-1', asset: 'BTC', contractId: 'BTC-001', side: 'YES', ask: 0.2, budget: 25,
   ...overrides,
@@ -161,4 +161,29 @@ test('JavaScript preview and server Python ledger produce identical state', () =
   const python = `import importlib.util,json,sys\nspec=importlib.util.spec_from_file_location('engine',sys.argv[1]); e=importlib.util.module_from_spec(spec); spec.loader.exec_module(e)\na=e.create_account({'userId':'cross-language'})\nfor x in json.load(sys.stdin):\n a={'buy':e.buy_contracts,'close':e.close_position,'settle':e.settle_position}[x['operation']](a,x['values'])\nprint(json.dumps(a))\n`;
   const result = execFileSync('python3', ['-c', python, modulePath], { input: JSON.stringify(events), encoding: 'utf8' });
   assert.deepEqual(JSON.parse(result), account);
+});
+
+
+test('personal history uses all completed trades of the selected asset without mixing bot history or purchases', () => {
+  const earlier = {id:'btc-close',asset:'BTC',side:'YES',type:'CLOSE',priceUnits:300000,costBasisUnits:10000000,realizedPnlUnits:5000000,timestamp:'2026-11-27T10:00:00Z'};
+  const recent = {id:'btc-settle',asset:'BTC',side:'NO',type:'SETTLE',priceUnits:0,costBasisUnits:2500000,realizedPnlUnits:-2500000,officialWinningSide:'YES'};
+  const transactions = [earlier, ...Array.from({length:25}, (_,i)=>({...earlier,id:'sol-'+i,asset:'SOL'})), {...earlier,id:'buy',type:'BUY'}, recent];
+  const before = JSON.stringify(transactions);
+  const rows = practiceTradeHistory({transactions}, 'BTC');
+  assert.deepEqual(rows.map(row=>row.id), ['btc-settle','btc-close']);
+  assert.equal(rows[0].returnPct,-100);
+  assert.equal(rows[0].exitPrice,0);
+  assert.equal(rows[1].returnPct,50);
+  assert.equal(rows[1].realizedPnl,5);
+  assert.equal(rows[1].costBasis,10);
+  assert.equal(rows[1].exitPrice,0.3);
+  assert.equal(practiceTradeHistory({transactions}, 'SOL').length,25);
+  assert.deepEqual(practiceTradeHistory(null,'BTC'),[]);
+  assert.equal(JSON.stringify(transactions),before);
+});
+test('missing history values remain unknown, including zero cost basis return', () => {
+  const rows = practiceTradeHistory({transactions:[{id:'x',asset:'BTC',type:'CLOSE',costBasisUnits:0}]},'BTC');
+  assert.equal(rows[0].returnPct,null);
+  assert.equal(rows[0].realizedPnl,null);
+  assert.equal(rows[0].exitPrice,null);
 });
